@@ -1355,8 +1355,8 @@ function getWorkItems(){
   });
   return items;
 }
-// Bỏ capture="environment" → cho phép chọn từ thư viện ảnh hoặc chụp mới
-function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
+// capture="environment" → mở thẳng camera, không hiện tùy chọn "Chọn tệp"
+function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" capture="environment" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
 function buildPhotoPanel(){
   const items=getWorkItems();const wrap=document.getElementById('photo-panel');wrap.innerHTML='';
   if(!items.length){wrap.innerHTML='<div class="panel-empty">Hãy điền báo cáo Công việc trước</div>';return;}
