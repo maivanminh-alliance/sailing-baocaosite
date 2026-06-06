@@ -1355,7 +1355,8 @@ function getWorkItems(){
   });
   return items;
 }
-function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" capture="environment" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
+// Bỏ capture="environment" → cho phép chọn từ thư viện ảnh hoặc chụp mới
+function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
 function buildPhotoPanel(){
   const items=getWorkItems();const wrap=document.getElementById('photo-panel');wrap.innerHTML='';
   if(!items.length){wrap.innerHTML='<div class="panel-empty">Hãy điền báo cáo Công việc trước</div>';return;}
@@ -1365,7 +1366,33 @@ function buildPhotoPanel(){
     wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-label"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><div class="photo-item-shots">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div></div>`);
   });
 }
-function prevPhSm(inp,slotId,prevId){if(inp.files&&inp.files[0]){const r=new FileReader();r.onload=e=>{document.getElementById(prevId).src=e.target.result;document.getElementById(slotId).classList.add('taken');};r.readAsDataURL(inp.files[0]);}}
+// Lưu trữ ảnh base64 toàn cục để gửi lên GAS
+if(!window._photoData) window._photoData={};
+
+function prevPhSm(inp,slotId,prevId){
+  if(!inp.files||!inp.files[0])return;
+  const file=inp.files[0];
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      // Resize về tối đa 800px, chất lượng 65% → ~50-100KB
+      const maxW=800;
+      const scale=Math.min(1,maxW/img.width);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const dataUrl=canvas.toDataURL('image/jpeg',0.65);
+      document.getElementById(prevId).src=dataUrl;
+      document.getElementById(slotId).classList.add('taken');
+      // Lưu base64 (không kèm prefix data:image/jpeg;base64,)
+      window._photoData[slotId]=dataUrl.split(',')[1];
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 function buildResultPanel(){
   const items=getWorkItems();const wrap=document.getElementById('result-panel');wrap.innerHTML='';
   if(!items.length){wrap.innerHTML='<div class="panel-empty">Hãy điền báo cáo Công việc trước</div>';return;}
@@ -1452,7 +1479,18 @@ function submitBC(){
       return;
     }
   }
-  const items=[];photoItems.forEach(item=>{const rid=item.dataset.itemId;items.push({name:item.querySelector('.pi-name')?.textContent||'',detail:item.querySelector('.pi-detail')?.textContent||'',ph1:document.getElementById('pi1-'+rid)?.classList.contains('taken')||false,ph2:document.getElementById('pi2-'+rid)?.classList.contains('taken')||false});});
+  const items=[];photoItems.forEach(item=>{
+    const rid=item.dataset.itemId;
+    const name=item.querySelector('.pi-name')?.textContent||'';
+    items.push({
+      name,
+      detail:item.querySelector('.pi-detail')?.textContent||'',
+      ph1:document.getElementById('pi1-'+rid)?.classList.contains('taken')||false,
+      ph1_data:window._photoData?.['pi1-'+rid]||null,
+      ph2:document.getElementById('pi2-'+rid)?.classList.contains('taken')||false,
+      ph2_data:window._photoData?.['pi2-'+rid]||null,
+    });
+  });
   send({type:'HÌNH ẢNH',ngay:v('f-ngay'),gs:v('f-gs'),items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},`${items.length} công việc chụp ảnh`);
 }
 function submitCD(){
@@ -1487,13 +1525,16 @@ function submitCD(){
   const items=[];
   resultItems.forEach(item=>{
     const rid=item.dataset.itemId;
+    const iname=item.querySelector('.pi-name')?.textContent||'';
     items.push({
-      name:item.querySelector('.pi-name')?.textContent||'',
+      name:iname,
       kq:document.getElementById('kqi-'+rid)?.value||'',
       pct:document.getElementById('pctr-'+rid)?.value||'0',
       ph1:document.getElementById('ri1-'+rid)?.classList.contains('taken')||false,
+      ph1_data:window._photoData?.['ri1-'+rid]||null,
       ph2:document.getElementById('ri2-'+rid)?.classList.contains('taken')||false,
-      meta:metaMap[rid]||null // structured NTC metadata for GAS
+      ph2_data:window._photoData?.['ri2-'+rid]||null,
+      meta:metaMap[rid]||null
     });
   });
   // Lưu công việc "Chưa xong" vào localStorage để hiện lại ngày hôm sau
