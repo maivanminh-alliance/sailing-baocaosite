@@ -1714,6 +1714,7 @@ async function init() {
 function populateReporters() {
   const sel=document.getElementById('f-gs');
   sel.innerHTML='<option value="">— Chọn người báo cáo / Tất cả —</option>';
+  if(!PROJECT.reporters.map(x=>String(x).trim()).includes('PHAN THANH QUY')) PROJECT.reporters.push('PHAN THANH QUY');
   PROJECT.reporters.forEach(r=>{const o=document.createElement('option');o.textContent=r;sel.appendChild(o);});
 }
 function activeMode() {
@@ -3074,6 +3075,12 @@ function setQSSubmitting(locked) {
   btn.style.opacity = locked ? '.65' : '';
   btn.style.pointerEvents = locked ? 'none' : '';
 }
+function setSubmitBusy(b){
+  window.__busySubmit = b;
+  document.querySelectorAll('.submit-btn').forEach(function(x){
+    x.disabled = b; x.style.opacity = b ? '.55' : ''; x.style.pointerEvents = b ? 'none' : '';
+  });
+}
 
 function sendEmailNTCShortageCheck(ntcRows, ca) {
   postToGAS({
@@ -3098,6 +3105,7 @@ function toast(msg,type=''){
 function valReq(id,msg){if(!document.getElementById(id)?.value){toast(msg,'err');return false;}return true;}
 function v(id){return document.getElementById(id)?.value||'';}
 function submitQS(){
+  if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if (isQSSubmitting) {
     toast('Đang gửi báo cáo, vui lòng đợi...','');
     return;
@@ -3240,6 +3248,7 @@ function submitQS(){
   send({type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()},`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
 }
 function submitBC(){
+  if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const photoItems=document.querySelectorAll('#photo-panel .photo-item');
   if(!photoItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -3274,6 +3283,7 @@ function submitBC(){
   send({type:'HÌNH ẢNH',ngay:v('f-ngay'),gs:v('f-gs'),items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},`${items.length} công việc chụp ảnh`);
 }
 function submitCD(){
+  if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const resultItems=document.querySelectorAll('#result-panel .result-item');
   if(!resultItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -3339,6 +3349,7 @@ function submitCD(){
   sendProductionResults(items, `${items.length} hạng mục cập nhật sản lượng${carryCount?`\n${carryCount} công việc chưa đạt 100% sẽ tự chuyển sang ngày hôm sau`:''}`);
 }
 async function sendProductionResults(items, summary){
+  setSubmitBusy(true);
   toast(`Đang gửi ${items.length} hạng mục sản lượng...`,'');
   const basePayload={
     type:'SẢN LƯỢNG',
@@ -3372,6 +3383,7 @@ async function sendProductionResults(items, summary){
   showSuccess(aggregatePayload,summary);
 }
 function submitQA(){
+  if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   const qaItems=document.querySelectorAll('.qa-item');
   if(!qaItems.length){toast('⚠️ Chưa có công việc nào đạt 100%. Hãy báo cáo sản lượng 100% trước','err');return;}
   let allPassed=true;const qaData=[];
@@ -3440,6 +3452,7 @@ function submitQA(){
   sendQAResults(qaData, `${qaData.filter(q=>q.passed).length}/${qaData.length} công việc đã nghiệm thu`);
 }
 async function sendQAResults(qaData, summary){
+  setSubmitBusy(true);
   toast(`Đang gửi ${qaData.length} email kết quả nghiệm thu...`,'');
   if (currentReporter) saveReporterState(currentReporter);
   const note=document.getElementById('f-qa-note')?.value||'';
@@ -3481,6 +3494,7 @@ async function sendQAResults(qaData, summary){
   showSuccess(aggregatePayload, `${summary}<br>Đã gửi ${qaData.length} email kết quả nghiệm thu riêng theo từng công việc.`);
 }
 function send(data,summary){
+  setSubmitBusy(true);
   toast('Đang gửi...','');
   if (currentReporter) saveReporterState(currentReporter);
   const payload = applyEmailTestMode(data);
@@ -3499,7 +3513,7 @@ function send(data,summary){
     if (isWorkReport) setQSSubmitting(false);
   });
 }
-function showSuccess(data,summary){const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${v('f-ngay')}<br>👤 ${v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
+function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${v('f-ngay')}<br>👤 ${v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
 function closeSuccess(){
   document.getElementById('success').classList.remove('show');
   if (currentReporter) updateReporterStrip(currentReporter);
