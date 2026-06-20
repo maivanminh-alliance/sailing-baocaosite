@@ -1633,7 +1633,8 @@ async function loadFromSheets() {
     const ntcRes = await fetch(`${base}&sheet=NTC`);
     if (ntcRes.ok) {
       const rows = parseCSV(await ntcRes.text()).filter((_,i)=>i>0);
-      if (rows.length) {
+      const _ntcBad = !rows.length || rows.some(r=>['Ten_du_an','Ma_du_an','Nguoi_bao_cao','Key'].indexOf((r[0]||'').trim())>-1);
+      if (rows.length && !_ntcBad) {
         NTC_LIST = rows.map(r=>r[0]).filter(Boolean);
         rows.forEach(r => {
           const ntc=r[0]||''; if (!ntc) return;
@@ -3947,7 +3948,7 @@ init();
       }
     }catch(e){if(typeof console!=='undefined')console.log('Tải SOW online lỗi:',e);}
   }
-  setTimeout(loadSOWOnline,300);
+  setTimeout(loadSOWOnline,1600);
 })();
 
 </script>
