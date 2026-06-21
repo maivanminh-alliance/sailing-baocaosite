@@ -3675,7 +3675,11 @@ init();
 (function(){
   // CSS riêng (prefix sw-)
   var css=`
-  .sw-cans{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+  .sw-cans{display:block;margin:6px 0 4px}
+  .sw-blocks{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+  .blk-chip{display:inline-block;padding:7px 14px;border-radius:18px;border:1.5px solid #1d3a6b;background:#eef3fb;color:#1d3a6b;font-weight:800;font-size:13px;cursor:pointer}
+  .blk-chip.act{background:#1d3a6b;color:#fff}
+  .sw-canrow{display:flex;flex-wrap:wrap;gap:6px}
   .sw-note{font-size:11px;color:var(--muted);margin:6px 0}
   .sw-cats{font-size:11px;color:var(--muted);margin:2px 0 8px}
   .sw-tang{border:2px solid var(--navy);border-radius:10px;margin-bottom:12px;overflow:hidden;box-shadow:0 4px 12px rgba(31,56,100,.10)}
@@ -3777,8 +3781,18 @@ init();
     document.getElementById('sw-cats-'+i).innerHTML='Hạng mục thầu phụ: <b>'+((NTC_WORKS[ntc]||[]).join(', ')||'—')+'</b>';
     var sc=NTC_SCOPE[ntc]||{khu:'ALL',cans:[]};
     var canList = sc.khu==='ALL' ? Object.keys(KHU_DATA).reduce(function(a,k){return a.concat(KHU_DATA[k].cans);},[]) : ((sc.cans&&sc.cans.length)?sc.cans:((KHU_DATA[sc.khu]||{}).cans||[]));
-    document.getElementById('sw-cans-'+i).innerHTML=canList.map(function(c){
-      return '<span class="area-chip'+(qs.selectedCans.has(c)?' sel':'')+'" onclick="qsToggleCan('+i+',\''+c+'\')">'+c+'</span>';}).join('');
+    // 2 cấp: chọn KHU (A/B/C/D/E) trước, rồi mới hiện căn của khu đó
+    var blocks=[];canList.forEach(function(c){var L=letterOf(c);if(L&&blocks.indexOf(L)<0)blocks.push(L);});
+    if(qs.activeBlock===undefined||blocks.indexOf(qs.activeBlock)<0)qs.activeBlock=blocks[0]||'';
+    var selSet=qs.selectedCans;
+    var blkHtml='<div class="sw-blocks">'+blocks.map(function(L){
+      var selN=[].slice.call(selSet).filter(function(c){return letterOf(c)===L;}).length;
+      return '<span class="blk-chip'+(L===qs.activeBlock?' act':'')+'" onclick="qsPickBlock('+i+',\''+L+'\')">Khu '+L+(selN?' ('+selN+')':'')+'</span>';
+    }).join('')+'</div>';
+    var cansHtml='<div class="sw-canrow">'+canList.filter(function(c){return letterOf(c)===qs.activeBlock;}).map(function(c){
+      return '<span class="area-chip sw-can-chip'+(selSet.has(c)?' sel':'')+'" data-can="'+c+'" onclick="qsToggleCan('+i+',\''+c+'\')">'+c+'</span>';
+    }).join('')+'</div>';
+    document.getElementById('sw-cans-'+i).innerHTML=blkHtml+cansHtml;
     renderSOWItems(i);
   }
   window.__swBuildScope=buildScope;
@@ -3791,11 +3805,14 @@ init();
     if(typeof commitReporterState==='function')commitReporterState();
   };
 
+  window.qsPickBlock=function(i,L){
+    var qs=qsCards[i];if(!qs)return;qs.activeBlock=L;buildScope(i);
+  };
+
   window.qsToggleCan=function(i,can){
     var qs=qsCards[i];if(!qs)return;
     qs.selectedCans.has(can)?qs.selectedCans.delete(can):qs.selectedCans.add(can);
-    document.querySelectorAll('#sw-cans-'+i+' .area-chip').forEach(function(ch){ch.classList.toggle('sel',qs.selectedCans.has(ch.textContent));});
-    renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();
+    buildScope(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();
   };
 
   function renderSOWItems(i){
@@ -3963,6 +3980,76 @@ init();
     }catch(e){if(typeof console!=='undefined')console.log('Tải SOW online lỗi:',e);}
   }
   setTimeout(loadSOWOnline,1600);
+
+  // ── Phạm vi căn từng nhà thầu (tính sẵn từ ma trận NTP, gộp đủ A–E) ──
+  // Áp ngay khi mở app để luôn đúng kể cả khi đọc NTP online thất bại.
+  function rng(L,a,b){var o=[];for(var n=a;n<=b;n++)o.push(L+n);return o;}
+  var NTP_SCOPE_STATIC={
+    'TP Sắt D2T':[].concat(rng('A',1,16),rng('B',1,23),rng('B',38,49),rng('C',1,21),rng('D',1,5),rng('E',1,14)),
+    'TP Sắt ATN':rng('B',24,37),
+    'TP Chống thấm VBT':[].concat(rng('A',1,16),rng('B',1,49),rng('C',1,21),rng('D',1,5),rng('E',1,14)),
+    'TP TCSN Hải Khánh':[].concat(rng('A',1,16),rng('B',1,6),rng('B',23,37)),
+    'TP TCSN Trần Gia':[].concat(rng('B',16,22),rng('B',38,49)),
+    'TP Ốp lát đá CT':[].concat(rng('A',1,16),rng('B',26,49),rng('C',10,21)),
+    'TP Ốp lát đá MH':[].concat(rng('B',1,25),rng('C',2,9),rng('D',1,5),rng('E',1,14))
+  };
+  try{
+    if(typeof NTC_SCOPE!=='undefined'){
+      Object.keys(NTP_SCOPE_STATIC).forEach(function(nm){NTC_SCOPE[nm]={khu:'ALL',cans:NTP_SCOPE_STATIC[nm]};});
+      Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
+    }
+  }catch(e){}
+
+  // ── Nạp phạm vi căn theo nhà thầu từ sheet NTP (gộp đủ các khu A–E) ──
+  var NTC_NTP_MAP={
+    'TP Sắt D2T':['Đ2T'],
+    'TP Sắt ATN':['ATN'],
+    'TP Chống thấm VBT':['VBT','VTB'],
+    'TP TCSN Hải Khánh':['HẢI KHÁNH'],
+    'TP TCSN Trần Gia':['TRẦN GIA'],
+    'TP Ốp lát đá CT':['CƯỜNG THỊNH'],
+    'TP Ốp lát đá MH':['MINH HOÀNG']
+  };
+  function normU(s){return String(s||'').toUpperCase().replace(/\s+/g,' ').trim();}
+  function sortCans(a,b){var la=a.charAt(0),lb=b.charAt(0);if(la!==lb)return la<lb?-1:1;return (parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0);}
+  async function loadNTPScope(){
+    try{
+      var id=window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
+      var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent('NTP');
+      var txt=await fetch(url).then(function(r){return r.ok?r.text():'';}).catch(function(){return '';});
+      if(!txt)return;
+      var rows=rcsv(txt);if(rows.length<2)return;
+      var hi=-1;for(var r=0;r<Math.min(6,rows.length);r++){var jj=rows[r].map(normU);
+        if(jj.some(function(x){return x.indexOf('NHÀ THẦU')>-1;})&&jj.some(function(x){return x.indexOf('CĂN')>-1;})){hi=r;break;}}
+      if(hi<0)hi=0;
+      var head=rows[hi].map(normU),cName=0,cCan=-1;
+      head.forEach(function(h,idx){if(h.indexOf('NHÀ THẦU')>-1&&h.indexOf('VIẾT TẮT')<0)cName=idx;if(h.indexOf('CĂN')>-1)cCan=idx;});
+      if(cCan<0)cCan=3;
+      var shortScope={};
+      for(var i2=hi+1;i2<rows.length;i2++){
+        var nm=normU(rows[i2][cName]);if(!nm)continue;
+        var cans=String(rows[i2][cCan]||'').split(',').map(function(x){return x.trim().toUpperCase();}).filter(function(x){return /^[A-E]\d+$/.test(x);});
+        if(!cans.length)continue;
+        if(!shortScope[nm])shortScope[nm]=[];
+        cans.forEach(function(c){if(shortScope[nm].indexOf(c)<0)shortScope[nm].push(c);});
+      }
+      if(typeof NTC_SCOPE==='undefined')return;
+      var changed=0;
+      Object.keys(NTC_NTP_MAP).forEach(function(app){
+        var toks=NTC_NTP_MAP[app].map(normU),set=[];
+        Object.keys(shortScope).forEach(function(sn){
+          if(toks.some(function(t){return sn.indexOf(t)>-1;}))
+            shortScope[sn].forEach(function(c){if(set.indexOf(c)<0)set.push(c);});
+        });
+        if(set.length){set.sort(sortCans);NTC_SCOPE[app]={khu:'ALL',cans:set};changed++;}
+      });
+      if(changed){
+        Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
+        if(typeof toast==='function')try{toast('Đã cập nhật phạm vi căn theo NTP','ok');}catch(e){}
+      }
+    }catch(e){if(typeof console!=='undefined')console.log('Tải NTP lỗi:',e);}
+  }
+  setTimeout(loadNTPScope,1900);
 })();
 
 </script>
