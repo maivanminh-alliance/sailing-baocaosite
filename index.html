@@ -4165,44 +4165,122 @@ init();
   };
 
   // ════════════════════════════════════════════════════════════════
-  //  SECTION 3 — CÁC CÔNG VIỆC TỒN ĐỌNG (đầu mục/căn chưa đạt 100%)
-  //  Tự hiện khi báo cáo Section 1 có công việc chưa hoàn thành.
+  //  SECTION 3 — CÁC CÔNG VIỆC TỒN ĐỌNG (chuyển tiếp từ ngày trước)
+  //  Đọc sheet BC_DauMuc: đầu mục/căn đã báo các NGÀY TRƯỚC nhưng tới
+  //  hôm nay vẫn chưa đạt 100% (và chưa nghiệm thu) → hiện ra để báo tiếp.
   // ════════════════════════════════════════════════════════════════
-  function computeTonDong(){
-    var out=[];
-    Object.keys(qsCards).forEach(function(k){
-      var qs=qsCards[k];if(!qs||!qs.ntc)return;
-      if(qs.vuongMac)return; // vướng mắc đã xử lý riêng
-      var cans=[].slice.call(qs.selectedCans||[]);
-      [].slice.call(qs.items||[]).forEach(function(gi){
-        var r=SOW_ITEMS[gi];if(!r)return;
-        cans.filter(function(c){return letterOf(c)===r[0];}).forEach(function(c){
-          var stt=getItemStatus(c,r[5]);
-          if(!stt.nt && (stt.pct||0)<100){out.push({ntc:qs.ntc,can:c,dauMuc:r[6],pct:stt.pct||0});}
-        });
-      });
-    });
-    return out;
+  window.__tonDong=[];
+  function _dkey(d){
+    var s=String(d||'').trim();
+    var m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m)return (+m[3])*10000+(+m[2])*100+(+m[1]);
+    var m2=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m2)return (+m2[1])*10000+(+m2[2])*100+(+m2[3]);
+    return 0;
   }
+  function _todayKey(){
+    var f=(typeof v==='function'?v('f-ngay'):'')||'';var k=_dkey(f);if(k)return k;
+    var n=new Date();return n.getFullYear()*10000+(n.getMonth()+1)*100+n.getDate();
+  }
+  function _dkToVN(dk){if(!dk)return '';var d=dk%100,m=Math.floor(dk/100)%100;return ('0'+d).slice(-2)+'/'+('0'+m).slice(-2);}
+
+  window.loadTonDong=async function(){
+    try{
+      var id=window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
+      var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent('BC_DauMuc');
+      var txt=await fetch(url).then(function(r){return r.ok?r.text():'';}).catch(function(){return '';});
+      if(!txt)return;
+      var rows=rcsv(txt);if(rows.length<2)return;
+      // cột: 1=Ngày 3=Nhà thầu 5=Căn 10=WBS 11=Đầu mục 13=% hoàn thành
+      var today=_todayKey(),latest={};
+      for(var i=1;i<rows.length;i++){
+        var r=rows[i];if(!r||!r[5])continue;
+        var dk=_dkey(r[1]);if(!dk||dk>=today)continue; // chỉ lấy NGÀY TRƯỚC hôm nay
+        var ntc=String(r[3]||'').trim(),can=String(r[5]||'').trim().toUpperCase(),
+            wbs=String(r[10]||'').trim(),dm=String(r[11]||'').trim();
+        if(!can||!wbs)continue;
+        var pr=parseInt(String(r[13]==null?'':r[13]).replace(/[^0-9]/g,''))||0;
+        var key=ntc+'|'+can+'|'+wbs,prev=latest[key];
+        if(!prev||dk>=prev.dk)latest[key]={ntc:ntc,can:can,dauMuc:dm,wbs:wbs,pctRec:pr,dk:dk};
+      }
+      var out=[];
+      Object.keys(latest).forEach(function(key){
+        var e=latest[key];
+        var s=window.SOW_STATUS&&window.SOW_STATUS[e.can],live=s&&s[e.wbs];
+        var done=live?(live.nt||(live.pct||0)>=100):(e.pctRec>=100);
+        if(done)return;
+        out.push({ntc:e.ntc||'(không rõ nhà thầu)',can:e.can,wbs:e.wbs,dauMuc:e.dauMuc||e.wbs,
+          pct:live?(live.pct||0):e.pctRec,dk:e.dk});
+      });
+      out.sort(function(a,b){if(a.ntc!==b.ntc)return a.ntc<b.ntc?-1:1;return a.can<b.can?-1:(a.can>b.can?1:0);});
+      window.__tonDong=out;renderTonDong();
+      // Tự đưa công việc tồn đọng vào Section 1 (1 lần) để giám sát chỉ nhập nhân công
+      if(!window.__tonDongAutoFilled && out.length){window.__tonDongAutoFilled=true;try{importTonDong(true);}catch(e){}}
+    }catch(e){if(typeof console!=='undefined')console.log('Tải tồn đọng lỗi:',e);}
+  };
+
+  // Tìm chỉ số đầu mục SOW theo căn + wbs + tên đầu mục
+  function _giFor(can,wbs,dauMuc){
+    var L=letterOf(can),i,r;
+    for(i=0;i<SOW_ITEMS.length;i++){r=SOW_ITEMS[i];if(r[0]===L&&wbs&&r[5]===wbs&&(!dauMuc||r[6]===dauMuc))return i;}
+    for(i=0;i<SOW_ITEMS.length;i++){r=SOW_ITEMS[i];if(r[0]===L&&dauMuc&&r[6]===dauMuc)return i;}
+    for(i=0;i<SOW_ITEMS.length;i++){r=SOW_ITEMS[i];if(r[0]===L&&wbs&&r[5]===wbs)return i;}
+    return -1;
+  }
+  // Đưa các công việc tồn đọng vào Section 1: chọn sẵn nhà thầu + căn + đầu mục.
+  window.importTonDong=function(silent){
+    var list=window.__tonDong||[];
+    if(!list.length){if(!silent&&typeof toast==='function')toast('Không có công việc tồn đọng','');return;}
+    var g={},order=[];
+    list.forEach(function(e){if(e.ntc==='(không rõ nhà thầu)')return;if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
+    var added=0;
+    order.forEach(function(ntc){
+      var idx=-1;
+      Object.keys(qsCards).forEach(function(k){var qs=qsCards[k];if(qs&&qs.ntc===ntc&&!qs.vuongMac)idx=+k;});
+      if(idx<0){if(typeof addQSRow!=='function')return;addQSRow({ntc:ntc});idx=qsIdx;}
+      var qs=qsCards[idx];if(!qs)return;
+      g[ntc].forEach(function(e){
+        var gi=_giFor(e.can,e.wbs,e.dauMuc);if(gi<0)return;
+        if(!qs.selectedCans.has(e.can)){qs.selectedCans.add(e.can);}
+        if(!qs.items.has(gi)){qs.items.add(gi);added++;}
+        if(!qs.cnMap[gi])qs.cnMap[gi]=1;
+      });
+      try{buildScope(idx);updateQSSumLine(idx);}catch(e){}
+    });
+    if(typeof calcTotal==='function')try{calcTotal();}catch(e){}
+    if(typeof commitReporterState==='function')try{commitReporterState();}catch(e){}
+    if(!silent&&typeof toast==='function')toast(added?('Đã đưa '+added+' đầu mục tồn đọng vào Section 1 — chỉ cần nhập nhân công'):'Các công việc tồn đọng đã có trong Section 1','ok');
+  };
+
   function ensureTonDongCard(){
     if(document.getElementById('card-tondong'))return document.getElementById('card-tondong');
+    var card=document.createElement('div');card.className='card';card.id='card-tondong';
+    card.innerHTML='<div class="card-hdr canva-card" style="background:rgb(0,102,204);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">3/ Các công việc tồn đọng <span id="td-count" style="background:rgba(255,255,255,.25);padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700">0</span></div>'
+      +'<div class="card-body" id="td-body" style="padding:10px 14px 14px"></div>';
+    // Đặt ngay TRƯỚC nút Gửi (vị trí ô đỏ); nếu không thấy thì chèn sau Section 2.
+    var footer=document.querySelector('.work-sticky-footer');
+    if(footer&&footer.parentNode){footer.parentNode.insertBefore(card,footer);return card;}
     var anchor=document.getElementById('cn-task-list');
     var sec2card=anchor&&anchor.closest?anchor.closest('.card'):null;
-    if(!sec2card||!sec2card.parentNode)return null;
-    var card=document.createElement('div');card.className='card';card.id='card-tondong';card.style.display='none';
-    card.innerHTML='<div class="card-hdr canva-card" style="background:#d97706;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">3/ Các công việc tồn đọng <span id="td-count" style="background:rgba(255,255,255,.25);padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700"></span></div>'
-      +'<div class="card-body" id="td-body" style="padding:10px 14px 14px"></div>';
-    sec2card.parentNode.insertBefore(card,sec2card.nextSibling);
+    if(sec2card&&sec2card.parentNode){sec2card.parentNode.insertBefore(card,sec2card.nextSibling);return card;}
+    var qb=document.getElementById('qs-body');
+    if(qb){var c2=qb.closest?qb.closest('.card'):null;if(c2&&c2.parentNode){c2.parentNode.appendChild(card);return card;}}
     return card;
   }
   window.renderTonDong=function(){
     var card=ensureTonDongCard();if(!card)return;
-    var list=computeTonDong();
-    if(!list.length){card.style.display='none';return;}
+    card.style.display='';
+    var list=window.__tonDong||[];
+    var cEl=document.getElementById('td-count');if(cEl)cEl.textContent=list.length;
+    if(!list.length){
+      document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.<div style="font-size:11px;color:#6b7280;margin-top:4px">Mục này tự liệt kê đầu mục/căn đã báo các ngày trước nhưng chưa đạt 100%.</div></div>';
+      return;
+    }
     var g={},order=[];list.forEach(function(e){if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
-    var html=order.map(function(ntc){
+    var html='<div style="font-size:12px;color:#92400e;background:#fff7ed;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.4">⚠️ Công việc các <b>ngày trước chưa đạt 100%</b> — đã tự đưa vào mục 1 để báo cáo tiếp, anh chỉ cần nhập nhân công.</div>';
+    html+='<button type="button" onclick="importTonDong()" style="width:100%;box-sizing:border-box;margin:0 0 12px;padding:11px;border:1.5px solid #0066cc;background:#eef5ff;color:#0066cc;font-weight:800;font-size:13px;border-radius:9px;cursor:pointer">⤴ Đưa lại vào mục 1 để báo cáo</button>';
+    html+=order.map(function(ntc){
       var rows=g[ntc].map(function(e){
-        return '<div class="td-row"><div class="td-can">'+e.can+'</div><div class="td-name">'+e.dauMuc+'</div>'
+        return '<div class="td-row"><div class="td-can">'+e.can+'</div>'
+          +'<div class="td-name">'+e.dauMuc+'<span style="display:block;font-size:11px;color:#9ca3af;margin-top:2px">từ '+_dkToVN(e.dk)+'</span></div>'
           +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div></div>';
       }).join('');
       return '<div class="td-grp"><div class="td-ntc">'+ntc+'</div>'+rows+'</div>';
@@ -4211,10 +4289,11 @@ init();
     var c=document.getElementById('td-count');if(c)c.textContent=list.length+' việc';
     card.style.display='';
   };
-  // Cập nhật khi xoá thẻ
-  var _delCard=window.delCard;
-  window.delCard=function(i){try{_delCard&&_delCard(i);}catch(e){}try{renderTonDong();}catch(e){}};
-  setTimeout(function(){try{renderTonDong();}catch(e){}},2200);
+  // Hiện thẻ ngay (kể cả khi chưa có dữ liệu) rồi nạp dữ liệu tồn đọng.
+  setTimeout(function(){try{renderTonDong();}catch(e){}},900);
+  setTimeout(function(){try{loadTonDong();}catch(e){}},2600);
+  setTimeout(function(){try{loadTonDong();}catch(e){}},5200);
+  try{var _fn=document.getElementById('f-ngay');if(_fn)_fn.addEventListener('change',function(){try{loadTonDong();}catch(e){}});}catch(e){}
 
   function initBoSung(){
     if(document.getElementById('bs-open-btn'))return;
