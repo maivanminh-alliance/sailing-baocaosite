@@ -54,6 +54,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
 .nav-btn.active .n-lb{color:var(--navy)!important;font-weight:900}
 .nav-btn.locked{opacity:.45}
 .nav-btn.locked.active{opacity:1}
+.nav-btn:not(.active):not(.locked){opacity:.5}
+.nav-btn:not(.active):not(.locked) .n-ic{filter:grayscale(.2)}
 .content{padding:16px 14px 0}
 .card{background:#fff;border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden;border:1px solid rgba(226,232,240,.9)}
 .card-hdr{background:var(--navy);color:#fff;padding:10px 14px;font-weight:700;
@@ -91,7 +93,7 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
   padding-left:14px;padding-right:42px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
-#card-general #f-ngay{padding-left:14px;padding-right:12px}
+#card-general #f-ngay{padding-left:14px;padding-right:12px;line-height:normal;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* reporter indicator strip */
 .reporter-strip{display:none;padding:6px 14px;font-size:11px;font-weight:700;
   background:var(--lgreen);color:var(--green);border-bottom:1px solid rgba(22,163,74,.2)}
@@ -3715,7 +3717,38 @@ init();
   .sw-cnm{display:flex;align-items:center;gap:6px;margin-top:8px}
   .sw-cnm-lb{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
   .sw-cnm-b{width:30px;height:30px;border:2px solid var(--blue);background:#fff;color:var(--blue);border-radius:7px;font-size:16px;font-weight:800;cursor:pointer;line-height:1;flex-shrink:0}
-  .sw-cnm-v{min-width:32px;text-align:center;font-size:16px;font-weight:800;color:var(--navy)}`;
+  .sw-cnm-v{min-width:32px;text-align:center;font-size:16px;font-weight:800;color:var(--navy)}
+  .sw-noteblk{margin:12px 0 2px}
+  .sw-notelb{display:block;font-size:11px;font-weight:700;color:var(--navy);margin:0 0 5px;text-transform:uppercase;letter-spacing:.4px}
+  .sw-note-inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--text);resize:vertical;min-height:40px}
+  .sw-note-inp:focus{outline:none;border-color:var(--blue)}
+  .bs-btn{display:block;width:100%;box-sizing:border-box;margin:8px 0 0;padding:12px;border:1.5px dashed #b45309;background:#fff7ed;color:#b45309;font-weight:800;font-size:14px;border-radius:10px;cursor:pointer}
+  .bs-btn:active{background:#ffedd5}
+  .bs-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:none;align-items:flex-end;justify-content:center}
+  .bs-mask.show{display:flex}
+  .bs-sheet{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;padding:18px 18px 22px;box-shadow:0 -8px 28px rgba(0,0,0,.25);max-height:90vh;overflow:auto}
+  .bs-h{display:flex;align-items:center;justify-content:space-between;margin:0 0 4px}
+  .bs-h h3{margin:0;font-size:16px;color:#b45309}
+  .bs-x{border:none;background:#f3f4f6;width:34px;height:34px;border-radius:9px;font-size:18px;cursor:pointer;color:#475569}
+  .bs-sub{font-size:12px;color:var(--muted);margin:0 0 14px;line-height:1.4}
+  .bs-lb{display:block;font-size:11px;font-weight:800;color:var(--navy);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.3px}
+  .bs-sel,.bs-ta{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:9px;padding:11px;font-size:14px;font-family:inherit;color:var(--text);background:#fff}
+  .bs-num-row{display:flex;align-items:center;gap:12px}
+  .bs-num-b{width:46px;height:46px;border:2px solid var(--blue);background:#fff;color:var(--blue);border-radius:11px;font-size:24px;font-weight:800;cursor:pointer;line-height:1;flex-shrink:0}
+  .bs-num-v{flex:1;text-align:center;font-size:26px;font-weight:800;color:var(--navy);border:1.5px solid var(--border);border-radius:11px;padding:8px 0}
+  .bs-info{margin:14px 0 0;padding:11px 13px;border-radius:10px;background:#f1f5f9;font-size:13px;color:#334155;line-height:1.45;display:none}
+  .bs-info.show{display:block}
+  .bs-info b{color:#0f172a}
+  .bs-send{margin-top:16px;width:100%;padding:14px;border:none;border-radius:11px;background:#b45309;color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .bs-send:disabled{opacity:.55;pointer-events:none}
+  .td-grp{margin:0 0 6px}
+  .td-ntc{font-size:12px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:.3px;margin:10px 0 6px;padding:0 2px}
+  .td-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1.5px solid #fde68a;background:#fffbeb;border-radius:9px;margin-bottom:6px}
+  .td-can{font-weight:800;color:#92400e;min-width:42px;font-size:13px}
+  .td-name{flex:1;min-width:0;font-size:13px;color:#374151;line-height:1.35}
+  .td-pct{font-size:12px;font-weight:800;padding:3px 9px;border-radius:10px;min-width:48px;text-align:center;flex-shrink:0}
+  .td-pct.td-zero{background:#fee2e2;color:#dc2626}
+  .td-pct.td-mid{background:#fef3c7;color:#b45309}`;
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
 
   // Dữ liệu đầu mục (nhúng — sau này đọc online qua loadFromSheets)
@@ -3764,10 +3797,13 @@ init();
       +'<div class="sw-cans" id="sw-cans-'+i+'"></div>'
       +'<label style="display:block;font-size:11px;font-weight:700;color:var(--navy);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.4px">Đầu mục công việc</label>'
       +'<div id="sw-items-'+i+'"><div class="sw-note">Chọn căn để bung đầu mục…</div></div>'
+      +'<div class="sw-noteblk"><label class="sw-notelb">Ghi chú</label>'
+      +'<textarea class="sw-note-inp" id="sw-note-'+i+'" rows="2" placeholder="Ghi chú nhà thầu (lý do thiếu quân, lưu ý thi công…)" oninput="qsSetNote('+i+',this.value)"></textarea></div>'
       +'</div></div>'
       +'<div class="qs-card-actions"><div class="kv-result" id="qsf-result-'+i+'"></div>'
       +'<button class="save-action-btn" onclick="saveAndCollapseQS('+i+')">Lưu ✓</button></div></div>';
     document.getElementById('qs-body').appendChild(div);
+    var _nt=document.getElementById('sw-note-'+i);if(_nt)_nt.value=data.note||'';
     if(data.ntc){buildScope(i);}
     updateQSSumLine(i);
     if(!isRestoring && typeof commitReporterState==='function') commitReporterState();
@@ -3794,6 +3830,7 @@ init();
     }).join('')+'</div>';
     document.getElementById('sw-cans-'+i).innerHTML=blkHtml+cansHtml;
     renderSOWItems(i);
+    try{if(window.renderTonDong)renderTonDong();}catch(e){}
   }
   window.__swBuildScope=buildScope;
 
@@ -3881,6 +3918,7 @@ init();
     var tot=0;qs.items.forEach(function(gi){tot+=(qs.cnMap[gi]||1);});
     var cans=[...qs.selectedCans].join(', ');
     el.textContent=(qs.items.size?qs.items.size+' đầu mục · '+tot+' CN':'Chưa chọn đầu mục')+(cans?' · '+cans:'');
+    try{if(window.renderTonDong)renderTonDong();}catch(e){}
   };
 
   window.validateQSCard=function(i){
@@ -4050,6 +4088,145 @@ init();
     }catch(e){if(typeof console!=='undefined')console.log('Tải NTP lỗi:',e);}
   }
   setTimeout(loadNTPScope,1900);
+
+  // ── Ghi chú từng thẻ nhà thầu ──
+  window.qsSetNote=function(i,val){
+    var qs=qsCards[i];if(!qs)return;qs.note=val||'';
+    if(typeof commitReporterState==='function')try{commitReporterState();}catch(e){}
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  //  BỔ SUNG NHÂN CÔNG (nhà thầu đến trễ sau khi đã gửi báo cáo)
+  //  → gửi email cập nhật vào ĐÚNG luồng email thiếu quân số của ngày đó
+  // ════════════════════════════════════════════════════════════════
+  function buildBoSungModal(){
+    if(document.getElementById('bs-mask'))return;
+    var mask=document.createElement('div');mask.className='bs-mask';mask.id='bs-mask';
+    mask.innerHTML=
+      '<div class="bs-sheet" onclick="event.stopPropagation()">'
+      +'<div class="bs-h"><h3>➕ Bổ sung nhân công</h3><button class="bs-x" onclick="closeBoSung()">✕</button></div>'
+      +'<p class="bs-sub">Dùng khi nhà thầu đến trễ, bổ sung thêm quân số <b>sau khi đã gửi báo cáo</b>. '
+      +'Hệ thống sẽ cộng dồn vào tổng quân số trong ngày và gửi email cập nhật vào đúng luồng cảnh báo thiếu quân số.</p>'
+      +'<label class="bs-lb">Nhà thầu</label>'
+      +'<select class="bs-sel" id="bs-ntc"><option value="">— Chọn nhà thầu —</option></select>'
+      +'<label class="bs-lb">Số người đến thêm</label>'
+      +'<div class="bs-num-row">'
+      +'<button class="bs-num-b" onclick="bsAdd(-1)">−</button>'
+      +'<div class="bs-num-v" id="bs-num">1</div>'
+      +'<button class="bs-num-b" onclick="bsAdd(1)">＋</button></div>'
+      +'<label class="bs-lb">Ghi chú (không bắt buộc)</label>'
+      +'<textarea class="bs-ta" id="bs-note" rows="2" placeholder="VD: 3 thợ đến lúc 9h30"></textarea>'
+      +'<div class="bs-info" id="bs-info"></div>'
+      +'<button class="bs-send" id="bs-send" onclick="submitBoSung()">Gửi bổ sung & cập nhật email</button>'
+      +'</div>';
+    mask.addEventListener('click',function(){closeBoSung();});
+    document.body.appendChild(mask);
+  }
+  window.bsAdd=function(d){
+    var el=document.getElementById('bs-num');if(!el)return;
+    var n=Math.max(1,(parseInt(el.textContent,10)||1)+d);el.textContent=n;
+  };
+  window.openBoSung=function(){
+    buildBoSungModal();
+    var sel=document.getElementById('bs-ntc');
+    if(sel){var cur=sel.value;
+      sel.innerHTML='<option value="">— Chọn nhà thầu —</option>'+
+        (typeof NTC_LIST!=='undefined'?NTC_LIST:[]).map(function(n){return '<option'+(n===cur?' selected':'')+'>'+n+'</option>';}).join('');}
+    document.getElementById('bs-num').textContent='1';
+    var nt=document.getElementById('bs-note');if(nt)nt.value='';
+    var inf=document.getElementById('bs-info');if(inf){inf.className='bs-info';inf.innerHTML='';}
+    document.getElementById('bs-mask').classList.add('show');
+  };
+  window.closeBoSung=function(){var m=document.getElementById('bs-mask');if(m)m.classList.remove('show');};
+
+  window.submitBoSung=function(){
+    var ntc=(document.getElementById('bs-ntc')||{}).value||'';
+    var addCN=parseInt((document.getElementById('bs-num')||{}).textContent,10)||0;
+    var note=(document.getElementById('bs-note')||{}).value||'';
+    var ngay=(typeof v==='function'?v('f-ngay'):'');
+    var gs=(typeof v==='function'?v('f-gs'):'')||(typeof selectedReporter==='function'?selectedReporter():'');
+    if(!ntc){if(typeof toast==='function')toast('Vui lòng chọn nhà thầu','err');return;}
+    if(addCN<=0){if(typeof toast==='function')toast('Số người bổ sung phải ≥ 1','err');return;}
+    if(!ngay){if(typeof toast==='function')toast('Chưa có ngày báo cáo','err');return;}
+    if(!gs){if(typeof toast==='function')toast('Vui lòng chọn người báo cáo','err');return;}
+    var btn=document.getElementById('bs-send');if(btn){btn.disabled=true;}
+    var payload={type:'BO SUNG NHAN CONG',ntc:ntc,addCN:addCN,note:note,
+      ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
+      submitId:(typeof createSubmitId==='function'?createSubmitId('bosung'):('bosung-'+Date.now())),
+      ts:new Date().toISOString()};
+    try{
+      var p=(typeof postToGAS==='function')?postToGAS(payload):
+        fetch(window.GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      Promise.resolve(p).catch(function(){}).then(function(){
+        if(typeof toast==='function')toast('Đã gửi bổ sung '+addCN+' CN cho '+ntc+' ✓','ok');
+        closeBoSung();if(btn){btn.disabled=false;}
+      });
+    }catch(e){if(btn){btn.disabled=false;}if(typeof toast==='function')toast('Lỗi gửi bổ sung','err');}
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  //  SECTION 3 — CÁC CÔNG VIỆC TỒN ĐỌNG (đầu mục/căn chưa đạt 100%)
+  //  Tự hiện khi báo cáo Section 1 có công việc chưa hoàn thành.
+  // ════════════════════════════════════════════════════════════════
+  function computeTonDong(){
+    var out=[];
+    Object.keys(qsCards).forEach(function(k){
+      var qs=qsCards[k];if(!qs||!qs.ntc)return;
+      if(qs.vuongMac)return; // vướng mắc đã xử lý riêng
+      var cans=[].slice.call(qs.selectedCans||[]);
+      [].slice.call(qs.items||[]).forEach(function(gi){
+        var r=SOW_ITEMS[gi];if(!r)return;
+        cans.filter(function(c){return letterOf(c)===r[0];}).forEach(function(c){
+          var stt=getItemStatus(c,r[5]);
+          if(!stt.nt && (stt.pct||0)<100){out.push({ntc:qs.ntc,can:c,dauMuc:r[6],pct:stt.pct||0});}
+        });
+      });
+    });
+    return out;
+  }
+  function ensureTonDongCard(){
+    if(document.getElementById('card-tondong'))return document.getElementById('card-tondong');
+    var anchor=document.getElementById('cn-task-list');
+    var sec2card=anchor&&anchor.closest?anchor.closest('.card'):null;
+    if(!sec2card||!sec2card.parentNode)return null;
+    var card=document.createElement('div');card.className='card';card.id='card-tondong';card.style.display='none';
+    card.innerHTML='<div class="card-hdr canva-card" style="background:#d97706;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">3/ Các công việc tồn đọng <span id="td-count" style="background:rgba(255,255,255,.25);padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700"></span></div>'
+      +'<div class="card-body" id="td-body" style="padding:10px 14px 14px"></div>';
+    sec2card.parentNode.insertBefore(card,sec2card.nextSibling);
+    return card;
+  }
+  window.renderTonDong=function(){
+    var card=ensureTonDongCard();if(!card)return;
+    var list=computeTonDong();
+    if(!list.length){card.style.display='none';return;}
+    var g={},order=[];list.forEach(function(e){if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
+    var html=order.map(function(ntc){
+      var rows=g[ntc].map(function(e){
+        return '<div class="td-row"><div class="td-can">'+e.can+'</div><div class="td-name">'+e.dauMuc+'</div>'
+          +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div></div>';
+      }).join('');
+      return '<div class="td-grp"><div class="td-ntc">'+ntc+'</div>'+rows+'</div>';
+    }).join('');
+    document.getElementById('td-body').innerHTML=html;
+    var c=document.getElementById('td-count');if(c)c.textContent=list.length+' việc';
+    card.style.display='';
+  };
+  // Cập nhật khi xoá thẻ
+  var _delCard=window.delCard;
+  window.delCard=function(i){try{_delCard&&_delCard(i);}catch(e){}try{renderTonDong();}catch(e){}};
+  setTimeout(function(){try{renderTonDong();}catch(e){}},2200);
+
+  function initBoSung(){
+    if(document.getElementById('bs-open-btn'))return;
+    var anchor=document.querySelector('#qs-body ~ .add-row-btn')||document.querySelector('.add-row-btn[data-template-id="add-ntc-btn"]')||document.querySelector('.add-row-btn');
+    if(!anchor||!anchor.parentNode)return;
+    var b=document.createElement('button');
+    b.id='bs-open-btn';b.className='bs-btn';b.type='button';
+    b.textContent='➕ Bổ sung nhân công (đến trễ)';
+    b.onclick=function(){openBoSung();};
+    anchor.parentNode.insertBefore(b,anchor.nextSibling);
+  }
+  setTimeout(initBoSung,1200);
 })();
 
 </script>
