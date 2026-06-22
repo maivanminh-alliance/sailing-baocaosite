@@ -679,8 +679,8 @@ let NTC_WORKS={
   'TP Chống thấm VBT': ['Chống thấm WC'],
   'TP TCSN Hải Khánh': ['Thạch cao trần','Sơn lót/Bả bột','Sơn nước'],
   'TP TCSN Trần Gia':  ['Thạch cao','Sơn lót/Bả bột','Sơn nước'],
-  'TP Ốp lát đá CT':   ['Ốp lát đá','Đá ngoài nhà','Ốp lát WC'],
-  'TP Ốp lát đá MH':   ['Ốp lát đá','Đá ngoài nhà','Ốp lát WC'],
+  'TP Ốp lát đá CT':   ['Ốp lát đá','Đá ngoài nhà'],
+  'TP Ốp lát đá MH':   ['Ốp lát đá','Đá ngoài nhà'],
   'TP Kính':           ['Kính lan can','Vách kính'],
   'TP Mộc (Nhóm 1,2)': ['Mộc nội thất','Built-in','Lắp đồ rời'],
   'TP Mộc (Nhóm 3,4)': ['Mộc nội thất','Built-in','Lắp đồ rời'],
@@ -3816,7 +3816,10 @@ init();
     box.style.display='block';
     document.getElementById('sw-cats-'+i).innerHTML='Hạng mục thầu phụ: <b>'+((NTC_WORKS[ntc]||[]).join(', ')||'—')+'</b>';
     var sc=NTC_SCOPE[ntc]||{khu:'ALL',cans:[]};
-    var canList = sc.khu==='ALL' ? Object.keys(KHU_DATA).reduce(function(a,k){return a.concat(KHU_DATA[k].cans);},[]) : ((sc.cans&&sc.cans.length)?sc.cans:((KHU_DATA[sc.khu]||{}).cans||[]));
+    // Ưu tiên danh sách căn theo NTP (sc.cans). Chỉ dùng "tất cả căn" khi không có sc.cans.
+    var canList = (sc.cans&&sc.cans.length) ? sc.cans.slice()
+      : (sc.khu==='ALL' ? Object.keys(KHU_DATA).reduce(function(a,k){return a.concat(KHU_DATA[k].cans);},[])
+                        : ((KHU_DATA[sc.khu]||{}).cans||[]));
     // 2 cấp: chọn KHU (A/B/C/D/E) trước, rồi mới hiện căn của khu đó
     var blocks=[];canList.forEach(function(c){var L=letterOf(c);if(L&&blocks.indexOf(L)<0)blocks.push(L);});
     if(qs.activeBlock===undefined||blocks.indexOf(qs.activeBlock)<0)qs.activeBlock=blocks[0]||'';
@@ -4000,7 +4003,7 @@ init();
 
   async function loadSOWOnline(){
     try{
-      var id=window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
+      var id=(typeof SHEETS_ID!=='undefined'&&SHEETS_ID)?SHEETS_ID:window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
       var base='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet=';
       var map={A:'CĂN A (1)',B:'CĂN B (1)',C:'CĂN C (1)',D:'CĂN D (1)',E:'CĂN E (1)'};
       var keys=Object.keys(map);
@@ -4052,7 +4055,7 @@ init();
   function sortCans(a,b){var la=a.charAt(0),lb=b.charAt(0);if(la!==lb)return la<lb?-1:1;return (parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0);}
   async function loadNTPScope(){
     try{
-      var id=window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
+      var id=(typeof SHEETS_ID!=='undefined'&&SHEETS_ID)?SHEETS_ID:window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
       var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent('NTP');
       var txt=await fetch(url).then(function(r){return r.ok?r.text():'';}).catch(function(){return '';});
       if(!txt)return;
@@ -4184,7 +4187,7 @@ init();
 
   window.loadTonDong=async function(){
     try{
-      var id=window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
+      var id=(typeof SHEETS_ID!=='undefined'&&SHEETS_ID)?SHEETS_ID:window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
       var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent('BC_DauMuc');
       var txt=await fetch(url).then(function(r){return r.ok?r.text():'';}).catch(function(){return '';});
       if(!txt)return;
