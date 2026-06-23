@@ -3773,7 +3773,9 @@ init();
   function pctCls(p){return p>=100?'sw-p100':(p>0?'sw-pmid':'sw-p0');}
   function nhomCodes(ntc){var s={};(NTC_WORKS[ntc]||[]).forEach(function(w){if(WORK2NHOM[w])s[WORK2NHOM[w]]=1;});return s;}
   function itemPct(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});if(!cs.length)return 0;var t=0;cs.forEach(function(x){t+=getItemStatus(x,r[5]).pct;});return Math.round(t/cs.length);}
-  function itemLock(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});return cs.length>0&&cs.every(function(x){return getItemStatus(x,r[5]).nt;});}
+  // Khoá đầu mục khi MỌI căn đã chọn đạt 100% thi công HOẶC đã nghiệm thu.
+  function itemLock(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});return cs.length>0&&cs.every(function(x){var st=getItemStatus(x,r[5]);return st.nt||(st.pct||0)>=100;});}
+  function itemLockNT(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});return cs.length>0&&cs.every(function(x){return getItemStatus(x,r[5]).nt;});}
   function wPct(qs,rows){var w=0,wp=0;rows.forEach(function(pr){var r=pr[0],m=(typeof r[7]==='number')?r[7]:0;w+=m;wp+=m*itemPct(qs,r);});return w?Math.round(wp/w):0;}
   function syncLegacy(qs){qs.selectedWorks=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][6];}));qs.selectedTangs=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][2];}));}
 
@@ -3885,9 +3887,10 @@ init();
           nr.forEach(function(pr){
             var r=pr[0],gi=pr[1];var un=(typeof r[8]==='string'&&r[8])?r[8]:'m²';var m2=(typeof r[7]==='number'&&r[7]>0)?r[7].toFixed(2)+' '+un:('— '+un);
             var p=itemPct(qs,r);var lock=itemLock(qs,r);var sel=qs.items.has(gi)&&!lock;
+            var lockLbl=lock?(itemLockNT(qs,r)?'✓ Đã NT':'✓ 100%'):'';
             its+='<div class="sw-item'+(sel?' sel':'')+(lock?' lock':'')+'" '+(lock?'':'onclick="qsToggleItem('+i+','+gi+')"')+'>'
               +'<div class="sw-cb">'+(lock?'🔒':(sel?'✓':''))+'</div>'
-              +'<div class="sw-main"><div class="sw-iname">'+r[6]+(lock?'<span class="sw-nt">✓ Đã NT</span>':'')+'</div>'
+              +'<div class="sw-main"><div class="sw-iname">'+r[6]+(lock?'<span class="sw-nt">'+lockLbl+'</span>':'')+'</div>'
               +'<div class="sw-imeta">'+m2+' · '+r[5]+'</div>'
               +(sel?'<div class="sw-cnm" onclick="event.stopPropagation()"><span class="sw-cnm-lb">Nhân công</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',-1)">−</button><span class="sw-cnm-v">'+((qs.cnMap[gi]||1))+'</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',1)">＋</button></div>':'')
               +'</div><div class="sw-pct '+pctCls(p)+'">'+p+'%</div></div>';
