@@ -3743,7 +3743,10 @@ init();
   .bs-send:disabled{opacity:.55;pointer-events:none}
   .td-grp{margin:0 0 6px}
   .td-ntc{font-size:12px;font-weight:800;color:#b45309;text-transform:uppercase;letter-spacing:.3px;margin:10px 0 6px;padding:0 2px}
-  .td-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1.5px solid #fde68a;background:#fffbeb;border-radius:9px;margin-bottom:6px}
+  .td-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding:9px 11px;border:1.5px solid #fde68a;background:#fffbeb;border-radius:9px;margin-bottom:6px}
+  .td-add{margin-left:auto;flex-shrink:0;border:1.5px solid #0066cc;background:#0066cc;color:#fff;font-weight:800;font-size:12px;padding:8px 12px;border-radius:8px;cursor:pointer}
+  .td-add:active{background:#0052a3}
+  .td-add.added{background:#16a34a;border-color:#16a34a}
   .td-can{font-weight:800;color:#92400e;min-width:42px;font-size:13px}
   .td-name{flex:1;min-width:0;font-size:13px;color:#374151;line-height:1.35}
   .td-pct{font-size:12px;font-weight:800;padding:3px 9px;border-radius:10px;min-width:48px;text-align:center;flex-shrink:0}
@@ -4215,8 +4218,6 @@ init();
       });
       out.sort(function(a,b){if(a.ntc!==b.ntc)return a.ntc<b.ntc?-1:1;return a.can<b.can?-1:(a.can>b.can?1:0);});
       window.__tonDong=out;renderTonDong();
-      // Tự đưa công việc tồn đọng vào Section 1 (1 lần) để giám sát chỉ nhập nhân công
-      if(!window.__tonDongAutoFilled && out.length){window.__tonDongAutoFilled=true;try{importTonDong(true);}catch(e){}}
     }catch(e){if(typeof console!=='undefined')console.log('Tải tồn đọng lỗi:',e);}
   };
 
@@ -4253,6 +4254,34 @@ init();
     if(!silent&&typeof toast==='function')toast(added?('Đã đưa '+added+' đầu mục tồn đọng vào Section 1 — chỉ cần nhập nhân công'):'Các công việc tồn đọng đã có trong Section 1','ok');
   };
 
+  // Đưa lại MỘT công việc tồn đọng vào Section 1 và BUNG ra (mở thẻ + tầng + nhóm).
+  window.importTonDongOne=function(idx){
+    var e=(window.__tonDong||[])[idx];if(!e)return;
+    if(typeof addQSRow!=='function')return;
+    var gi=_giFor(e.can,e.wbs,e.dauMuc);
+    if(gi<0){if(typeof toast==='function')toast('Không khớp đầu mục SOW: '+(e.dauMuc||e.wbs),'err');return;}
+    var ci=-1;
+    Object.keys(qsCards).forEach(function(k){var qs=qsCards[k];if(qs&&qs.ntc===e.ntc&&!qs.vuongMac)ci=+k;});
+    if(ci<0){addQSRow({ntc:e.ntc});ci=qsIdx;}
+    var qs=qsCards[ci];if(!qs)return;
+    qs.selectedCans.add(e.can);
+    qs.items.add(gi);
+    if(!qs.cnMap[gi])qs.cnMap[gi]=1;
+    var r=SOW_ITEMS[gi];               // [loai,tangCode,tang,nhomCode,...]
+    qs.activeBlock=r[0];               // chuyển sang đúng khu của căn
+    qs.openT.add(r[0]+'|'+r[1]);       // mở tầng
+    qs.openN.add(r[0]+'|'+r[1]+'|'+r[3]); // mở nhóm
+    // BUNG thẻ (bỏ thu gọn)
+    var cardEl=document.getElementById('qsc-'+ci);
+    if(cardEl){cardEl.classList.remove('qs-col');var ch=document.getElementById('qschev-'+ci);if(ch)ch.classList.remove('rotated');}
+    try{buildScope(ci);updateQSSumLine(ci);}catch(err){}
+    if(typeof calcTotal==='function')try{calcTotal();}catch(err){}
+    if(typeof commitReporterState==='function')try{commitReporterState();}catch(err){}
+    var b=document.getElementById('td-add-'+idx);if(b){b.classList.add('added');b.textContent='✓ Đã đưa';}
+    if(cardEl)try{cardEl.scrollIntoView({behavior:'smooth',block:'center'});}catch(err){}
+    if(typeof toast==='function')toast('Đã đưa lại: '+(e.dauMuc||e.wbs),'ok');
+  };
+
   function ensureTonDongCard(){
     if(document.getElementById('card-tondong'))return document.getElementById('card-tondong');
     var card=document.createElement('div');card.className='card';card.id='card-tondong';
@@ -4277,14 +4306,14 @@ init();
       document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.<div style="font-size:11px;color:#6b7280;margin-top:4px">Mục này tự liệt kê đầu mục/căn đã báo các ngày trước nhưng chưa đạt 100%.</div></div>';
       return;
     }
-    var g={},order=[];list.forEach(function(e){if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
-    var html='<div style="font-size:12px;color:#92400e;background:#fff7ed;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.4">⚠️ Công việc các <b>ngày trước chưa đạt 100%</b> — đã tự đưa vào mục 1 để báo cáo tiếp, anh chỉ cần nhập nhân công.</div>';
-    html+='<button type="button" onclick="importTonDong()" style="width:100%;box-sizing:border-box;margin:0 0 12px;padding:11px;border:1.5px solid #0066cc;background:#eef5ff;color:#0066cc;font-weight:800;font-size:13px;border-radius:9px;cursor:pointer">⤴ Đưa lại vào mục 1 để báo cáo</button>';
+    var g={},order=[];list.forEach(function(e,idx){e.__idx=idx;if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
+    var html='<div style="font-size:12px;color:#92400e;background:#fff7ed;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.4">⚠️ Công việc các <b>ngày trước chưa đạt 100%</b>. Bấm <b>Đưa lại</b> ở từng công việc để đưa vào mục 1 (tự bung ra), anh chỉ cần nhập nhân công.</div>';
     html+=order.map(function(ntc){
       var rows=g[ntc].map(function(e){
         return '<div class="td-row"><div class="td-can">'+e.can+'</div>'
           +'<div class="td-name">'+e.dauMuc+'<span style="display:block;font-size:11px;color:#9ca3af;margin-top:2px">từ '+_dkToVN(e.dk)+'</span></div>'
-          +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div></div>';
+          +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div>'
+          +'<button type="button" class="td-add" id="td-add-'+e.__idx+'" onclick="importTonDongOne('+e.__idx+')">⤴ Đưa lại</button></div>';
       }).join('');
       return '<div class="td-grp"><div class="td-ntc">'+ntc+'</div>'+rows+'</div>';
     }).join('');
