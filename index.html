@@ -1716,7 +1716,9 @@ async function init() {
 function populateReporters() {
   const sel=document.getElementById('f-gs');
   sel.innerHTML='<option value="">— Chọn người báo cáo / Tất cả —</option>';
-  if(!PROJECT.reporters.map(x=>String(x).trim()).includes('PHAN THANH QUY')) PROJECT.reporters.push('PHAN THANH QUY');
+  ['PHAN THANH QUY','LƯƠNG ANH'].forEach(function(nm){
+    if(!PROJECT.reporters.map(x=>String(x).trim()).includes(nm)) PROJECT.reporters.push(nm);
+  });
   PROJECT.reporters.forEach(r=>{const o=document.createElement('option');o.textContent=r;sel.appendChild(o);});
 }
 function activeMode() {
@@ -3972,34 +3974,37 @@ init();
   function pPct(v){v=String(v||'').replace(/%/g,'').replace(',','.').trim();var n=parseFloat(v);return isNaN(n)?0:n;}
   function pNum(v){v=String(v||'').replace(',','.').replace(/[^0-9.\-]/g,'').trim();var n=parseFloat(v);return isNaN(n)?0:n;}
   var FLOORNAME={O1A:'Hầm',O1B:'Trệt',O1C:'Tầng 1',O1D:'Tầng 2',O1E:'Phát sinh (VO)'};
-  function cleanNhom(s){return String(s||'').replace(/^\s*O\d+\s*[\.\-]?\s*/,'').trim();}
+  var NHOMNAME={O22:'Thạch cao',O23:'Sơn nước',O24:'Sơn hiệu ứng',O25:'Chống thấm / Cán nền / Trát tường',O26:'Ốp lát',O27:'Đá',O28:'Kính',O29:'Mộc',O30:'Sắt'};
+  function cleanNhom(s){return String(s||'').replace(/^\s*O\d+[a-z]?\s*[\.\-]?\s*/,'').trim();}
 
+  // gviz GỘP các dòng tiêu đề: cột đầu thành "WBS O1B O1B22", cột căn thành "...THI CÔNG\n... A1 ",
+  // "A2 " (có dấu cách cuối). Vì vậy nhận diện header theo "ô kết thúc bằng mã căn", và lấy
+  // tầng/nhóm trực tiếp từ mã WBS đầu mục (O1B30.1 -> tầng O1B, nhóm O30).
   function parseSheet(loai,text,SOW,STAT){
-    var rows=rcsv(text);var H=-1;
-    for(var i=0;i<Math.min(rows.length,20);i++){if(String((rows[i]||[])[0]||'').trim()==='WBS'){H=i;break;}}
-    if(H<0)return 0;
+    var rows=rcsv(text);if(!rows.length)return 0;
+    var H=-1,best=0;
+    for(var i=0;i<Math.min(rows.length,8);i++){
+      var n=0,rr=rows[i]||[];
+      for(var c0=0;c0<rr.length;c0++){var mm=String(rr[c0]||'').match(/([A-E])(\d+)\s*$/);if(mm&&mm[1]===loai)n++;}
+      if(n>best){best=n;H=i;}
+    }
+    if(H<0||best<1)return 0;
     var hdr=rows[H],occ={},order=[];
-    for(var c=0;c<hdr.length;c++){var hm=String(hdr[c]||'').trim().match(/^([A-E])\s*(\d+)$/);
+    for(var c=0;c<hdr.length;c++){var hm=String(hdr[c]||'').match(/([A-E])(\d+)\s*$/);
       if(hm&&hm[1]===loai){var u=hm[1]+hm[2];if(!occ[u]){occ[u]=[];order.push(u);}occ[u].push(c);}}
     if(!order.length)return 0;
-    var curFloor='',curFloorName='',curNhom='',curNhomName='',cnt=0;
+    var cnt=0,seen={};
     for(var r=H+1;r<rows.length;r++){
-      var rowv=rows[r]||[];var w=String(rowv[0]||'').trim();if(!w)continue;
-      if(/^O1[A-E]$/.test(w)){curFloor=w;curFloorName=FLOORNAME[w]||String(rowv[1]||'').trim();continue;}
-      if(/^O1[A-E]\d+$/.test(w)){var cm=String(rowv[1]||'').match(/O\s*(\d+)/);
-        curNhom=cm?('O'+cm[1]):'';curNhomName=cleanNhom(rowv[1]);continue;}
-      var mi=w.match(/^O1[A-E]\d+\.\d+/);
-      if(mi){
-        if(!curFloor||!curNhom)continue;
-        var dvt=String(rowv[2]||'').trim();var kl=pNum(rowv[3]);
-        var name=String(rowv[1]||'').replace(/\s+/g,' ').trim();if(!name)continue;
-        SOW.push([loai,curFloor,curFloorName,curNhom,curNhomName,w,name,kl,dvt||'m²']);
-        order.forEach(function(u){var cols=occ[u];var pc=cols[0],nc=cols[cols.length-1];
-          var pct=pPct(rowv[pc]);var nt=pPct(rowv[nc])>=100;
-          if(!STAT[u])STAT[u]={};var ex=STAT[u][w];
-          STAT[u][w]=ex?{pct:Math.max(ex.pct,pct),nt:(ex.nt||nt)}:{pct:pct,nt:nt};});
-        cnt++;
-      }
+      var rowv=rows[r]||[];var w=String(rowv[0]||'').trim();
+      var mi=w.match(/^(O1[A-E])(\d+)\.\d+/);if(!mi)continue;
+      var fc=mi[1],ncode='O'+mi[2],fn=FLOORNAME[fc]||'',nn=NHOMNAME[ncode]||cleanNhom(rowv[1]);
+      var name=String(rowv[1]||'').replace(/\s+/g,' ').trim();
+      if(!seen[w]){SOW.push([loai,fc,fn,ncode,nn,w,name,pNum(rowv[3]),String(rowv[2]||'').trim()||'m²']);seen[w]=1;}
+      order.forEach(function(u){var cols=occ[u];var pc=cols[0],nc=cols[cols.length-1];
+        var pct=pPct(rowv[pc]);var nt=pPct(rowv[nc])>=100;
+        if(!STAT[u])STAT[u]={};var ex=STAT[u][w];
+        STAT[u][w]=ex?{pct:Math.max(ex.pct,pct),nt:(ex.nt||nt)}:{pct:pct,nt:nt};});
+      cnt++;
     }
     return cnt;
   }
@@ -4015,11 +4020,15 @@ init();
       }));
       var SOW=[],STAT={};
       keys.forEach(function(k,idx){if(texts[idx])parseSheet(k,texts[idx],SOW,STAT);});
-      if(SOW.length){
-        window.SOW_ITEMS=SOW;window.SOW_STATUS=STAT;
+      var nStat=Object.keys(STAT).length;
+      if(nStat){
+        window.SOW_STATUS=STAT;                              // luôn cập nhật % + nghiệm thu
+        if(!window.SOW_ITEMS||!window.SOW_ITEMS.length)window.SOW_ITEMS=SOW; // giữ cây đầu mục đã chuẩn hoá
         Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
         if(typeof calcTotal==='function')try{calcTotal();}catch(e){}
-        if(typeof toast==='function')try{toast('Đã tải đầu mục + tiến độ từ Google Sheets ('+SOW.length+' mục)','ok');}catch(e){}
+        try{loadTonDong();}catch(e){}                        // tồn đọng dùng % mới
+        var done=0;Object.keys(STAT).forEach(function(cn){Object.keys(STAT[cn]).forEach(function(w){if(STAT[cn][w].pct>=100)done++;});});
+        if(typeof toast==='function')try{toast('Đã tải tiến độ từ Google Sheets ('+done+' mục căn đạt 100%)','ok');}catch(e){}
       }
     }catch(e){if(typeof console!=='undefined')console.log('Tải SOW online lỗi:',e);}
   }
@@ -4217,7 +4226,7 @@ init();
           pct:live?(live.pct||0):e.pctRec,dk:e.dk});
       });
       out.sort(function(a,b){if(a.ntc!==b.ntc)return a.ntc<b.ntc?-1:1;return a.can<b.can?-1:(a.can>b.can?1:0);});
-      window.__tonDong=out;renderTonDong();
+      window.__tonDongAll=out;renderTonDong();
     }catch(e){if(typeof console!=='undefined')console.log('Tải tồn đọng lỗi:',e);}
   };
 
@@ -4231,7 +4240,7 @@ init();
   }
   // Đưa các công việc tồn đọng vào Section 1: chọn sẵn nhà thầu + căn + đầu mục.
   window.importTonDong=function(silent){
-    var list=window.__tonDong||[];
+    var list=window.__tonDongAll||[];
     if(!list.length){if(!silent&&typeof toast==='function')toast('Không có công việc tồn đọng','');return;}
     var g={},order=[];
     list.forEach(function(e){if(e.ntc==='(không rõ nhà thầu)')return;if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
@@ -4254,9 +4263,20 @@ init();
     if(!silent&&typeof toast==='function')toast(added?('Đã đưa '+added+' đầu mục tồn đọng vào Section 1 — chỉ cần nhập nhân công'):'Các công việc tồn đọng đã có trong Section 1','ok');
   };
 
+  // Một công việc tồn đọng có ĐANG nằm trong Section 1 chưa? (đã chọn căn + đầu mục)
+  function _inSection1(e){
+    var gi=_giFor(e.can,e.wbs,e.dauMuc);if(gi<0)return false;
+    var found=false;
+    Object.keys(qsCards).forEach(function(k){
+      var qs=qsCards[k];if(!qs||qs.ntc!==e.ntc||qs.vuongMac)return;
+      if(qs.selectedCans.has(e.can)&&qs.items.has(gi))found=true;
+    });
+    return found;
+  }
+
   // Đưa lại MỘT công việc tồn đọng vào Section 1 và BUNG ra (mở thẻ + tầng + nhóm).
   window.importTonDongOne=function(idx){
-    var e=(window.__tonDong||[])[idx];if(!e)return;
+    var e=(window.__tonDongAll||[])[idx];if(!e)return;
     if(typeof addQSRow!=='function')return;
     var gi=_giFor(e.can,e.wbs,e.dauMuc);
     if(gi<0){if(typeof toast==='function')toast('Không khớp đầu mục SOW: '+(e.dauMuc||e.wbs),'err');return;}
@@ -4277,7 +4297,7 @@ init();
     try{buildScope(ci);updateQSSumLine(ci);}catch(err){}
     if(typeof calcTotal==='function')try{calcTotal();}catch(err){}
     if(typeof commitReporterState==='function')try{commitReporterState();}catch(err){}
-    var b=document.getElementById('td-add-'+idx);if(b){b.classList.add('added');b.textContent='✓ Đã đưa';}
+    try{renderTonDong();}catch(err){}   // việc này rời khỏi Section 3
     if(cardEl)try{cardEl.scrollIntoView({behavior:'smooth',block:'center'});}catch(err){}
     if(typeof toast==='function')toast('Đã đưa lại: '+(e.dauMuc||e.wbs),'ok');
   };
@@ -4300,26 +4320,26 @@ init();
   window.renderTonDong=function(){
     var card=ensureTonDongCard();if(!card)return;
     card.style.display='';
-    var list=window.__tonDong||[];
-    var cEl=document.getElementById('td-count');if(cEl)cEl.textContent=list.length;
-    if(!list.length){
-      document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.<div style="font-size:11px;color:#6b7280;margin-top:4px">Mục này tự liệt kê đầu mục/căn đã báo các ngày trước nhưng chưa đạt 100%.</div></div>';
+    var all=window.__tonDongAll||[];
+    // Chỉ hiện các việc CHƯA được đưa vào Section 1
+    var shown=[];
+    all.forEach(function(e,idx){ if(!_inSection1(e)) shown.push({e:e,idx:idx}); });
+    var cEl=document.getElementById('td-count');if(cEl)cEl.textContent=shown.length;
+    if(!shown.length){
+      document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.</div>';
       return;
     }
-    var g={},order=[];list.forEach(function(e,idx){e.__idx=idx;if(!g[e.ntc]){g[e.ntc]=[];order.push(e.ntc);}g[e.ntc].push(e);});
-    var html='<div style="font-size:12px;color:#92400e;background:#fff7ed;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.4">⚠️ Công việc các <b>ngày trước chưa đạt 100%</b>. Bấm <b>Đưa lại</b> ở từng công việc để đưa vào mục 1 (tự bung ra), anh chỉ cần nhập nhân công.</div>';
-    html+=order.map(function(ntc){
-      var rows=g[ntc].map(function(e){
+    var g={},order=[];shown.forEach(function(o){var n=o.e.ntc;if(!g[n]){g[n]=[];order.push(n);}g[n].push(o);});
+    var html=order.map(function(ntc){
+      var rows=g[ntc].map(function(o){var e=o.e;
         return '<div class="td-row"><div class="td-can">'+e.can+'</div>'
           +'<div class="td-name">'+e.dauMuc+'<span style="display:block;font-size:11px;color:#9ca3af;margin-top:2px">từ '+_dkToVN(e.dk)+'</span></div>'
           +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div>'
-          +'<button type="button" class="td-add" id="td-add-'+e.__idx+'" onclick="importTonDongOne('+e.__idx+')">⤴ Đưa lại</button></div>';
+          +'<button type="button" class="td-add" onclick="importTonDongOne('+o.idx+')">⤴ Đưa lại</button></div>';
       }).join('');
       return '<div class="td-grp"><div class="td-ntc">'+ntc+'</div>'+rows+'</div>';
     }).join('');
     document.getElementById('td-body').innerHTML=html;
-    var c=document.getElementById('td-count');if(c)c.textContent=list.length+' việc';
-    card.style.display='';
   };
   // Hiện thẻ ngay (kể cả khi chưa có dữ liệu) rồi nạp dữ liệu tồn đọng.
   setTimeout(function(){try{renderTonDong();}catch(e){}},900);
