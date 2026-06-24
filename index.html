@@ -3347,6 +3347,9 @@ function submitCD(){
   const carryCount = pendingWorkCount(carryoverWork);
   if(currentReporter) saveReporterState(currentReporter);
   markProductionSubmitted(currentReporter, items);
+  // CẬP NHẬT TẠI CHỖ window.SOW_STATUS để Section 3 (công việc tồn đọng) phản ánh
+  // ngay % vừa báo cáo, không phải đợi 1–2 phút Google Sheets cập nhật rồi reload.
+  try { if (typeof window.updateLocalSOWStatus === 'function') window.updateLocalSOWStatus(items); } catch(e){}
 
   updateWorkflowTabs();
   nextModeAfterSuccess = 3;
@@ -4038,6 +4041,48 @@ init();
   }
   setTimeout(loadSOWOnline,1600);
 
+  // ══════════════════════════════════════════════════════════════════
+  //  CẬP NHẬT % HOÀN THÀNH TẠI CHỖ CHO SECTION 3 (TỒN ĐỌNG)
+  //  Mục tiêu: ngay sau khi user gửi Sản lượng (5%, 30%, 80%…), Section 3
+  //  hiển thị đúng % đó luôn — không phải chờ Google Sheets đồng bộ.
+  //  Logic khớp với handleSanLuong + updateTrackingSheet bên GAS:
+  //   - duyệt theo từng căn trong meta.kv
+  //   - khớp đầu mục SOW theo tên (item.name = đầu mục)
+  //   - không cho kéo lùi tiến độ (chỉ ghi khi % mới ≥ % cũ)
+  // ══════════════════════════════════════════════════════════════════
+  window.updateLocalSOWStatus = function(items) {
+    try {
+      if (!window.SOW_STATUS) window.SOW_STATUS = {};
+      if (!window.SOW_ITEMS || !window.SOW_ITEMS.length) return;
+      (items||[]).forEach(function(it){
+        if (!it) return;
+        var meta = it.meta || {}; if (!meta.kv) return;
+        var pctN = parseFloat(it.pct); if (isNaN(pctN)) pctN = 0;
+        if (pctN < 0) pctN = 0; if (pctN > 100) pctN = 100;
+        var dauMucName = String(it.name||'').replace(/\s+/g,' ').trim();
+        var cans = String(meta.kv).split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
+        cans.forEach(function(can){
+          if (!window.SOW_STATUS[can]) window.SOW_STATUS[can] = {};
+          var L = can.charAt(0);
+          window.SOW_ITEMS.forEach(function(r){
+            if (!r || r[0] !== L) return;
+            // r = [loai, floorCode, floorName, nhomCode, nhomName, wbs, dauMucName, m2, dvt]
+            if (dauMucName && r[6] !== dauMucName) return;
+            var wbs = r[5]; if (!wbs) return;
+            var ex = window.SOW_STATUS[can][wbs];
+            var prev = ex ? (parseFloat(ex.pct)||0) : 0;
+            if (pctN >= prev) {
+              window.SOW_STATUS[can][wbs] = { pct: pctN, nt: ex ? !!ex.nt : false };
+            }
+          });
+        });
+      });
+      // Vẽ lại Section 3 ngay với SOW_STATUS mới.
+      try { if (typeof loadTonDong === 'function') loadTonDong(); } catch(e){}
+      try { if (typeof renderTonDong === 'function') renderTonDong(); } catch(e){}
+    } catch(e) { if (typeof console!=='undefined') console.log('updateLocalSOWStatus lỗi:', e); }
+  };
+
   // ── Phạm vi căn từng nhà thầu (tính sẵn từ ma trận NTP, gộp đủ A–E) ──
   // Áp ngay khi mở app để luôn đúng kể cả khi đọc NTP online thất bại.
   function rng(L,a,b){var o=[];for(var n=a;n<=b;n++)o.push(L+n);return o;}
@@ -4232,10 +4277,16 @@ init();
       Object.keys(latest).forEach(function(key){
         var e=latest[key];
         var s=window.SOW_STATUS&&window.SOW_STATUS[e.can],live=s&&s[e.wbs];
-        var done=live?(live.nt||(live.pct||0)>=100):(e.pctRec>=100);
-        if(done)return;
+        // % HIỂN THỊ Ở SECTION 3 = MAX(% trong CĂN A–E, % báo cáo gần nhất ở BC_DauMuc).
+        // Trước đây nếu CĂN có dòng nhưng pct=0 sẽ thắng pctRec → Section 3 luôn 0%
+        // dù app đã báo 5%/30%/80% trong các ngày trước. Lấy max cho khớp dữ liệu thực.
+        var livePct = live ? (parseFloat(live.pct)||0) : 0;
+        var recPct  = parseFloat(e.pctRec)||0;
+        var bestPct = Math.max(livePct, recPct);
+        var doneNT  = !!(live && live.nt);
+        if(doneNT || bestPct>=100) return; // đã 100% hoặc đã nghiệm thu → không phải tồn đọng
         out.push({ntc:e.ntc||'(không rõ nhà thầu)',can:e.can,wbs:e.wbs,dauMuc:e.dauMuc||e.wbs,
-          pct:live?(live.pct||0):e.pctRec,dk:e.dk});
+          pct:bestPct,dk:e.dk});
       });
       out.sort(function(a,b){if(a.ntc!==b.ntc)return a.ntc<b.ntc?-1:1;return a.can<b.can?-1:(a.can>b.can?1:0);});
       window.__tonDongAll=out;renderTonDong();
