@@ -3905,7 +3905,12 @@ init();
 
   function renderSOWItems(i){
     var qs=qsCards[i];var box=document.getElementById('sw-items-'+i);if(!box)return;
-    var loaiSet=new Set([...qs.selectedCans].map(letterOf).filter(Boolean));
+    // CHỈ render Loại căn đang active (Khu A/B/C/D/E mà user đang bấm).
+    // Trước đây render mọi loại có trong selectedCans → khi user bấm Khu B
+    // mà còn căn D từ phiên cũ vẫn hiện "Loại căn D" → gây rối UI.
+    var loaiSet=new Set([...qs.selectedCans]
+      .map(letterOf)
+      .filter(function(L){ return !!L && (!qs.activeBlock || L === qs.activeBlock); }));
     if(!loaiSet.size){box.innerHTML='<div class="sw-note">Chọn căn để bung đầu mục…</div>';syncLegacy(qs);return;}
     var codes=nhomCodes(qs.ntc);
     // Lọc theo NTP_DETAIL (cột A/B/C/D của sheet NTP) — chỉ hiện nhóm/đầu mục
@@ -4314,9 +4319,10 @@ init();
       if(typeof NTC_SCOPE==='undefined') return;
 
       // Build __NTP_DETAIL theo TÊN NTC trong app (vd 'TP Nguyên Khôi').
-      window.__NTP_DETAIL = window.__NTP_DETAIL || {};
-      // Cũng build __NTP_WORKCATS[appNTC] = ['Sơn nước','Thạch cao',…] để header hiển thị đúng.
-      window.__NTP_WORKCATS = window.__NTP_WORKCATS || {};
+      // Reset hẳn để các NTC không có dòng NTP nào → KHÔNG giữ data cũ.
+      window.__NTP_DETAIL = {};
+      window.__NTP_WORKCATS = {};
+      window.__NTP_DETAIL_LOADED = false;
       var changed=0;
       Object.keys(NTC_NTP_MAP).forEach(function(app){
         var toks = NTC_NTP_MAP[app].map(normU);
@@ -4346,6 +4352,7 @@ init();
           changed++;
         }
       });
+      window.__NTP_DETAIL_LOADED = true;
       if(changed){
         Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
         if(typeof toast==='function')try{toast('Đã cập nhật phạm vi căn × công tác theo NTP','ok');}catch(e){}
@@ -4362,8 +4369,15 @@ init();
   // ────────────────────────────────────────────────────────────────
   window.rowInNTPScope = function(qs, r) {
     try {
-      var detail = window.__NTP_DETAIL && window.__NTP_DETAIL[qs.ntc];
-      if (!detail) return true;
+      // NTP chưa tải xong → cho qua (sẽ render lại khi tải xong).
+      if (!window.__NTP_DETAIL_LOADED) return true;
+      var detail = window.__NTP_DETAIL[qs.ntc];
+      // NTC này CÓ trong NTC_NTP_MAP nhưng không có dòng NTP nào khớp
+      // → loại tất cả (không cho phép đầu mục lạc).
+      if (!detail) {
+        var hasMap = (typeof NTC_NTP_MAP !== 'undefined') && NTC_NTP_MAP[qs.ntc];
+        return !hasMap; // có map nhưng rỗng → false (chặn); không có map → true (legacy NTC)
+      }
       var loaiCans = [].slice.call(qs.selectedCans||[]).filter(function(c){return letterOf(c)===r[0];});
       if (!loaiCans.length) return true;
       return loaiCans.some(function(c){
