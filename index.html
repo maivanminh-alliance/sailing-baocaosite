@@ -663,9 +663,11 @@ const NTC_SCOPE={
   'TP Sắt D2T':        {khu:'C',cans:['C10','C11','C12','C13','C14','C15','C16','C17','C18','C19','C20','C21']},
   'TP Sắt ATN':        {khu:'B',cans:['B23','B24','B25','B26','B27','B28','B29','B30','B31','B32','B33','B34','B35','B36','B37']},
   'TP Chống thấm VBT': {khu:'ALL',cans:[]},
+  'TP Chống thấm Phước Toàn': {khu:'ALL',cans:[]},
   'TP TCSN Hải Khánh': {khu:'A',cans:['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','A11','A12','A13','A14','A15','A16']},
   'TP TCSN Trần Gia':  {khu:'B',cans:['B16','B17','B18','B19','B20','B21','B22','B38','B39','B40','B41','B42','B43','B44','B45','B46','B47','B48','B49']},
   'TP Nguyên Khôi':    {khu:'ALL',cans:[]},
+  'TP Thành Đạt':      {khu:'ALL',cans:[]},
   'TP Ốp lát đá Cường Thịnh':   {khu:'A',cans:['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','A11','A12','A13','A14','A15','A16']},
   'TP Ốp lát đá Minh Hoàng':   {khu:'ALL',cans:[]},
   'TP Kính':           {khu:'ALL',cans:[]},
@@ -678,9 +680,11 @@ let NTC_WORKS={
   'TP Sắt D2T':        ['Sắt vách'],
   'TP Sắt ATN':        ['Sắt vách'],
   'TP Chống thấm VBT': ['Chống thấm WC'],
+  'TP Chống thấm Phước Toàn': ['Chống thấm WC'],
   'TP TCSN Hải Khánh': ['Thạch cao trần','Sơn lót/Bả bột','Sơn nước'],
   'TP TCSN Trần Gia':  ['Thạch cao','Sơn lót/Bả bột','Sơn nước'],
-  'TP Nguyên Khôi':    ['Cán nền','Thạch cao','Sơn lót/Bả bột','Sơn nước','Ốp lát đá'],
+  'TP Nguyên Khôi':    ['Cán nền','Thạch cao','Sơn lót/Bả bột','Sơn nước','Ốp lát gạch'],
+  'TP Thành Đạt':      ['Cán nền','Ốp lát gạch'],
   'TP Ốp lát đá Cường Thịnh':   ['Ốp lát đá','Đá ngoài nhà'],
   'TP Ốp lát đá Minh Hoàng':   ['Ốp lát đá','Đá ngoài nhà'],
   'TP Kính':           ['Kính lan can','Vách kính'],
@@ -688,10 +692,10 @@ let NTC_WORKS={
   'TP Mộc (Nhóm 3,4)': ['Mộc nội thất','Built-in','Lắp đồ rời'],
 };
 
-let NTC_LIST=['TP Sắt D2T','TP Sắt ATN','TP Chống thấm VBT','TP TCSN Hải Khánh','TP TCSN Trần Gia','TP Nguyên Khôi','TP Ốp lát đá Cường Thịnh','TP Ốp lát đá Minh Hoàng','TP Kính','TP Mộc (Nhóm 1,2)','TP Mộc (Nhóm 3,4)'];
+let NTC_LIST=['TP Sắt D2T','TP Sắt ATN','TP Chống thấm VBT','TP Chống thấm Phước Toàn','TP TCSN Hải Khánh','TP TCSN Trần Gia','TP Nguyên Khôi','TP Thành Đạt','TP Ốp lát đá Cường Thịnh','TP Ốp lát đá Minh Hoàng','TP Kính','TP Mộc (Nhóm 1,2)','TP Mộc (Nhóm 3,4)'];
 const HM_LIST=['Sắt vách','Thạch cao','Sơn lót/Bả bột','Sơn nước','Chống thấm','Cán nền','Ốp lát gạch','Ốp lát đá','Kính','Mộc/Built-in','Vệ sinh','Khác'];
 const NTC_SOW={'TP Sắt D2T':['Sắt vách','C10–C21'],'TP Sắt ATN':['Sắt vách','B23–B37'],'TP Chống thấm VBT':['Chống thấm WC','Toàn bộ căn'],'TP TCSN Hải Khánh':['Thạch cao trần','Sơn nước','A1–A16'],'TP TCSN Trần Gia':['Thạch cao','Sơn nước','B16–B22, B38–B49'],'TP Nguyên Khôi':['Cán nền','Thạch cao','Sơn nước','Ốp lát','B/C/D/E'],'TP Ốp lát đá Cường Thịnh':['Đá ngoài nhà','Ốp lát WC','A1–A16'],'TP Ốp lát đá Minh Hoàng':['Đá ngoài nhà','Ốp lát WC','B/C ngoài nhà'],'TP Kính':['Kính lan can','Vách kính'],'TP Mộc (Nhóm 1,2)':['Mộc nội thất','Built-in','Lắp đồ rời'],'TP Mộc (Nhóm 3,4)':['Mộc nội thất','Built-in','Lắp đồ rời']};
-const NTC_HM={'TP Sắt D2T':'Sắt vách','TP Sắt ATN':'Sắt vách','TP Chống thấm VBT':'Chống thấm','TP TCSN Hải Khánh':'Thạch cao','TP TCSN Trần Gia':'Thạch cao','TP Nguyên Khôi':'Sơn nước','TP Ốp lát đá Cường Thịnh':'Ốp lát đá','TP Ốp lát đá Minh Hoàng':'Ốp lát đá','TP Kính':'Kính','TP Mộc (Nhóm 1,2)':'Mộc/Built-in','TP Mộc (Nhóm 3,4)':'Mộc/Built-in'};
+const NTC_HM={'TP Sắt D2T':'Sắt vách','TP Sắt ATN':'Sắt vách','TP Chống thấm VBT':'Chống thấm','TP Chống thấm Phước Toàn':'Chống thấm','TP TCSN Hải Khánh':'Thạch cao','TP TCSN Trần Gia':'Thạch cao','TP Nguyên Khôi':'Sơn nước','TP Thành Đạt':'Cán nền','TP Ốp lát đá Cường Thịnh':'Ốp lát đá','TP Ốp lát đá Minh Hoàng':'Ốp lát đá','TP Kính':'Kính','TP Mộc (Nhóm 1,2)':'Mộc/Built-in','TP Mộc (Nhóm 3,4)':'Mộc/Built-in'};
 const DEFAULT_ROWS=[{ntc:'TP Sắt D2T',cn:7,hm:'Sắt vách'},{ntc:'TP TCSN Hải Khánh',cn:10,hm:'Thạch cao'},{ntc:'TP TCSN Trần Gia',cn:8,hm:'Sơn lót/Bả bột'},{ntc:'TP Chống thấm VBT',cn:4,hm:'Chống thấm'}];
 
 let ALC_WORKERS=[
@@ -4235,9 +4239,11 @@ init();
     'TP Sắt D2T':['Đ2T'],
     'TP Sắt ATN':['ATN'],
     'TP Chống thấm VBT':['VBT','VTB'],
+    'TP Chống thấm Phước Toàn':['PHƯỚC TOÀN'],
     'TP TCSN Hải Khánh':['HẢI KHÁNH'],
     'TP TCSN Trần Gia':['TRẦN GIA'],
     'TP Nguyên Khôi':['NGUYÊN KHÔI'],
+    'TP Thành Đạt':['THÀNH ĐẠT'],
     'TP Ốp lát đá Cường Thịnh':['CƯỜNG THỊNH'],
     'TP Ốp lát đá Minh Hoàng':['MINH HOÀNG'],
     'TP Kính':['HOÀNG ANH','KÍNH']
@@ -4274,13 +4280,127 @@ init();
     if (k.indexOf('SẮT') >= 0 || k.indexOf('SAT') >= 0) return 'O30';
     return '';
   }
+  // ════════════════════════════════════════════════════════════════
+  //  NTP_STATIC — PHẠM VI NTP NHÚNG SẴN
+  //  Để app hoạt động ổn định cả khi GitHub Pages không fetch được
+  //  sheet "NTP" (do sheet không public, CORS chặn, hoặc network lỗi).
+  //  Dữ liệu khớp 1-1 với sheet NTP (cột A/B/C/D).
+  //  Khi loadNTPScope fetch sheet thành công → ghi đè bằng data mới.
+  // ════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────
+  // NTP_STATIC — encode 1:1 với sheet NTP (cột A=Nhà thầu, B=Công tác,
+  // C=Tầng, D=Căn). Format mỗi dòng: ['Công tác','Tầng',[căn]].
+  // ─────────────────────────────────────────────────────────────────
+  var NTP_STATIC = (function(){
+    // Range helpers riêng — gom các căn dùng chung
+    var ATN_CANS = [].concat(rng('A',1,16), rng('B',24,37));                                                       // 30
+    var CT_DA    = [].concat(rng('A',1,16), rng('B',26,49), rng('C',10,21));                                       // 52
+    var HA_HAM   = [].concat(rng('C',2,21), rng('D',1,5),  rng('E',1,14));                                         // 39
+    var HA_FULL  = [].concat(rng('A',1,16), rng('B',1,49), rng('C',2,21), rng('D',1,5), rng('E',1,14));            // 104
+    var HK_CANS  = [].concat(rng('A',1,16), rng('B',1,6),  rng('B',23,37));                                        // 37
+    var MH_DA    = [].concat(rng('B',1,25), rng('C',2,9),  rng('D',1,5),  rng('E',1,14));                          // 52
+    var NK_CNHAM = [].concat(rng('D',3,5),  rng('E',7,14));                                                        // 11
+    var NK_CNALL = [].concat(rng('A',4,11), rng('A',15,16),rng('B',1,37), rng('D',3,5), rng('E',7,14));            // 58
+    var NK_SNHAM = [].concat(rng('C',2,21), rng('D',1,5),  rng('E',1,14));                                         // 39
+    var NK_SNALL = [].concat(rng('B',7,15), rng('C',2,21), rng('D',1,5),  rng('E',1,14));                          // 48
+    var NK_OPLAT = [].concat(rng('A',4,11), rng('A',15,16),rng('B',1,37));                                         // 47
+    var PT_HAM   = [].concat(rng('C',2,21), rng('D',1,5),  rng('E',1,14));                                         // 39
+    var PT_FULL  = [].concat(rng('B',16,23),rng('B',38,49),rng('C',2,21), rng('D',1,5), rng('E',1,14));            // 59
+    var TD_CNHAM = [].concat(rng('C',2,21), rng('D',1,2),  rng('E',1,6));                                          // 28
+    var TD_CNFULL= [].concat(['A1','A2','A3','A12','A13','A14'], rng('B',38,49), rng('C',2,21), rng('D',1,2), rng('E',1,6)); // 46
+    var TD_OPLAT = [].concat(['A1','A2','A3','A12','A13','A14'], rng('B',38,49), rng('C',17,21));                  // 23
+    var TG_CANS  = [].concat(rng('B',16,22),rng('B',38,49));                                                       // 19
+    var VBT_CANS = [].concat(rng('A',1,16), rng('B',1,15), rng('B',24,37));                                        // 45
+    var D2T_HAM  = [].concat(rng('C',2,21), rng('D',1,5),  rng('E',1,14));                                         // 39
+    var D2T_FULL = [].concat(rng('B',1,23), rng('B',38,49),rng('C',2,21), rng('D',1,5), rng('E',1,14));            // 74
+
+    return {
+      'TP Sắt D2T': [
+        ['Sắt','Hầm',D2T_HAM],
+        ['Sắt','Trệt',D2T_FULL],['Sắt','Tầng 1',D2T_FULL],['Sắt','Tầng 2',D2T_FULL]
+      ],
+      'TP Sắt ATN': [
+        ['Sắt','Trệt',ATN_CANS],['Sắt','Tầng 1',ATN_CANS],['Sắt','Tầng 2',ATN_CANS]
+      ],
+      'TP Chống thấm VBT': [
+        ['Chống thấm','Trệt',VBT_CANS],['Chống thấm','Tầng 1',VBT_CANS],['Chống thấm','Tầng 2',VBT_CANS]
+      ],
+      'TP Chống thấm Phước Toàn': [
+        ['Chống thấm','Hầm',PT_HAM],
+        ['Chống thấm','Trệt',PT_FULL],['Chống thấm','Tầng 1',PT_FULL],['Chống thấm','Tầng 2',PT_FULL]
+      ],
+      'TP TCSN Hải Khánh': [
+        ['Sơn nước','Trệt',HK_CANS],['Sơn nước','Tầng 1',HK_CANS],['Sơn nước','Tầng 2',HK_CANS],
+        ['Thạch cao','Trệt',HK_CANS],['Thạch cao','Tầng 1',HK_CANS],['Thạch cao','Tầng 2',HK_CANS]
+      ],
+      'TP TCSN Trần Gia': [
+        ['Sơn nước','Trệt',TG_CANS],['Sơn nước','Tầng 1',TG_CANS],['Sơn nước','Tầng 2',TG_CANS],
+        ['Thạch cao','Trệt',TG_CANS],['Thạch cao','Tầng 1',TG_CANS],['Thạch cao','Tầng 2',TG_CANS]
+      ],
+      'TP Nguyên Khôi': [
+        ['Cán nền','Hầm',NK_CNHAM],
+        ['Cán nền','Trệt',NK_CNALL],['Cán nền','Tầng 1',NK_CNALL],['Cán nền','Tầng 2',NK_CNALL],
+        ['Sơn nước','Hầm',NK_SNHAM],
+        ['Sơn nước','Trệt',NK_SNALL],['Sơn nước','Tầng 1',NK_SNALL],['Sơn nước','Tầng 2',NK_SNALL],
+        ['Thạch cao','Hầm',NK_SNHAM],
+        ['Thạch cao','Trệt',NK_SNALL],['Thạch cao','Tầng 1',NK_SNALL],['Thạch cao','Tầng 2',NK_SNALL],
+        ['Ốp lát','Trệt',NK_OPLAT],['Ốp lát','Tầng 1',NK_OPLAT],['Ốp lát','Tầng 2',NK_OPLAT]
+      ],
+      'TP Thành Đạt': [
+        ['Cán nền','Hầm',TD_CNHAM],
+        ['Cán nền','Trệt',TD_CNFULL],['Cán nền','Tầng 1',TD_CNFULL],['Cán nền','Tầng 2',TD_CNFULL],
+        ['Ốp lát','Trệt',TD_OPLAT],['Ốp lát','Tầng 1',TD_OPLAT],['Ốp lát','Tầng 2',TD_OPLAT]
+      ],
+      'TP Ốp lát đá Cường Thịnh': [
+        ['Đá','Trệt',CT_DA],['Đá','Tầng 1',CT_DA],['Đá','Tầng 2',CT_DA]
+      ],
+      'TP Ốp lát đá Minh Hoàng': [
+        ['Đá','Trệt',MH_DA],['Đá','Tầng 1',MH_DA],['Đá','Tầng 2',MH_DA]
+      ],
+      'TP Kính': [
+        ['Kính','Hầm',HA_HAM],
+        ['Kính','Trệt',HA_FULL],['Kính','Tầng 1',HA_FULL],['Kính','Tầng 2',HA_FULL]
+      ]
+    };
+  })();
+
+  function _seedOneNTPApp(app, rowsArr) {
+    var detail = {};
+    var workCatSet = {};
+    var cansUnion = [];
+    rowsArr.forEach(function(row){
+      var cong = row[0], tang = row[1], cans = row[2] || [];
+      var fc = _tangToCode(tang);
+      var nc = _congTacToNhomCode(cong);
+      if (cong) workCatSet[cong] = 1;
+      cans.forEach(function(c){
+        if (cansUnion.indexOf(c) < 0) cansUnion.push(c);
+        if (!fc || !nc) return;
+        if (!detail[c]) detail[c] = {};
+        if (!detail[c][fc]) detail[c][fc] = {};
+        detail[c][fc][nc] = 1;
+      });
+    });
+    window.__NTP_DETAIL[app] = detail;
+    window.__NTP_WORKCATS[app] = Object.keys(workCatSet);
+    if (cansUnion.length && typeof NTC_SCOPE !== 'undefined') {
+      cansUnion.sort(sortCans);
+      NTC_SCOPE[app] = { khu:'ALL', cans: cansUnion };
+    }
+  }
+
+  // Seed NGAY khi script chạy — không cần đợi async fetch.
+  window.__NTP_DETAIL = window.__NTP_DETAIL || {};
+  window.__NTP_WORKCATS = window.__NTP_WORKCATS || {};
+  Object.keys(NTP_STATIC).forEach(function(app){ _seedOneNTPApp(app, NTP_STATIC[app]); });
+  window.__NTP_DETAIL_LOADED = true;
+
   // Đọc NTP đầy đủ 4 cột:
   //  A = Nhà thầu phụ
   //  B = Công tác
   //  C = Tầng
   //  D = Căn (danh sách phân tách bởi dấu phẩy)
-  // → build window.__NTP_DETAIL[app NTC name][CĂN][floorCode] = Set<nhomCode>
-  // và NTC_SCOPE[app].cans = union các căn.
+  // → ghi đè window.__NTP_DETAIL[app NTC name] nếu fetch sheet thành công.
   async function loadNTPScope(){
     try{
       var id=(typeof SHEETS_ID!=='undefined'&&SHEETS_ID)?SHEETS_ID:window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
@@ -4319,10 +4439,10 @@ init();
       if(typeof NTC_SCOPE==='undefined') return;
 
       // Build __NTP_DETAIL theo TÊN NTC trong app (vd 'TP Nguyên Khôi').
-      // Reset hẳn để các NTC không có dòng NTP nào → KHÔNG giữ data cũ.
-      window.__NTP_DETAIL = {};
-      window.__NTP_WORKCATS = {};
-      window.__NTP_DETAIL_LOADED = false;
+      // KHÔNG reset __NTP_DETAIL — giữ data NTP_STATIC làm cơ sở.
+      // Chỉ ghi đè khi sheet trả về data cho NTC đó (changed++).
+      window.__NTP_DETAIL = window.__NTP_DETAIL || {};
+      window.__NTP_WORKCATS = window.__NTP_WORKCATS || {};
       var changed=0;
       Object.keys(NTC_NTP_MAP).forEach(function(app){
         var toks = NTC_NTP_MAP[app].map(normU);
