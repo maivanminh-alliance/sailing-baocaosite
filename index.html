@@ -4369,15 +4369,14 @@ init();
   // ────────────────────────────────────────────────────────────────
   window.rowInNTPScope = function(qs, r) {
     try {
-      // NTP chưa tải xong → cho qua (sẽ render lại khi tải xong).
+      // NTP chưa tải xong → cho qua (sẽ re-render khi tải xong).
       if (!window.__NTP_DETAIL_LOADED) return true;
-      var detail = window.__NTP_DETAIL[qs.ntc];
-      // NTC này CÓ trong NTC_NTP_MAP nhưng không có dòng NTP nào khớp
-      // → loại tất cả (không cho phép đầu mục lạc).
-      if (!detail) {
-        var hasMap = (typeof NTC_NTP_MAP !== 'undefined') && NTC_NTP_MAP[qs.ntc];
-        return !hasMap; // có map nhưng rỗng → false (chặn); không có map → true (legacy NTC)
-      }
+      var detail = window.__NTP_DETAIL && window.__NTP_DETAIL[qs.ntc];
+      // NTC không có entry trong NTP (do fetch lỗi, sheet name khác, hoặc
+      // NTC chưa khai báo) → CHO QUA để không chặn nhầm trên môi trường
+      // web app không truy cập được sheet. Khi NTP tải thành công và có
+      // entry cho NTC này → áp filter chặt chẽ bên dưới.
+      if (!detail) return true;
       var loaiCans = [].slice.call(qs.selectedCans||[]).filter(function(c){return letterOf(c)===r[0];});
       if (!loaiCans.length) return true;
       return loaiCans.some(function(c){
