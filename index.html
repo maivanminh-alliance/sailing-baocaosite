@@ -665,6 +665,7 @@ const NTC_SCOPE={
   'TP Chống thấm VBT': {khu:'ALL',cans:[]},
   'TP TCSN Hải Khánh': {khu:'A',cans:['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','A11','A12','A13','A14','A15','A16']},
   'TP TCSN Trần Gia':  {khu:'B',cans:['B16','B17','B18','B19','B20','B21','B22','B38','B39','B40','B41','B42','B43','B44','B45','B46','B47','B48','B49']},
+  'TP Nguyên Khôi':    {khu:'ALL',cans:[]},
   'TP Ốp lát đá Cường Thịnh':   {khu:'A',cans:['A1','A2','A3','A4','A5','A6','A7','A8','A9','A10','A11','A12','A13','A14','A15','A16']},
   'TP Ốp lát đá Minh Hoàng':   {khu:'ALL',cans:[]},
   'TP Kính':           {khu:'ALL',cans:[]},
@@ -679,6 +680,7 @@ let NTC_WORKS={
   'TP Chống thấm VBT': ['Chống thấm WC'],
   'TP TCSN Hải Khánh': ['Thạch cao trần','Sơn lót/Bả bột','Sơn nước'],
   'TP TCSN Trần Gia':  ['Thạch cao','Sơn lót/Bả bột','Sơn nước'],
+  'TP Nguyên Khôi':    ['Cán nền','Thạch cao','Sơn lót/Bả bột','Sơn nước','Ốp lát đá'],
   'TP Ốp lát đá Cường Thịnh':   ['Ốp lát đá','Đá ngoài nhà'],
   'TP Ốp lát đá Minh Hoàng':   ['Ốp lát đá','Đá ngoài nhà'],
   'TP Kính':           ['Kính lan can','Vách kính'],
@@ -686,10 +688,10 @@ let NTC_WORKS={
   'TP Mộc (Nhóm 3,4)': ['Mộc nội thất','Built-in','Lắp đồ rời'],
 };
 
-let NTC_LIST=['TP Sắt D2T','TP Sắt ATN','TP Chống thấm VBT','TP TCSN Hải Khánh','TP TCSN Trần Gia','TP Ốp lát đá Cường Thịnh','TP Ốp lát đá Minh Hoàng','TP Kính','TP Mộc (Nhóm 1,2)','TP Mộc (Nhóm 3,4)'];
+let NTC_LIST=['TP Sắt D2T','TP Sắt ATN','TP Chống thấm VBT','TP TCSN Hải Khánh','TP TCSN Trần Gia','TP Nguyên Khôi','TP Ốp lát đá Cường Thịnh','TP Ốp lát đá Minh Hoàng','TP Kính','TP Mộc (Nhóm 1,2)','TP Mộc (Nhóm 3,4)'];
 const HM_LIST=['Sắt vách','Thạch cao','Sơn lót/Bả bột','Sơn nước','Chống thấm','Cán nền','Ốp lát gạch','Ốp lát đá','Kính','Mộc/Built-in','Vệ sinh','Khác'];
-const NTC_SOW={'TP Sắt D2T':['Sắt vách','C10–C21'],'TP Sắt ATN':['Sắt vách','B23–B37'],'TP Chống thấm VBT':['Chống thấm WC','Toàn bộ căn'],'TP TCSN Hải Khánh':['Thạch cao trần','Sơn nước','A1–A16'],'TP TCSN Trần Gia':['Thạch cao','Sơn nước','B16–B22, B38–B49'],'TP Ốp lát đá Cường Thịnh':['Đá ngoài nhà','Ốp lát WC','A1–A16'],'TP Ốp lát đá Minh Hoàng':['Đá ngoài nhà','Ốp lát WC','B/C ngoài nhà'],'TP Kính':['Kính lan can','Vách kính'],'TP Mộc (Nhóm 1,2)':['Mộc nội thất','Built-in','Lắp đồ rời'],'TP Mộc (Nhóm 3,4)':['Mộc nội thất','Built-in','Lắp đồ rời']};
-const NTC_HM={'TP Sắt D2T':'Sắt vách','TP Sắt ATN':'Sắt vách','TP Chống thấm VBT':'Chống thấm','TP TCSN Hải Khánh':'Thạch cao','TP TCSN Trần Gia':'Thạch cao','TP Ốp lát đá Cường Thịnh':'Ốp lát đá','TP Ốp lát đá Minh Hoàng':'Ốp lát đá','TP Kính':'Kính','TP Mộc (Nhóm 1,2)':'Mộc/Built-in','TP Mộc (Nhóm 3,4)':'Mộc/Built-in'};
+const NTC_SOW={'TP Sắt D2T':['Sắt vách','C10–C21'],'TP Sắt ATN':['Sắt vách','B23–B37'],'TP Chống thấm VBT':['Chống thấm WC','Toàn bộ căn'],'TP TCSN Hải Khánh':['Thạch cao trần','Sơn nước','A1–A16'],'TP TCSN Trần Gia':['Thạch cao','Sơn nước','B16–B22, B38–B49'],'TP Nguyên Khôi':['Cán nền','Thạch cao','Sơn nước','Ốp lát','B/C/D/E'],'TP Ốp lát đá Cường Thịnh':['Đá ngoài nhà','Ốp lát WC','A1–A16'],'TP Ốp lát đá Minh Hoàng':['Đá ngoài nhà','Ốp lát WC','B/C ngoài nhà'],'TP Kính':['Kính lan can','Vách kính'],'TP Mộc (Nhóm 1,2)':['Mộc nội thất','Built-in','Lắp đồ rời'],'TP Mộc (Nhóm 3,4)':['Mộc nội thất','Built-in','Lắp đồ rời']};
+const NTC_HM={'TP Sắt D2T':'Sắt vách','TP Sắt ATN':'Sắt vách','TP Chống thấm VBT':'Chống thấm','TP TCSN Hải Khánh':'Thạch cao','TP TCSN Trần Gia':'Thạch cao','TP Nguyên Khôi':'Sơn nước','TP Ốp lát đá Cường Thịnh':'Ốp lát đá','TP Ốp lát đá Minh Hoàng':'Ốp lát đá','TP Kính':'Kính','TP Mộc (Nhóm 1,2)':'Mộc/Built-in','TP Mộc (Nhóm 3,4)':'Mộc/Built-in'};
 const DEFAULT_ROWS=[{ntc:'TP Sắt D2T',cn:7,hm:'Sắt vách'},{ntc:'TP TCSN Hải Khánh',cn:10,hm:'Thạch cao'},{ntc:'TP TCSN Trần Gia',cn:8,hm:'Sơn lót/Bả bột'},{ntc:'TP Chống thấm VBT',cn:4,hm:'Chống thấm'}];
 
 let ALC_WORKERS=[
@@ -4198,6 +4200,8 @@ init();
     'TP Chống thấm VBT':[].concat(rng('A',1,16),rng('B',1,15),rng('B',24,37)),
     'TP TCSN Hải Khánh':[].concat(rng('A',1,16),rng('B',1,6),rng('B',23,37)),
     'TP TCSN Trần Gia':[].concat(rng('B',16,22),rng('B',38,49)),
+    // Nguyên Khôi: Cán nền + Sơn nước + Thạch cao + Ốp lát — phạm vi gần như toàn dự án.
+    'TP Nguyên Khôi':[].concat(rng('A',4,16),rng('B',1,37),rng('C',2,21),rng('D',1,5),rng('E',1,14)),
     'TP Ốp lát đá Cường Thịnh':[].concat(rng('A',1,16),rng('B',26,49),rng('C',10,21)),
     'TP Ốp lát đá Minh Hoàng':[].concat(rng('B',1,25),rng('C',2,9),rng('D',1,5),rng('E',1,14)),
     'TP Kính':[].concat(rng('A',1,16),rng('B',1,49),rng('C',2,21),rng('D',1,5),rng('E',1,14))
@@ -4216,6 +4220,7 @@ init();
     'TP Chống thấm VBT':['VBT','VTB'],
     'TP TCSN Hải Khánh':['HẢI KHÁNH'],
     'TP TCSN Trần Gia':['TRẦN GIA'],
+    'TP Nguyên Khôi':['NGUYÊN KHÔI'],
     'TP Ốp lát đá Cường Thịnh':['CƯỜNG THỊNH'],
     'TP Ốp lát đá Minh Hoàng':['MINH HOÀNG'],
     'TP Kính':['HOÀNG ANH','KÍNH']
