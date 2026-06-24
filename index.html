@@ -1026,7 +1026,8 @@ function reportToSubmittedWorkItems(report) {
       name:r.ntc,
       detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
       type:'ntc',
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,tang:r.tang,cn:r.cn||0}
+      // wbs/nhomCode/tangCode để GAS dò chính xác dòng trong CĂN A–E.
+      meta:{ntc:r.ntc,works:r.works,wbs:r.wbs,nhomCode:r.nhomCode,tangCode:r.tangCode,kv:r.kv,tang:r.tang,cn:r.cn||0}
     })),
     ...cnRows.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
@@ -2975,7 +2976,28 @@ function buildResultPanel(){
     const sourceId=item.sourceId || item.id;
     const rid=safeDomId('result', sourceId || item.id || item.name, itemIndex);
     const saved=savedById[sourceId] || savedById[item.id] || savedById[rid];
-    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}"><div class="photo-item-main"><div style="flex-shrink:0;background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}</div></div><div class="kq-mini-row"><div class="kq-mini xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}"><div class="pct-row-sm"><div class="pct-val-sm" id="pctv-${rid}">0%</div><input type="range" id="pctr-${rid}" min="0" max="100" step="5" value="0" oninput="document.getElementById('pctv-${rid}').textContent=this.value+'%'"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
+    // ────────────────────────────────────────────────────────────────
+    // MỨC SÀN % CỦA SLIDER = % hiện có trên CĂN A–E (SOW_STATUS).
+    // Logic: việc hôm qua đã 5% thì hôm nay min = 5%, slider khởi tạo cũng 5%.
+    // Không cho kéo lùi (slider min=carryPct) — công việc không thể "ít đi".
+    // ────────────────────────────────────────────────────────────────
+    let carryPct = 0;
+    try {
+      const mKv = item?.meta?.kv;
+      const mWbs = item?.meta?.wbs;
+      if (mKv && mWbs && typeof window.getItemStatus === 'function') {
+        const st = window.getItemStatus(String(mKv).trim().toUpperCase(), String(mWbs).trim());
+        const n = parseFloat(st && st.pct);
+        if (!isNaN(n)) carryPct = Math.max(0, Math.min(100, Math.round(n)));
+      }
+    } catch(_) {}
+    // Làm tròn xuống bội của step (5) để slider hiển thị đúng nấc.
+    const stepN = 5;
+    const carryStep = Math.floor(carryPct / stepN) * stepN;
+    const carryHint = carryPct > 0
+      ? `<div class="pct-min-hint" style="font-size:11px;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;padding:3px 8px;margin-bottom:4px;display:inline-block">⛳ Đã đạt ${carryPct}% trước đó — chỉ có thể tăng thêm</div>`
+      : '';
+    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}" data-carry-pct="${carryStep}"><div class="photo-item-main"><div style="flex-shrink:0;background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}</div></div><div class="kq-mini-row"><div class="kq-mini xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}">${carryHint}<div class="pct-row-sm"><div class="pct-val-sm" id="pctv-${rid}">${carryStep}%</div><input type="range" id="pctr-${rid}" min="${carryStep}" max="100" step="${stepN}" value="${carryStep}" data-carry-pct="${carryStep}" oninput="document.getElementById('pctv-${rid}').textContent=this.value+'%'"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
     restoreResultItem(rid, saved);
   });
 }
@@ -3011,8 +3033,11 @@ function restoreResultItem(rid, saved) {
   }
   const rng=document.getElementById('pctr-'+rid);
   const lbl=document.getElementById('pctv-'+rid);
-  if(rng)rng.value=saved.pct||0;
-  if(lbl)lbl.textContent=(saved.pct||0)+'%';
+  // KHÔNG cho khôi phục về giá trị THẤP HƠN mức sàn (% hôm qua đã làm).
+  const carryPct = parseInt(rng?.dataset?.carryPct||'0',10)||0;
+  const savedPct = Math.max(parseInt(saved.pct||0,10)||0, carryPct);
+  if(rng)rng.value=savedPct;
+  if(lbl)lbl.textContent=savedPct+'%';
   restorePhotoSlot('ri1-'+rid, saved.ph1_data);
   restorePhotoSlot('ri2-'+rid, saved.ph2_data);
 }
@@ -3025,9 +3050,11 @@ function selKQI(rid,el,val){
     card.classList.toggle('is-xong', val==='Xong');
     card.classList.toggle('show-pct', val!=='Xong');
   }
-  const pct=val==='Xong'?100:0;
   const rng=document.getElementById('pctr-'+rid);
   const lbl=document.getElementById('pctv-'+rid);
+  // "Chưa xong" KHÔNG reset về 0 nếu hôm qua đã làm 5%; reset về mức sàn carryPct.
+  const carryPct = parseInt(rng?.dataset?.carryPct||'0',10)||0;
+  const pct = val==='Xong' ? 100 : carryPct;
   if(rng)rng.value=pct;
   if(lbl)lbl.textContent=pct+'%';
   scheduleReporterAutosave();
@@ -3190,7 +3217,10 @@ function submitQS(){
     [...(qs.items||[])].forEach(gi=>{
       const r=SOW_ITEMS[gi];const cnv=(qs.cnMap&&qs.cnMap[gi])||1;
       [...qs.selectedCans].filter(c=>c.charAt(0)===r[0]).forEach(can=>{
-        ntcRows.push({ntc,kv:can,tang:r[2],works:r[6],note,cn:cnv,vuongMac:'',pending:false,
+        // GỬI KÈM wbs/nhomCode/tangCode để GAS dò ĐÚNG dòng trong CĂN A–E.
+        // Trước đây chỉ gửi works=r[6] (tên đầu mục) khiến GAS không khớp được
+        // WORK_CODE_MAP (vốn chỉ có tên nhóm như "Sắt vách"), CĂN không nhận %.
+        ntcRows.push({ntc,kv:can,tang:r[2],works:r[6],wbs:r[5],nhomCode:r[3],tangCode:r[1],note,cn:cnv,vuongMac:'',pending:false,
           selectedKhu:'',selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:cnv}});
         ntcTotal+=cnv;
         dauMucRows.push({ntc,loai:r[0],can,tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],wbs:r[5],dauMuc:r[6],m2:r[7],phanTram:getItemStatus(can,r[5]).pct,soCN:cnv});
@@ -3215,7 +3245,8 @@ function submitQS(){
       name:r.ntc,
       detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
       type:'ntc',
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,tang:r.tang,cn:r.cn||0}
+      // wbs/nhomCode/tangCode được GAS dùng để xác định CHÍNH XÁC dòng trong CĂN A–E.
+      meta:{ntc:r.ntc,works:r.works,wbs:r.wbs,nhomCode:r.nhomCode,tangCode:r.tangCode,kv:r.kv,tang:r.tang,cn:r.cn||0}
     })),
     ...cnTaskData.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
@@ -4034,6 +4065,8 @@ init();
         Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
         if(typeof calcTotal==='function')try{calcTotal();}catch(e){}
         try{loadTonDong();}catch(e){}                        // tồn đọng dùng % mới
+        // Cập nhật slider Sản lượng (nếu user đã mở tab Sản lượng trước khi SOW tải xong).
+        try{ if (typeof window.refreshResultSlidersFromSOW === 'function') window.refreshResultSlidersFromSOW(); }catch(e){}
         var done=0;Object.keys(STAT).forEach(function(cn){Object.keys(STAT[cn]).forEach(function(w){if(STAT[cn][w].pct>=100)done++;});});
         if(typeof toast==='function')try{toast('Đã tải tiến độ từ Google Sheets ('+done+' mục căn đạt 100%)','ok');}catch(e){}
       }
@@ -4053,22 +4086,30 @@ init();
   window.updateLocalSOWStatus = function(items) {
     try {
       if (!window.SOW_STATUS) window.SOW_STATUS = {};
-      if (!window.SOW_ITEMS || !window.SOW_ITEMS.length) return;
       (items||[]).forEach(function(it){
         if (!it) return;
         var meta = it.meta || {}; if (!meta.kv) return;
         var pctN = parseFloat(it.pct); if (isNaN(pctN)) pctN = 0;
         if (pctN < 0) pctN = 0; if (pctN > 100) pctN = 100;
-        var dauMucName = String(it.name||'').replace(/\s+/g,' ').trim();
         var cans = String(meta.kv).split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
         cans.forEach(function(can){
           if (!window.SOW_STATUS[can]) window.SOW_STATUS[can] = {};
-          var L = can.charAt(0);
-          window.SOW_ITEMS.forEach(function(r){
-            if (!r || r[0] !== L) return;
-            // r = [loai, floorCode, floorName, nhomCode, nhomName, wbs, dauMucName, m2, dvt]
-            if (dauMucName && r[6] !== dauMucName) return;
-            var wbs = r[5]; if (!wbs) return;
+          // ƯU TIÊN dùng wbs gửi kèm (chính xác tuyệt đối).
+          var wbsList = [];
+          if (meta.wbs) {
+            wbsList.push(String(meta.wbs).trim());
+          } else if (window.SOW_ITEMS && window.SOW_ITEMS.length) {
+            // Fallback: dò theo tên đầu mục khi payload cũ không có wbs.
+            var dauMucName = String(it.name||'').replace(/\s+/g,' ').trim();
+            var L = can.charAt(0);
+            window.SOW_ITEMS.forEach(function(r){
+              if (!r || r[0] !== L) return;
+              if (dauMucName && r[6] !== dauMucName) return;
+              if (r[5]) wbsList.push(r[5]);
+            });
+          }
+          wbsList.forEach(function(wbs){
+            if (!wbs) return;
             var ex = window.SOW_STATUS[can][wbs];
             var prev = ex ? (parseFloat(ex.pct)||0) : 0;
             if (pctN >= prev) {
@@ -4081,6 +4122,70 @@ init();
       try { if (typeof loadTonDong === 'function') loadTonDong(); } catch(e){}
       try { if (typeof renderTonDong === 'function') renderTonDong(); } catch(e){}
     } catch(e) { if (typeof console!=='undefined') console.log('updateLocalSOWStatus lỗi:', e); }
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  //  CẬP NHẬT MIN/VALUE CHO CÁC SLIDER SẢN LƯỢNG ĐÃ RENDER
+  //  Gọi sau khi loadSOWOnline xong, để slider lấy đúng % CĂN A–E
+  //  (kể cả khi user đã mở tab Sản lượng TRƯỚC khi SOW tải xong).
+  // ══════════════════════════════════════════════════════════════════
+  window.refreshResultSlidersFromSOW = function() {
+    try {
+      var sliders = document.querySelectorAll('input[type="range"][id^="pctr-"]');
+      sliders.forEach(function(rng) {
+        var itemEl = rng.closest('.result-item'); if (!itemEl) return;
+        var rid = itemEl.dataset.itemId; if (!rid) return;
+        // Tìm meta của item: query qua sourceId từ submittedWorkItems / state.
+        var sourceId = itemEl.dataset.sourceId || '';
+        var meta = null;
+        try {
+          // Quét trong submitted reports để tìm meta.kv + meta.wbs theo sourceId.
+          if (typeof aggregateWorkItemsForCurrentView === 'function') {
+            var pool = aggregateWorkItemsForCurrentView();
+            for (var i = 0; i < pool.length; i++) {
+              if (pool[i].id === sourceId || pool[i].sourceId === sourceId) { meta = pool[i].meta; break; }
+            }
+          }
+          if (!meta) {
+            var s = (typeof getSubmittedReport === 'function') ? getSubmittedReport() : null;
+            var arr = (s && s.workItems) || [];
+            for (var j = 0; j < arr.length; j++) {
+              if (arr[j].id === sourceId) { meta = arr[j].meta; break; }
+            }
+          }
+        } catch(_) {}
+        if (!meta || !meta.kv || !meta.wbs) return;
+        var st = (typeof window.getItemStatus === 'function')
+          ? window.getItemStatus(String(meta.kv).trim().toUpperCase(), String(meta.wbs).trim())
+          : null;
+        var n = parseFloat(st && st.pct); if (isNaN(n)) return;
+        var carryPct = Math.max(0, Math.min(100, Math.round(n)));
+        var stepN = parseInt(rng.step,10) || 5;
+        var carryStep = Math.floor(carryPct / stepN) * stepN;
+        // Chỉ nâng MIN lên, không hạ xuống (giữ nguyên không cho kéo lùi).
+        var prevMin = parseInt(rng.min,10) || 0;
+        if (carryStep > prevMin) {
+          rng.min = String(carryStep);
+          rng.dataset.carryPct = String(carryStep);
+          itemEl.dataset.carryPct = String(carryStep);
+          // Nếu giá trị hiện tại < min mới, nâng lên min.
+          if ((parseInt(rng.value,10)||0) < carryStep) {
+            rng.value = String(carryStep);
+            var lbl = document.getElementById('pctv-' + rid);
+            if (lbl) lbl.textContent = carryStep + '%';
+          }
+          // Bổ sung gợi ý "đã đạt X% trước đó" nếu chưa có.
+          if (!itemEl.querySelector('.pct-min-hint') && carryPct > 0) {
+            var hint = document.createElement('div');
+            hint.className = 'pct-min-hint';
+            hint.style.cssText = 'font-size:11px;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;border-radius:6px;padding:3px 8px;margin-bottom:4px;display:inline-block';
+            hint.textContent = '⛳ Đã đạt ' + carryPct + '% trước đó — chỉ có thể tăng thêm';
+            var pctRow = itemEl.querySelector('.pct-row-sm');
+            if (pctRow && pctRow.parentNode) pctRow.parentNode.insertBefore(hint, pctRow);
+          }
+        }
+      });
+    } catch(e) { if (typeof console!=='undefined') console.log('refreshResultSlidersFromSOW lỗi:', e); }
   };
 
   // ── Phạm vi căn từng nhà thầu (tính sẵn từ ma trận NTP, gộp đủ A–E) ──
