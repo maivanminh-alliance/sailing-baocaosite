@@ -3776,7 +3776,8 @@ init();
   // Khoá đầu mục khi MỌI căn đã chọn đạt 100% thi công HOẶC đã nghiệm thu.
   function itemLock(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});return cs.length>0&&cs.every(function(x){var st=getItemStatus(x,r[5]);return st.nt||(st.pct||0)>=100;});}
   function itemLockNT(qs,r){var cs=[...qs.selectedCans].filter(function(x){return letterOf(x)===r[0];});return cs.length>0&&cs.every(function(x){return getItemStatus(x,r[5]).nt;});}
-  function wPct(qs,rows){var w=0,wp=0;rows.forEach(function(pr){var r=pr[0],m=(typeof r[7]==='number')?r[7]:0;w+=m;wp+=m*itemPct(qs,r);});return w?Math.round(wp/w):0;}
+  // % nhóm/tầng = trung bình ĐƠN GIẢN của % các đầu mục (mỗi đầu mục tính ngang nhau).
+  function wPct(qs,rows){if(!rows.length)return 0;var t=0;rows.forEach(function(pr){t+=itemPct(qs,pr[0]);});return Math.round(t/rows.length);}
   function syncLegacy(qs){qs.selectedWorks=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][6];}));qs.selectedTangs=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][2];}));}
 
   // ===== OVERRIDE: addQSRow =====
