@@ -3858,7 +3858,11 @@ init();
     var box=document.getElementById('sw-scope-'+i);if(!box)return;
     if(!ntc){box.style.display='none';return;}
     box.style.display='block';
-    document.getElementById('sw-cats-'+i).innerHTML='Hạng mục thầu phụ: <b>'+((NTC_WORKS[ntc]||[]).join(', ')||'—')+'</b>';
+    // Hạng mục: ưu tiên danh sách CÔNG TÁC đọc thực tế từ sheet NTP (cột B),
+    // fallback NTC_WORKS tĩnh khi NTP chưa tải xong.
+    var catsFromNTP = (window.__NTP_WORKCATS && window.__NTP_WORKCATS[ntc]) || null;
+    var catList = (catsFromNTP && catsFromNTP.length) ? catsFromNTP : (NTC_WORKS[ntc]||[]);
+    document.getElementById('sw-cats-'+i).innerHTML='Hạng mục thầu phụ: <b>'+(catList.join(', ')||'—')+'</b>';
     var sc=NTC_SCOPE[ntc]||{khu:'ALL',cans:[]};
     // Ưu tiên danh sách căn theo NTP (sc.cans). Chỉ dùng "tất cả căn" khi không có sc.cans.
     var canList = (sc.cans&&sc.cans.length) ? sc.cans.slice()
@@ -3904,7 +3908,12 @@ init();
     var loaiSet=new Set([...qs.selectedCans].map(letterOf).filter(Boolean));
     if(!loaiSet.size){box.innerHTML='<div class="sw-note">Chọn căn để bung đầu mục…</div>';syncLegacy(qs);return;}
     var codes=nhomCodes(qs.ntc);
-    var rows=SOW_ITEMS.map(function(r,gi){return [r,gi];}).filter(function(pr){return loaiSet.has(pr[0][0])&&codes[pr[0][3]];});
+    // Lọc theo NTP_DETAIL (cột A/B/C/D của sheet NTP) — chỉ hiện nhóm/đầu mục
+    // mà nhà thầu THỰC SỰ phụ trách tại (căn, tầng) đang chọn.
+    var rows=SOW_ITEMS.map(function(r,gi){return [r,gi];}).filter(function(pr){
+      if (!loaiSet.has(pr[0][0]) || !codes[pr[0][3]]) return false;
+      return (typeof window.rowInNTPScope === 'function') ? window.rowInNTPScope(qs, pr[0]) : true;
+    });
     if(!rows.length){box.innerHTML='<div class="sw-note">Không có đầu mục khớp hạng mục thầu phụ.</div>';syncLegacy(qs);return;}
     var multi=loaiSet.size>1;var html='';
     [...loaiSet].sort().forEach(function(loai){
@@ -3954,7 +3963,10 @@ init();
     renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
   window.qsItemCN=function(i,gi,d){var qs=qsCards[i];qs.cnMap[gi]=Math.max(1,(qs.cnMap[gi]||1)+d);renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
   window.qsAllNhom=function(i,nkey){var qs=qsCards[i];var p=nkey.split('|');var loai=p[0],tc=p[1],nc=p[2];
-    var list=SOW_ITEMS.map(function(r,gi){return[r,gi];}).filter(function(pr){return pr[0][0]===loai&&pr[0][1]===tc&&pr[0][3]===nc&&!itemLock(qs,pr[0]);}).map(function(pr){return pr[1];});
+    var list=SOW_ITEMS.map(function(r,gi){return[r,gi];}).filter(function(pr){
+      if (pr[0][0]!==loai||pr[0][1]!==tc||pr[0][3]!==nc||itemLock(qs,pr[0])) return false;
+      return (typeof window.rowInNTPScope === 'function') ? window.rowInNTPScope(qs, pr[0]) : true;
+    }).map(function(pr){return pr[1];});
     var all=list.every(function(gi){return qs.items.has(gi);});
     list.forEach(function(gi){if(all){qs.items.delete(gi);delete qs.cnMap[gi];}else{qs.items.add(gi);if(!qs.cnMap[gi])qs.cnMap[gi]=1;}});
     renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
@@ -4227,6 +4239,43 @@ init();
   };
   function normU(s){return String(s||'').toUpperCase().replace(/\s+/g,' ').trim();}
   function sortCans(a,b){var la=a.charAt(0),lb=b.charAt(0);if(la!==lb)return la<lb?-1:1;return (parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0);}
+  // Bản đồ tầng (chữ trong sheet NTP) → floorCode khớp SOW_ITEMS[].[1].
+  var TANG_NAME_TO_CODE = {
+    'HẦM':'O1A','HAM':'O1A','TẦNG HẦM':'O1A','TANG HAM':'O1A',
+    'TRỆT':'O1B','TRET':'O1B',
+    'TẦNG 1':'O1C','TANG 1':'O1C','LẦU 1':'O1C','LAU 1':'O1C',
+    'TẦNG 2':'O1D','TANG 2':'O1D','LẦU 2':'O1D','LAU 2':'O1D',
+    'PHÁT SINH':'O1E','PHAT SINH':'O1E','PHÁT SINH (VO)':'O1E','PHAT SINH (VO)':'O1E','VO':'O1E'
+  };
+  function _tangToCode(s){ return TANG_NAME_TO_CODE[normU(s)] || ''; }
+  // Bản đồ công tác trong sheet NTP → nhomCode khớp SOW_ITEMS[].[3].
+  // Dùng song song WORK2NHOM (có sẵn) + heuristic chuỗi để bao trùm các biến thể trong sheet.
+  function _congTacToNhomCode(s){
+    var k = normU(s);
+    if (!k) return '';
+    if (WORK2NHOM[String(s||'').trim()]) return WORK2NHOM[String(s||'').trim()];
+    if (k.indexOf('THẠCH CAO') >= 0 || k.indexOf('THACH CAO') >= 0) return 'O22';
+    if (k.indexOf('SƠN NƯỚC') >= 0 || k.indexOf('SON NUOC') >= 0) return 'O23';
+    if (k.indexOf('SƠN LÓT') >= 0 || k.indexOf('SON LOT') >= 0 || k.indexOf('BẢ BỘT') >= 0 || k.indexOf('BA BOT') >= 0) return 'O23';
+    if (k.indexOf('SƠN HIỆU ỨNG') >= 0 || k.indexOf('SON HIEU UNG') >= 0) return 'O24';
+    if (k.indexOf('CHỐNG THẤM') >= 0 || k.indexOf('CHONG THAM') >= 0 || k.indexOf('CÁN NỀN') >= 0 || k.indexOf('CAN NEN') >= 0 || k.indexOf('TRÁT TƯỜNG') >= 0 || k.indexOf('TRAT TUONG') >= 0) return 'O25';
+    if (k.indexOf('ỐP LÁT') >= 0 || k.indexOf('OP LAT') >= 0) {
+      if (k.indexOf('ĐÁ') >= 0 || k.indexOf('DA') >= 0) return 'O27';
+      return 'O26';
+    }
+    if (k.indexOf('ĐÁ NGOÀI') >= 0 || k.indexOf('DA NGOAI') >= 0 || k === 'ĐÁ' || k === 'DA') return 'O27';
+    if (k.indexOf('KÍNH') >= 0 || k.indexOf('KINH') >= 0) return 'O28';
+    if (k.indexOf('MỘC') >= 0 || k.indexOf('MOC') >= 0 || k.indexOf('BUILT') >= 0 || k.indexOf('LẮP ĐỒ') >= 0) return 'O29';
+    if (k.indexOf('SẮT') >= 0 || k.indexOf('SAT') >= 0) return 'O30';
+    return '';
+  }
+  // Đọc NTP đầy đủ 4 cột:
+  //  A = Nhà thầu phụ
+  //  B = Công tác
+  //  C = Tầng
+  //  D = Căn (danh sách phân tách bởi dấu phẩy)
+  // → build window.__NTP_DETAIL[app NTC name][CĂN][floorCode] = Set<nhomCode>
+  // và NTC_SCOPE[app].cans = union các căn.
   async function loadNTPScope(){
     try{
       var id=(typeof SHEETS_ID!=='undefined'&&SHEETS_ID)?SHEETS_ID:window.SHEETS_ID;if(!id||id==='YOUR_SHEETS_ID')return;
@@ -4234,37 +4283,96 @@ init();
       var txt=await fetch(url).then(function(r){return r.ok?r.text():'';}).catch(function(){return '';});
       if(!txt)return;
       var rows=rcsv(txt);if(rows.length<2)return;
-      var hi=-1;for(var r=0;r<Math.min(6,rows.length);r++){var jj=rows[r].map(normU);
-        if(jj.some(function(x){return x.indexOf('NHÀ THẦU')>-1;})&&jj.some(function(x){return x.indexOf('CĂN')>-1;})){hi=r;break;}}
-      if(hi<0)hi=0;
-      var head=rows[hi].map(normU),cName=0,cCan=-1;
-      head.forEach(function(h,idx){if(h.indexOf('NHÀ THẦU')>-1&&h.indexOf('VIẾT TẮT')<0)cName=idx;if(h.indexOf('CĂN')>-1)cCan=idx;});
-      if(cCan<0)cCan=3;
-      var shortScope={};
-      for(var i2=hi+1;i2<rows.length;i2++){
-        var nm=normU(rows[i2][cName]);if(!nm)continue;
-        var cans=String(rows[i2][cCan]||'').split(',').map(function(x){return x.trim().toUpperCase();}).filter(function(x){return /^[A-E]\d+$/.test(x);});
-        if(!cans.length)continue;
-        if(!shortScope[nm])shortScope[nm]=[];
-        cans.forEach(function(c){if(shortScope[nm].indexOf(c)<0)shortScope[nm].push(c);});
+
+      // Tìm dòng tiêu đề: chứa "NHÀ THẦU" + "CĂN".
+      var hi=-1;
+      for(var r=0;r<Math.min(6,rows.length);r++){
+        var jj=rows[r].map(normU);
+        if(jj.some(function(x){return x.indexOf('NHÀ THẦU')>-1;})&&jj.some(function(x){return x.indexOf('CĂN')>-1;})){hi=r;break;}
       }
-      if(typeof NTC_SCOPE==='undefined')return;
+      if(hi<0)hi=0;
+      var head=rows[hi].map(normU), cName=0, cCong=1, cTang=2, cCan=3;
+      head.forEach(function(h,idx){
+        if(h.indexOf('NHÀ THẦU')>-1&&h.indexOf('VIẾT TẮT')<0) cName=idx;
+        else if(h.indexOf('CÔNG TÁC')>-1) cCong=idx;
+        else if(h.indexOf('TẦNG')>-1) cTang=idx;
+        else if(h.indexOf('CĂN')>-1) cCan=idx;
+      });
+
+      // shortScope[ntcShortName] = [{cong, tang, cans}]
+      var shortScope = {};
+      for(var i2=hi+1;i2<rows.length;i2++){
+        var nm = normU(rows[i2][cName]); if(!nm) continue;
+        var cong = String(rows[i2][cCong]||'').trim();
+        var tang = String(rows[i2][cTang]||'').trim();
+        var canList = String(rows[i2][cCan]||'').split(',').map(function(x){return x.trim().toUpperCase();}).filter(function(x){return /^[A-E]\d+$/.test(x);});
+        if(!canList.length) continue;
+        if(!shortScope[nm]) shortScope[nm] = [];
+        shortScope[nm].push({cong: cong, tang: tang, cans: canList});
+      }
+
+      if(typeof NTC_SCOPE==='undefined') return;
+
+      // Build __NTP_DETAIL theo TÊN NTC trong app (vd 'TP Nguyên Khôi').
+      window.__NTP_DETAIL = window.__NTP_DETAIL || {};
+      // Cũng build __NTP_WORKCATS[appNTC] = ['Sơn nước','Thạch cao',…] để header hiển thị đúng.
+      window.__NTP_WORKCATS = window.__NTP_WORKCATS || {};
       var changed=0;
       Object.keys(NTC_NTP_MAP).forEach(function(app){
-        var toks=NTC_NTP_MAP[app].map(normU),set=[];
+        var toks = NTC_NTP_MAP[app].map(normU);
+        var cansUnion = [];
+        var detail = {};           // detail[can][floorCode] = { nhomCodes: Set }
+        var workCatSet = {};
         Object.keys(shortScope).forEach(function(sn){
-          if(toks.some(function(t){return sn.indexOf(t)>-1;}))
-            shortScope[sn].forEach(function(c){if(set.indexOf(c)<0)set.push(c);});
+          if(!toks.some(function(t){return sn.indexOf(t)>-1;})) return;
+          shortScope[sn].forEach(function(row){
+            var fc = _tangToCode(row.tang);
+            var nc = _congTacToNhomCode(row.cong);
+            if (row.cong) workCatSet[row.cong] = 1;
+            row.cans.forEach(function(c){
+              if (cansUnion.indexOf(c) < 0) cansUnion.push(c);
+              if (!fc || !nc) return;
+              if (!detail[c]) detail[c] = {};
+              if (!detail[c][fc]) detail[c][fc] = {};
+              detail[c][fc][nc] = 1;
+            });
+          });
         });
-        if(set.length){set.sort(sortCans);NTC_SCOPE[app]={khu:'ALL',cans:set};changed++;}
+        if (cansUnion.length) {
+          cansUnion.sort(sortCans);
+          NTC_SCOPE[app] = { khu:'ALL', cans: cansUnion };
+          window.__NTP_DETAIL[app] = detail;
+          window.__NTP_WORKCATS[app] = Object.keys(workCatSet);
+          changed++;
+        }
       });
       if(changed){
         Object.keys(qsCards).forEach(function(kk){try{buildScope(+kk);}catch(e){}});
-        if(typeof toast==='function')try{toast('Đã cập nhật phạm vi căn theo NTP','ok');}catch(e){}
+        if(typeof toast==='function')try{toast('Đã cập nhật phạm vi căn × công tác theo NTP','ok');}catch(e){}
       }
     }catch(e){if(typeof console!=='undefined')console.log('Tải NTP lỗi:',e);}
   }
   setTimeout(loadNTPScope,1900);
+
+  // ────────────────────────────────────────────────────────────────
+  //  TRA SCOPE NTP CHO MỘT DÒNG SOW
+  //  r = [loai, floorCode, floorName, nhomCode, ...]
+  //  Trả true nếu KHÔNG có NTP_DETAIL (chưa tải xong → cho phép),
+  //  hoặc có ít nhất 1 căn đang chọn thuộc loại r[0] mà NTP cho nhóm r[3] tại tầng r[1].
+  // ────────────────────────────────────────────────────────────────
+  window.rowInNTPScope = function(qs, r) {
+    try {
+      var detail = window.__NTP_DETAIL && window.__NTP_DETAIL[qs.ntc];
+      if (!detail) return true;
+      var loaiCans = [].slice.call(qs.selectedCans||[]).filter(function(c){return letterOf(c)===r[0];});
+      if (!loaiCans.length) return true;
+      return loaiCans.some(function(c){
+        var byFloor = detail[c]; if (!byFloor) return false;
+        var nhoms = byFloor[r[1]]; if (!nhoms) return false;
+        return !!nhoms[r[3]];
+      });
+    } catch(e) { return true; }
+  };
 
   // ── Ghi chú từng thẻ nhà thầu ──
   window.qsSetNote=function(i,val){
