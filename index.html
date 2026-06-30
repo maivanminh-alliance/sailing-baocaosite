@@ -110,7 +110,7 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
 .reporter-strip{display:none;padding:6px 14px;font-size:11px;font-weight:700;
   background:var(--lgreen);color:var(--green);border-bottom:1px solid rgba(22,163,74,.2)}
 .reporter-strip.show{display:none}
-.site-footer{grid-column:1/-1;padding:2px 12px calc(14px + var(--sb));text-align:center;color:var(--muted);
+.site-footer{grid-column:1/-1;padding:0 12px calc(var(--sb) + 3px);text-align:center;color:var(--muted);
   font-size:10px;font-weight:600;line-height:1.25;background:#fff}
 
 /* Toggle buttons */
@@ -3328,13 +3328,13 @@ function submitQS(){
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const reporter = selectedReporter();
-  // Tự động lưu card hợp lệ chưa bấm Lưu ✓
-  document.querySelectorAll('.qs-card[data-editable="1"]').forEach(card=>{
-    if(card.classList.contains('qs-col'))return;
-    const idx=parseInt(card.id.replace('qsc-',''));
-    if(!(card.querySelector('.qs-ntc-sel')?.value))return;
-    if(!validateQSCard(idx)){card.classList.add('qs-col');const b=document.getElementById('qschev-'+idx);if(b)b.classList.add('rotated');}
-  });
+  // Chặn gửi nếu còn card công việc chưa bấm Lưu ✓
+  const _openCards=document.querySelectorAll('.qs-card[data-editable="1"]:not(.qs-col)');
+  if(_openCards.length>0){
+    toast('⚠️ Vui lòng bấm Lưu ✓ trước khi gửi báo cáo','err');
+    _openCards[0].scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
   for(const card of document.querySelectorAll('.qs-card[data-editable="1"]')){
     const idx=parseInt(card.id.replace('qsc-',''));
     const ntc=card.querySelector('.qs-ntc-sel')?.value||'';
@@ -3582,9 +3582,7 @@ function submitCD(){
   nextModeAfterSuccess = 3;
   sendProductionResults(items, `${items.length} hạng mục cập nhật sản lượng${carryCount?`\n${carryCount} công việc chưa đạt 100% sẽ tự chuyển sang ngày hôm sau`:''}`);
 }
-async function sendProductionResults(items, summary){
-  setSubmitBusy(true);
-  toast(`Đang gửi ${items.length} hạng mục sản lượng...`,'');
+function sendProductionResults(items, summary){
   const basePayload={
     type:'SẢN LƯỢNG',
     ngay:v('f-ngay'),
@@ -3600,20 +3598,14 @@ async function sendProductionResults(items, summary){
     setTimeout(()=>showSuccess(aggregatePayload,summary),800);
     return;
   }
-  for(let i=0;i<items.length;i++){
-    const payload={
+  items.forEach((item,i)=>{
+    postToGAS({
       ...basePayload,
       submitId:createSubmitId('san-luong-item'),
       productionBatchIndex:i+1,
-      items:JSON.stringify([items[i]])
-    };
-    try {
-      await postToGAS(payload);
-      await new Promise(resolve=>setTimeout(resolve,1200));
-    } catch(e) {
-      console.warn('Không xác nhận được request sản lượng item', i+1, e);
-    }
-  }
+      items:JSON.stringify([item])
+    }).catch(e=>console.warn('Sản lượng item',i+1,e));
+  });
   showSuccess(aggregatePayload,summary);
 }
 function submitQA(){
@@ -3689,9 +3681,7 @@ function submitQA(){
   nextModeAfterSuccess = 4;
   sendQAResults(qaData, `${qaData.filter(q=>q.passed).length}/${qaData.length} công việc đã nghiệm thu`);
 }
-async function sendQAResults(qaData, summary){
-  setSubmitBusy(true);
-  toast(`Đang gửi ${qaData.length} email kết quả nghiệm thu...`,'');
+function sendQAResults(qaData, summary){
   if (currentReporter) saveReporterState(currentReporter);
   const note=document.getElementById('f-qa-note')?.value||'';
   const batchId=createSubmitId('nghiem-thu');
@@ -3713,43 +3703,26 @@ async function sendQAResults(qaData, summary){
     setTimeout(()=>showSuccess(aggregatePayload, summary),800);
     return;
   }
-  for (let i=0;i<qaData.length;i++){
-    const q=qaData[i];
-    const payload={
+  qaData.forEach((q,i)=>{
+    postToGAS({
       ...basePayload,
       submitId:createSubmitId('nghiem-thu-item'),
       qaBatchIndex:i+1,
       gs:q.reporter || v('f-gs') || 'QAQC tổng hợp',
       qaItems:JSON.stringify([q])
-    };
-    try {
-      await postToGAS(payload);
-      await new Promise(resolve=>setTimeout(resolve,1200));
-    } catch(e) {
-      console.warn('Không xác nhận được request nghiệm thu item', i+1, e);
-    }
-  }
-  showSuccess(aggregatePayload, `${summary}<br>Đã gửi ${qaData.length} email kết quả nghiệm thu riêng theo từng công việc.`);
+    }).catch(e=>console.warn('Nghiệm thu item',i+1,e));
+  });
+  showSuccess(aggregatePayload, summary);
 }
 function send(data,summary){
-  setSubmitBusy(true);
-  toast('Đang gửi...','');
   if (currentReporter) saveReporterState(currentReporter);
   const payload = applyEmailTestMode(data);
-  const isWorkReport = String(payload.type || '').toUpperCase().includes('CÔNG NHẬT') || String(payload.type || '').toUpperCase().includes('CONG NHAT');
   if(GAS_URL.includes('YOUR_GAS_ID')){
-    setTimeout(()=>{
-      showSuccess(payload,summary);
-      if (isWorkReport) setQSSubmitting(false);
-    },800);
+    setTimeout(()=>showSuccess(payload,summary),800);
     return;
   }
-  postToGAS(payload)
-  .then(()=>showSuccess(payload,summary))
-  .catch(()=>showSuccess(payload,summary))
-  .finally(()=>{
-    if (isWorkReport) setQSSubmitting(false);
-  });
+  postToGAS(payload).catch(()=>{});
+  showSuccess(payload,summary);
 }
 function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${v('f-ngay')}<br>👤 ${v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
 function closeSuccess(){
