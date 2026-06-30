@@ -102,7 +102,10 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
   padding-left:14px;padding-right:42px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
-#card-general #f-ngay{padding-left:14px;padding-right:12px;line-height:normal;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#card-general #f-ngay{padding-left:14px;padding-right:12px;line-height:normal;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:transparent;-webkit-text-fill-color:transparent}
+.ngay-wrap{position:relative;width:100%}
+.ngay-wrap #f-ngay{width:100%}
+#f-ngay-txt{position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#111;font-size:14px;font-weight:400;white-space:nowrap}
 /* reporter indicator strip */
 .reporter-strip{display:none;padding:6px 14px;font-size:11px;font-weight:700;
   background:var(--lgreen);color:var(--green);border-bottom:1px solid rgba(22,163,74,.2)}
@@ -464,7 +467,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
     <div class="card-body" id="body-card-general">
      <div class="row2">
       <div class="field">
-       <label data-template-id="label-ngay" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Ngày</label> <input type="date" id="f-ngay">
+       <label data-template-id="label-ngay" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Ngày</label>
+       <div class="ngay-wrap"><input type="date" id="f-ngay"><span id="f-ngay-txt"></span></div>
       </div>
       <div class="field">
        <label data-template-id="label-reporter" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Người báo cáo</label> <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn —</option> </select>
@@ -1886,7 +1890,10 @@ async function init() {
   initCardToggles();
   const now=new Date();
   document.getElementById('f-ngay').value=now.toISOString().split('T')[0];
+  function _updateNgayTxt(){const v=document.getElementById('f-ngay').value;const p=v?v.split('-'):[];document.getElementById('f-ngay-txt').textContent=p.length===3?p[2]+'/'+p[1]+'/'+p[0]:'';}
+  _updateNgayTxt();
   document.getElementById('f-ngay').addEventListener('change',()=>{
+    _updateNgayTxt();
     if (currentReporter) showReporterView(currentReporter);
   });
   document.getElementById('main-content').addEventListener('input', scheduleReporterAutosave);
@@ -3019,7 +3026,7 @@ function buildQAPanel(){
     const taskName=qaTaskNameForItem(item);
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
     const im_qa=item.meta||{};
-    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"<div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ghi nhận lỗi (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Lỗi 1')}${qaSlotSm('qa2-'+qid,'Lỗi 2')}${qaSlotSm('qa3-'+qid,'Lỗi 3')}${qaSlotSm('qa4-'+qid,'Lỗi 4')}${qaSlotSm('qa5-'+qid,'Lỗi 5')}</div></div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
     for(let i=1;i<=5;i++) restoreQASlot('qa'+i+'-'+qid, window._qaData?.['qa'+i+'-'+qid] || window._photoData?.['qa'+i+'-'+qid]);
   });
 }
@@ -3321,6 +3328,13 @@ function submitQS(){
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const reporter = selectedReporter();
+  // Tự động lưu card hợp lệ chưa bấm Lưu ✓
+  document.querySelectorAll('.qs-card[data-editable="1"]').forEach(card=>{
+    if(card.classList.contains('qs-col'))return;
+    const idx=parseInt(card.id.replace('qsc-',''));
+    if(!(card.querySelector('.qs-ntc-sel')?.value))return;
+    if(!validateQSCard(idx)){card.classList.add('qs-col');const b=document.getElementById('qschev-'+idx);if(b)b.classList.add('rotated');}
+  });
   for(const card of document.querySelectorAll('.qs-card[data-editable="1"]')){
     const idx=parseInt(card.id.replace('qsc-',''));
     const ntc=card.querySelector('.qs-ntc-sel')?.value||'';
@@ -3454,8 +3468,10 @@ function submitQS(){
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
   setQSSubmitting(true);
   updateWorkflowTabs();
-  nextModeAfterSuccess = 1;
-  send({type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()},`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
+  const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()};
+  if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(_qsPld).finally(()=>setQSSubmitting(false));}
+  else{setTimeout(()=>setQSSubmitting(false),800);}
+  showSuccess(applyEmailTestMode(_qsPld),`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
 }
 function submitBC(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
