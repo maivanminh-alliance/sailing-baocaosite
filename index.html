@@ -1819,7 +1819,7 @@ async function loadFromSheets() {
   const base = `https://docs.google.com/spreadsheets/d/${SHEETS_ID}/gviz/tq?tqx=out:csv`;
   let sowOnline=false;
   try{
-    await loadSowNtpFromSheet(base,false);
+    await loadSowNtpFromSheet(base,true);
     sowOnline=true;
   }catch(e){
     console.log('SOW_NTP online không tải được, đang dùng bộ đệm hiện tại');
@@ -1847,7 +1847,7 @@ async function loadFromSheets() {
 
       }
     }
-    toast(sowOnline?'Đã tải dữ liệu từ Google Sheets':'Đã tải SOW_NTP từ bộ đệm','ok');
+    // toast suppressed — thông báo tổng hợp ở loadSOWOnline
   } catch(e) { console.log('Sheets load failed, using defaults'); }
 }
 function parseCSV(text){
@@ -3018,7 +3018,8 @@ function buildQAPanel(){
     const pendingBadge=item.pendingQA?`<span style="display:inline-flex;align-items:center;background:var(--lred);color:var(--red);border:1px solid rgba(220,38,38,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase;margin-left:6px">Cần nghiệm thu lại${item.dueDate?` · ${item.dueDate}`:''}</span>`:'';
     const taskName=qaTaskNameForItem(item);
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
-    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ghi nhận lỗi (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Lỗi 1')}${qaSlotSm('qa2-'+qid,'Lỗi 2')}${qaSlotSm('qa3-'+qid,'Lỗi 3')}${qaSlotSm('qa4-'+qid,'Lỗi 4')}${qaSlotSm('qa5-'+qid,'Lỗi 5')}</div></div></div>`);
+    const im_qa=item.meta||{};
+    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"<div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ghi nhận lỗi (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Lỗi 1')}${qaSlotSm('qa2-'+qid,'Lỗi 2')}${qaSlotSm('qa3-'+qid,'Lỗi 3')}${qaSlotSm('qa4-'+qid,'Lỗi 4')}${qaSlotSm('qa5-'+qid,'Lỗi 5')}</div></div></div>`);
     for(let i=1;i<=5;i++) restoreQASlot('qa'+i+'-'+qid, window._qaData?.['qa'+i+'-'+qid] || window._photoData?.['qa'+i+'-'+qid]);
   });
 }
@@ -3083,6 +3084,7 @@ function buildResultDetailPanel(){
           <div style="flex-shrink:0;background:var(--green);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${idx+1}</div>
           <div style="flex:1;min-width:0">
             <div class="pi-name">${item.item}${item.reporter?` <span style="font-size:11px;color:var(--muted);font-weight:400">— ${item.reporter}</span>`:''}</div>
+            ${item.detail?`<div class="pi-detail" style="margin-top:3px;margin-bottom:4px">${item.detail}</div>`:''}
             <div style="font-size:12px;color:var(--green);margin-top:6px;font-weight:600">✓ Đã nghiệm thu thành công</div>
           </div>
         </div>
@@ -3625,6 +3627,10 @@ function submitQA(){
       type:item.dataset.itemType||'ntc',
       reporter,
       sourceId:item.dataset.sourceId||qid,
+      wbs:item.dataset.wbs||'',
+      can:item.dataset.can||'',
+      tangCode:item.dataset.tangCode||'',
+      works:item.dataset.works||'',
       passed,
       qaPhotos:slotPhotos,
       errorCount:errorPhotos.length,
@@ -3937,9 +3943,6 @@ init();
   .sw-cnm-lb{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
   .sw-cnm-b{width:30px;height:30px;border:2px solid var(--blue);background:#fff;color:var(--blue);border-radius:7px;font-size:16px;font-weight:800;cursor:pointer;line-height:1;flex-shrink:0}
   .sw-cnm-v{min-width:32px;text-align:center;font-size:16px;font-weight:800;color:var(--navy)}
-  .sw-pct-edit{display:flex;align-items:center;gap:6px;margin-top:6px}
-  .sw-pct-inp{width:62px;padding:3px 6px;border:1.5px solid var(--blue);border-radius:6px;font-size:13px;font-weight:700;text-align:center;color:var(--navy);background:#fff}
-  .sw-pct-inp:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(34,197,94,.15)}
   .sw-noteblk{margin:12px 0 2px}
   .sw-notelb{display:block;font-size:11px;font-weight:700;color:var(--navy);margin:0 0 5px;text-transform:uppercase;letter-spacing:.4px}
   .sw-note-inp{width:100%;box-sizing:border-box;border:1.5px solid var(--border);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--text);resize:vertical;min-height:40px}
@@ -4185,8 +4188,7 @@ init();
               +'<div class="sw-cb">'+(lock?'🔒':(sel?'✓':''))+'</div>'
               +'<div class="sw-main"><div class="sw-iname">'+r[6]+(lock?'<span class="sw-nt">'+lockLbl+'</span>':'')+'</div>'
               +'<div class="sw-imeta">Khối lượng: '+m2+'</div>'
-              +(sel?'<div class="sw-cnm" onclick="event.stopPropagation()"><span class="sw-cnm-lb">Nhân công</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',-1)">−</button><span class="sw-cnm-v">'+((qs.cnMap[gi]||1))+'</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',1)">＋</button></div>'
-              +'<div class="sw-pct-edit" onclick="event.stopPropagation()"><span class="sw-cnm-lb">% mới</span><input type="number" class="sw-pct-inp" id="sw-pct-'+i+'-'+gi+'" min="0" max="100" step="1" value="'+p+'"></div>':'')
+              +(sel?'<div class="sw-cnm" onclick="event.stopPropagation()"><span class="sw-cnm-lb">Nhân công</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',-1)">−</button><span class="sw-cnm-v">'+((qs.cnMap[gi]||1))+'</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',1)">＋</button></div>':'')
               +'</div><div class="sw-pct '+pctCls(p)+'">'+p+'%</div></div>';
           });
           inner+='<div class="sw-nhom'+(nopen?' open':'')+'"><div class="sw-nhdr" onclick="qsToggleN('+i+',\''+nkey+'\')">'
@@ -4243,52 +4245,9 @@ init();
     var err=validateQSCard(i);
     if(err){toast('⚠️ '+err,'err');openQSCard(i);return;}
     var card=document.getElementById('qsc-'+i);if(!card)return;
-    var qs=qsCards[i];
-
-    // === Thu thập % mới cho từng đầu mục đã chọn ===
-    var sowItems=[],hasChange=false;
-    if(qs&&qs.items&&qs.items.size){
-      qs.items.forEach(function(gi){
-        var r=SOW_ITEMS[gi];if(!r)return;
-        var inp=document.getElementById('sw-pct-'+i+'-'+gi);
-        var newPct=inp?Math.max(0,Math.min(100,parseInt(inp.value)||0)):0;
-        var oldPct=itemPct(qs,r);
-        var cans=relevantCans(qs,r);if(!cans.length)return;
-        if(newPct>oldPct)hasChange=true;
-        sowItems.push({wbs:r[5],loai:r[0],cans:cans,floorCode:r[1],qty:r[7],unit:r[8]||'m²',name:r[6],newPct:newPct,statusKey:r[9]||r[5]});
-      });
-    }
-
-    // === Thu gọn card ===
     if(!card.classList.contains('qs-col')){card.classList.add('qs-col');var b=document.getElementById('qschev-'+i);if(b)b.classList.add('rotated');}
     var num=card.querySelector('.qs-num');if(num){var o=num.style.background;num.style.background='var(--green)';setTimeout(function(){num.style.background=o;},600);}
     if(currentReporter)saveReporterState(currentReporter);
-
-    // === Gửi % lên GAS nếu có thay đổi ===
-    if(!sowItems.length||!hasChange)return;
-    var ngay=(typeof v==='function'?v('f-ngay'):'')||'';
-    var gs=(typeof v==='function'?v('f-gs'):'')||currentReporter||'';
-    var ntcSel=card.querySelector('.qs-ntc-sel');var ntc=ntcSel?ntcSel.value:'';
-    if(!ngay){toast('⚠️ Chưa chọn ngày báo cáo','err');return;}
-
-    // Cập nhật SOW_STATUS ngay (optimistic update) để UI phản hồi ngay
-    sowItems.forEach(function(item){
-      item.cans.forEach(function(can){
-        if(!window.SOW_STATUS[can])window.SOW_STATUS[can]={};
-        var cur=window.SOW_STATUS[can][item.statusKey]||{pct:0,nt:false};
-        var resolved=Math.max(cur.pct,item.newPct);
-        window.SOW_STATUS[can][item.statusKey]={pct:resolved,nt:resolved>=100};
-      });
-    });
-    renderSOWItems(i);
-
-    // Gửi POST (no-cors: fire-and-forget)
-    var changed=sowItems.filter(function(it){return it.newPct>0;});
-    try{
-      postToGAS({type:'TIẾN ĐỘ SOW',ts:new Date().toISOString(),ngay:ngay,gs:gs,ntc:ntc,sowItems:JSON.stringify(changed)})
-        .then(function(){toast('✅ Đã ghi '+changed.length+' đầu mục — '+ngay,'ok');})
-        .catch(function(){toast('⚠️ Lỗi kết nối GAS','err');});
-    }catch(e){toast('⚠️ Lỗi gửi báo cáo','err');}
   };
 
   // calcTotal cũ đếm .qs-cn-inp (không còn) -> bổ sung tổng CN Section 1 theo cnMap
@@ -4428,7 +4387,7 @@ init();
         if(typeof calcTotal==='function')try{calcTotal();}catch(e){}
         try{loadTonDong();}catch(e){}                        // tồn đọng dùng % mới
         var done=0;Object.keys(STAT).forEach(function(cn){Object.keys(STAT[cn]).forEach(function(w){if(STAT[cn][w].pct>=100)done++;});});
-        if(typeof toast==='function')try{toast('Đã tải tiến độ từ Google Sheets ('+done+' mục căn đạt 100%)','ok');}catch(e){}
+        if(typeof toast==='function')try{toast('Đã đồng bộ dữ liệu','ok');}catch(e){}
       }
     }catch(e){if(typeof console!=='undefined')console.log('Tải SOW online lỗi:',e);}
     finally{sowOnlineLoading=false;}
@@ -4437,7 +4396,8 @@ init();
   setInterval(loadSOWOnline,300000);
 
   // Dùng chung cho tải dữ liệu SOW/tiến độ online.
-  function normU(s){return String(s||'').toUpperCase().replace(/\s+/g,' ').trim();}
+  window.normU = function(s){return String(s||'').toUpperCase().replace(/\s+/g,' ').trim();};
+  function normU(s){return window.normU(s);}
   function sortCans(a,b){var la=a.charAt(0),lb=b.charAt(0);if(la!==lb)return la<lb?-1:1;return (parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0);}
   // Tự đọc lại SOW_NTP định kỳ để nhận nhà thầu/công việc/căn mới mà không cần sửa HTML.
   setInterval(function(){
