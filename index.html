@@ -981,13 +981,22 @@ function aggregateWorkItemsForCurrentView() {
   const isAllView = !selectedReporter();
   return submittedWorkEntriesForCurrentView().flatMap(entry => {
     const reporter = entry.reporter || entry.report.reporter || '';
-    return reportWorkItems(entry.report || {}).map(item => ({
-      ...item,
-      id: isAllView ? qaKeyFor(reporter, item.id) : item.id,
-      sourceId: item.id,
-      reporter,
-      detail: [item.detail, reporter ? `GS: ${reporter}` : ''].filter(Boolean).join(' · ')
-    }));
+    const report = entry.report || {};
+    const savedPhotoData = report.photoData || {};
+    const savedPhotoItems = report.photoItems || [];
+    return reportWorkItems(report).map((item,itemIndex) => {
+      const displayId = isAllView ? qaKeyFor(reporter, item.id) : item.id;
+      const savedRow = savedPhotoItems[itemIndex] || {};
+      return {
+        ...item,
+        id: displayId,
+        sourceId: item.id,
+        reporter,
+        savedPhoto1: savedPhotoData['pi1-'+item.id] || savedRow.ph1_data || null,
+        savedPhoto2: savedPhotoData['pi2-'+item.id] || savedRow.ph2_data || null,
+        detail: [item.detail, reporter ? `GS: ${reporter}` : ''].filter(Boolean).join(' · ')
+      };
+    });
   });
 }
 
@@ -1380,8 +1389,8 @@ function saveReporterState(reporter) {
     resultItems: existing.resultItems || [],
     draftResultItems: currentResultItems.length ? currentResultItems : (existing.draftResultItems || []),
     productionSubmittedAt: existing.productionSubmittedAt || null,
-    photoData: {...(window._photoData || {})},
-    qaData: {...(window._qaData || {})},
+    photoData: {...(existing.photoData || {}), ...(window._photoData || {})},
+    qaData: {...(existing.qaData || {}), ...(window._qaData || {})},
     qaResultData: window._qaResultData || existing.qaResultData || null,
   };
   persistReporterStates();
@@ -3070,8 +3079,8 @@ function buildPhotoPanel(){
     const num=item.type==='ntc'?++ntcNum:++cnNum;
     const itemTypeLabel=item.type==='ntc'?'NTC':'ALLIANCE';
     wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-main"><div style="flex-shrink:0;background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div class="photo-item-label"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div></div><div class="photo-item-shots">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div></div>`);
-    restorePhotoSlot('pi1-'+item.id, window._photoData?.['pi1-'+item.id]);
-    restorePhotoSlot('pi2-'+item.id, window._photoData?.['pi2-'+item.id]);
+    restorePhotoSlot('pi1-'+item.id, item.savedPhoto1 || window._photoData?.['pi1-'+item.id]);
+    restorePhotoSlot('pi2-'+item.id, item.savedPhoto2 || window._photoData?.['pi2-'+item.id]);
   });
 }
 if(!window._photoData) window._photoData={};
@@ -3663,6 +3672,18 @@ async function eachWithLimit(items,limit,worker){
   async function run(){while(next<items.length){const i=next++;await worker(items[i],i);}}
   await Promise.all(Array.from({length:Math.min(limit,items.length)},run));
 }
+function currentPhotoDraftRowsForExcel(selectedDateVN){
+  return getWorkItems().map(item=>{
+    const slot1='pi1-'+item.id,slot2='pi2-'+item.id;
+    const photo1=item.savedPhoto1||window._photoData?.[slot1]||null;
+    const photo2=item.savedPhoto2||window._photoData?.[slot2]||null;
+    const workers=Number(item.meta?.cn||item.meta?.workerCount||0)||workerCountFromPhotoDetail(item.detail);
+    return {
+      row:[new Date().toLocaleString('vi-VN'),selectedDateVN,item.reporter||selectedReporter()||'Tổng hợp',item.name||'',item.detail||'','','','',workers],
+      photos:[photo1,photo2]
+    };
+  }).filter(entry=>entry.photos.some(Boolean));
+}
 async function downloadHinhAnhExcel(event){
   if(event)event.stopPropagation();
   const btn=document.getElementById('btn-export-hinh-anh');
@@ -3671,12 +3692,19 @@ async function downloadHinhAnhExcel(event){
     if(typeof window.loadNamedSheetOnline!=='function')throw new Error('Chưa sẵn sàng tải dữ liệu Google Sheet');
     const raw=await window.loadNamedSheetOnline('Hinh_Anh');
     const rows=Array.isArray(raw)?raw:parseCSV(String(raw||''));
-    if(rows.length<2)throw new Error('Sheet Hinh_Anh chưa có dữ liệu báo cáo');
     if(typeof ExcelJS==='undefined')throw new Error('Thiếu thư viện tạo Excel');
     const selectedDate=v('f-ngay');
     const selectedDateVN=reportDateVN(selectedDate);
-    const dailyRows=rows.slice(1).filter(r=>String(r[1]||'').trim()===selectedDateVN);
-    if(!dailyRows.length)throw new Error('Không có báo cáo hình ảnh ngày '+selectedDateVN);
+    let dailyRows=rows.length>1?rows.slice(1).filter(r=>String(r[1]||'').trim()===selectedDateVN):[];
+    const inlineDraftPhotos=new Map();
+    if(!dailyRows.length){
+      const drafts=currentPhotoDraftRowsForExcel(selectedDateVN);
+      dailyRows=drafts.map((entry,rowIndex)=>{
+        entry.photos.forEach((data,photoIndex)=>{if(data)inlineDraftPhotos.set(rowIndex+':'+photoIndex,data);});
+        return entry.row;
+      });
+    }
+    if(!dailyRows.length)throw new Error('Chưa có ảnh ngày '+selectedDateVN+'. Hãy thêm ảnh hoặc gửi báo cáo hình ảnh trước.');
     const totalWorkers=dailyRows.reduce((sum,row)=>sum+(Number(String(row[8]||'').replace(',','.'))||workerCountFromPhotoDetail(row[4])),0);
 
     const workbook=new ExcelJS.Workbook();
@@ -3725,11 +3753,13 @@ async function downloadHinhAnhExcel(event){
 
     const imageJobs=[];
     dailyRows.forEach((row,index)=>[5,6].forEach((ci,photoIndex)=>{
-      if(driveFileIdFromUrl(row[ci]))imageJobs.push({url:row[ci],excelRow:index+4,photoIndex});
+      const inlineData=inlineDraftPhotos.get(index+':'+photoIndex);
+      if(inlineData)imageJobs.push({data:inlineData,mimeType:'image/jpeg',excelRow:index+4,photoIndex});
+      else if(driveFileIdFromUrl(row[ci]))imageJobs.push({url:row[ci],excelRow:index+4,photoIndex});
     }));
     await eachWithLimit(imageJobs,3,async job=>{
       try{
-        const photo=await loadDrivePhotoForExcel(job.url);if(!photo)return;
+        const photo=job.data?{data:job.data,mimeType:job.mimeType}:await loadDrivePhotoForExcel(job.url);if(!photo)return;
         const extension=String(photo.mimeType||'').toLowerCase().includes('png')?'png':'jpeg';
         const imageId=workbook.addImage({base64:`data:${photo.mimeType||'image/jpeg'};base64,${photo.data}`,extension});
         sheet.addImage(imageId,{tl:{col:(job.photoIndex===0?5.08:6.08),row:job.excelRow-0.92},ext:{width:150,height:110}});
