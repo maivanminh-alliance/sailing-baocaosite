@@ -376,6 +376,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
 .submit-btn:active{transform:scale(.98);opacity:.9}
 .submit-btn.blue{background:linear-gradient(135deg,var(--blue),var(--navy));
   box-shadow:0 8px 22px rgba(31,56,100,.32)}
+.excel-export-btn{margin-left:auto;min-height:34px;padding:7px 11px;border:1.5px solid rgba(255,255,255,.7);
+  border-radius:9px;background:rgba(255,255,255,.16);color:#fff;font-size:11px;font-weight:900;
+  cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.excel-export-btn:active{transform:scale(.97);background:rgba(255,255,255,.28)}
+.excel-export-btn:disabled{opacity:.55;cursor:wait}
 .save-action-btn{flex-shrink:0;padding:10px 20px;background:var(--blue);color:#fff;
   border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;
   box-shadow:0 3px 10px rgba(46,117,182,.3);-webkit-tap-highlight-color:transparent;
@@ -504,7 +509,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
    </div>
    <div id="mode-bc" class="hide">
     <div class="card">
-     <div class="card-hdr purple canva-card" data-template-id="card-hdr-photo" style="background: rgb(124, 58, 237); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">Hình ảnh theo công việc</div>
+     <div class="card-hdr purple canva-card" data-template-id="card-hdr-photo" style="background: rgb(124, 58, 237); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px; justify-content:space-between;"><span>Hình ảnh theo công việc</span><button type="button" id="btn-export-hinh-anh" class="excel-export-btn" onclick="downloadHinhAnhExcel(event)">⬇ Excel</button></div>
      <div class="card-body">
       <div id="photo-panel">
        <div class="panel-empty">
@@ -3508,6 +3513,63 @@ function submitBC(){
   nextModeAfterSuccess = 2;
   send({type:'HÌNH ẢNH',ngay:v('f-ngay'),gs:v('f-gs'),items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},`${items.length} công việc chụp ảnh`);
 }
+function excelXmlEscape(value){
+  return String(value==null?'':value)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+function buildHinhAnhExcelXml(rows){
+  const safeRows=(Array.isArray(rows)?rows:[]).map(r=>Array.isArray(r)?r:[]);
+  const widths=[145,90,125,210,300,230,230,260];
+  const cols=widths.map(w=>`<Column ss:AutoFitWidth="0" ss:Width="${w}"/>`).join('');
+  const body=safeRows.map((row,ri)=>{
+    const cells=[];
+    for(let ci=0;ci<8;ci++){
+      const style=ri===0?'Header':(ci>=3?'Wrap':'Cell');
+      cells.push(`<Cell ss:StyleID="${style}"><Data ss:Type="String">${excelXmlEscape(row[ci]||'')}</Data></Cell>`);
+    }
+    return `<Row>${cells.join('')}</Row>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/><Font ss:FontName="Arial" ss:Size="10"/></Style>
+  <Style ss:ID="Cell"><Alignment ss:Vertical="Top"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>
+  <Style ss:ID="Wrap"><Alignment ss:Vertical="Top" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D9E2F3"/></Borders></Style>
+  <Style ss:ID="Header"><Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Arial" ss:Size="10" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F3864" ss:Pattern="Solid"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Bao cao hinh anh"><Table>${cols}${body}</Table><WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ProtectObjects>False</ProtectObjects><ProtectScenarios>False</ProtectScenarios></WorksheetOptions></Worksheet>
+</Workbook>`;
+}
+async function downloadHinhAnhExcel(event){
+  if(event)event.stopPropagation();
+  const btn=document.getElementById('btn-export-hinh-anh');
+  if(btn){btn.disabled=true;btn.textContent='Đang tải…';}
+  try{
+    if(typeof window.loadNamedSheetOnline!=='function')throw new Error('Chưa sẵn sàng tải dữ liệu Google Sheet');
+    const raw=await window.loadNamedSheetOnline('Hinh_Anh');
+    const rows=Array.isArray(raw)?raw:parseCSV(String(raw||''));
+    if(rows.length<2)throw new Error('Sheet Hinh_Anh chưa có dữ liệu báo cáo');
+    const xml=buildHinhAnhExcelXml(rows);
+    const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const now=new Date();
+    const stamp=now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0');
+    a.href=url;a.download=`Bao_cao_Hinh_Anh_${stamp}.xls`;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    toast(`Đã tải Excel ${rows.length-1} dòng báo cáo hình ảnh`,'ok');
+  }catch(err){
+    console.error('Xuất Excel Hinh_Anh:',err);
+    toast('⚠️ Không tải được Excel: '+err.message,'err');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='⬇ Excel';}
+  }
+}
 function submitCD(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
@@ -4346,6 +4408,7 @@ init();
     try{var res=await fetch(url,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);return await res.text();}
     catch(e){return await loadNamedSheetViaJsonp(sheetName);}
   }
+  window.loadNamedSheetOnline=loadNamedSheetOnline;
 
   var sowOnlineLoading=false;
   async function loadSOWOnline(){
