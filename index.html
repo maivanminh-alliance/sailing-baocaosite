@@ -3612,6 +3612,7 @@ function submitQS(){
   const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()};
   if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(_qsPld).finally(()=>setQSSubmitting(false));}
   else{setTimeout(()=>setQSSubmitting(false),800);}
+  nextModeAfterSuccess = 1;
   showSuccess(applyEmailTestMode(_qsPld),`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
 }
 function submitBC(){
@@ -3669,6 +3670,12 @@ function bytesFromBase64(data){
 function safeDownloadPart(value){
   return String(value||'').normalize('NFC').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim();
 }
+function exactSowCategoryForWork(work){
+  const wanted=normU(work);
+  if(!wanted)return '';
+  const row=(window.SOW_ITEMS||[]).find(item=>normU(item&&item[6])===wanted);
+  return row?String(row[4]||'').trim():'';
+}
 function photoReportInfoFromRow(row){
   const contractor=String(row[3]||'').trim();
   const detail=String(row[4]||'').trim();
@@ -3689,7 +3696,10 @@ function photoReportInfoFromRow(row){
     const locationMatch=detail.match(/\b(?:[A-E]\d+(?:\s*[,.-]\s*[A-E]?\d+)*|Khu\s+[A-E])\b/i);
     location=locationMatch?locationMatch[0]:'';
   }
-  return {contractor,detail,isNtc,location,work:work||contractor,workers:Number(String(row[8]||'').replace(',','.'))||workerCountFromPhotoDetail(detail)};
+  work=work||contractor;
+  const category=isNtc?exactSowCategoryForWork(work):'';
+  const contractorLabel=isNtc&&category?`${contractor} - ${category}`:contractor;
+  return {contractor,contractorLabel,category,detail,isNtc,location,work,workers:Number(String(row[8]||'').replace(',','.'))||workerCountFromPhotoDetail(detail)};
 }
 function zipCrc32(bytes){
   if(!window.__zipCrcTable){window.__zipCrcTable=Array.from({length:256},(_,n)=>{let c=n;for(let k=0;k<8;k++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;return c>>>0;});}
@@ -3811,7 +3821,8 @@ function fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN)
   if(!visible)throw new Error('File mẫu không có sheet báo cáo');
   workbook.worksheets.slice().forEach(ws=>{if(ws.id!==visible.id)workbook.removeWorksheet(ws.id);});
   visible.name=selectedDateVN.replaceAll('/','.').slice(0,31);
-  const records=dailyRows.map(row=>({...photoReportInfoFromRow(row),row}));
+  const records=dailyRows.map(row=>({...photoReportInfoFromRow(row),row}))
+    .sort((a,b)=>Number(a.isNtc)-Number(b.isNtc));
   const ntpRows=records.filter(r=>r.isNtc),cnRows=records.filter(r=>!r.isNtc);
   const ntpTotal=ntpRows.reduce((n,r)=>n+r.workers,0),cnTotal=cnRows.reduce((n,r)=>n+r.workers,0),grandTotal=ntpTotal+cnTotal;
   const baseCapacity=37,extra=Math.max(0,records.length-baseCapacity);
@@ -3826,16 +3837,19 @@ function fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN)
   const lastDetailRow=50+extra;
   for(let r=14;r<=lastDetailRow;r++)for(let c=3;c<=7;c++)visible.getCell(r,c).value=null;
   records.forEach((record,index)=>{
-    const rowNo=14+index,values=[index+1,record.work,record.location,record.workers,record.isNtc?record.contractor:'Công nhật'];
+    const rowNo=14+index,values=[index+1,record.work,record.location,record.workers,record.isNtc?(record.contractorLabel||record.contractor):'Công nhật'];
     values.forEach((value,offset)=>{const cell=visible.getCell(rowNo,3+offset);cell.value=value;cell.font={...(cell.font||{}),color:{argb:record.isNtc?'FFFF0000':'FF000000'}};});
     visible.getRow(rowNo).height=Math.max(visible.getRow(rowNo).height||0,22);
   });
-  visible.getCell('D2').value=null;visible.getCell('D3').value=null;
+  visible.getCell('D2').value=20;visible.getCell('D3').value=1;
   const summarySlots=[['C7','D7'],['E7','F7'],['C8','D8'],['E8','F8'],['C9','D9'],['E9','F9'],['C10','D10'],['E10','F10'],['C11','D11'],['E11','F11']];
-  const byNtc=new Map();ntpRows.forEach(r=>byNtc.set(r.contractor,(byNtc.get(r.contractor)||0)+r.workers));
+  const byNtc=new Map();ntpRows.forEach(r=>{const label=r.contractorLabel||r.contractor;byNtc.set(label,(byNtc.get(label)||0)+r.workers);});
   summarySlots.forEach(([labelCell,valueCell],i)=>{
     const entry=[...byNtc.entries()][i];
-    visible.getCell(labelCell).value=entry?'NTP '+entry[0]+':':null;
+    const cell=visible.getCell(labelCell);
+    cell.value=entry?'NTP '+entry[0]+':':null;
+    cell.alignment={...(cell.alignment||{}),shrinkToFit:true};
+    if(entry&&String(cell.value).length>20)cell.font={...(cell.font||{}),size:8};
     visible.getCell(valueCell).value=entry?entry[1]:null;
   });
   const dateParts=selectedDate.split('-').map(Number);
@@ -3986,17 +4000,21 @@ async function sendProductionResults(items, summary){
   try{
     // Gửi một gói duy nhất để Apps Script khóa và ghi tuần tự toàn bộ hạng mục.
     await postToGAS({...aggregatePayload,submitId:createSubmitId('san-luong-batch')});
-    const ack=await waitProductionAck(basePayload.productionBatchId);
-    const confirmed=(ack.linked||0)+(ack.alreadyLinked||0);
-    if((ack.errors||[]).length || confirmed<(ack.ntpTotal||0)){
-      const first=(ack.errors||[])[0]||{};
-      throw new Error(`Đã link ${confirmed}/${ack.ntpTotal||0} hạng mục${first.message?': '+first.message:''}`);
+    try{
+      const ack=await waitProductionAck(basePayload.productionBatchId);
+      const confirmed=(ack.linked||0)+(ack.alreadyLinked||0),expected=ack.ntpTotal||0;
+      const linkLine=((ack.errors||[]).length||confirmed<expected)
+        ? `⚠️ Sản lượng đã gửi; liên kết bảng NTP: ${confirmed}/${expected} hạng mục`
+        : `✅ Đã xác nhận link ${confirmed}/${expected} hạng mục qua SẢN LƯỢNG NHÀ THẦU PHỤ`;
+      showSuccess(aggregatePayload,summary+'\n'+linkLine);
+    }catch(ackError){
+      console.warn('Chưa nhận được xác nhận link NTP:',ackError);
+      showSuccess(aggregatePayload,summary+'\n⚠️ Sản lượng đã gửi; chưa nhận được xác nhận liên kết bảng NTP');
     }
-    showSuccess(aggregatePayload,summary+`\n✅ Đã xác nhận link ${confirmed}/${ack.ntpTotal||0} hạng mục qua SẢN LƯỢNG NHÀ THẦU PHỤ`);
   }catch(e){
     setSubmitBusy(false);
-    console.error('Link sản lượng NTP:',e);
-    toast('⚠️ Chưa link đủ sản lượng: '+e.message,'err');
+    console.error('Gửi sản lượng:',e);
+    toast('⚠️ Không gửi được sản lượng: '+e.message,'err');
   }
 }
 function submitQA(){
