@@ -523,7 +523,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
        <div class="ngay-wrap"><input type="date" id="f-ngay"><span id="f-ngay-txt"></span></div>
       </div>
       <div class="field">
-       <label data-template-id="label-reporter" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Người báo cáo</label> <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn —</option> </select>
+       <label data-template-id="label-reporter" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Người báo cáo</label> <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn người báo cáo —</option> </select>
       </div>
      </div>
     </div>
@@ -835,6 +835,13 @@ async function hydrateReportStateFromServer(reporter){
     }
     return true;
   }catch(e){console.warn('Không tải được trạng thái báo cáo từ server:',e);return false;}
+}
+async function hydrateAllReportStatesFromServer(){
+  const reporters=(PROJECT.reporters||[]).filter(Boolean);
+  if(!reporters.length)return;
+  await Promise.allSettled(reporters.map(r=>hydrateReportStateFromServer(r)));
+  updateWorkflowTabs();
+  rebuildActiveReporterTab();
 }
 
 function isSubmittedKeyForReporter(key, reporter) {
@@ -1415,10 +1422,16 @@ function setWorkEditButtonsVisible(visible) {
   });
 }
 
+function _isReportLocked(report) { return !!(report && report.locked); }
+
 function showSubmittedEditMode(type, index) {
   const reporter = currentReporter || selectedReporter();
   const report = getSubmittedReport(reporter);
   if (!report) return;
+  if (_isReportLocked(report)) {
+    toast('⛔ Báo cáo đã khóa — không thể chỉnh sửa. Dùng "Thêm nhà thầu" hoặc "Thêm công nhật" để bổ sung.', 'err');
+    return;
+  }
   const key = reporterStateKey(reporter);
   reporterStates[key] = {
     reportSession: report.reportSession || 'sang',
@@ -1458,6 +1471,10 @@ function deleteSubmittedItem(type, index) {
   const reporter = currentReporter || selectedReporter();
   const report = getSubmittedReport(reporter);
   if (!report) return;
+  if (_isReportLocked(report)) {
+    toast('⛔ Báo cáo đã khóa — không thể xóa nội dung đã gửi.', 'err');
+    return;
+  }
   const ok = confirm('Xóa nội dung đã gửi này khỏi báo cáo?');
   if (!ok) return;
   const next = {
@@ -1533,17 +1550,19 @@ function renderAllSubmittedWorkSummary() {
     const reporter = entry.reporter || report.reporter || '';
     const ntcRows = report.ntcRows || [];
     const cnRows = report.cnTasks || [];
+    const isLocked = _isReportLocked(report);
     if(ntcRows.length){
-      qsBody.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr ntc-hdr" style="margin-top:10px">📋 ${reporter || 'Người báo cáo'}</div>`);
+      qsBody.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr ntc-hdr" style="margin-top:10px">📋 ${reporter || 'Người báo cáo'}${isLocked?' 🔒':''}</div>`);
       ntcRows.forEach((r,idx)=>{
+        const actionBtns = isLocked ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
+                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
+              </div>`;
         qsBody.insertAdjacentHTML('beforeend',`
           <div class="submitted-work-card qs-col" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(22,163,74,.10)">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-              <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">✓ Đã gửi · ${reporter}</span>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
-                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
-              </div>
+              <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">${isLocked?'🔒':'✓'} Đã gửi · ${reporter}</span>
+              ${actionBtns}
             </div>
             <div class="qs-card-hdr" style="padding:6px 0;border-bottom:0">
               <div class="qs-num">${idx+1}</div>
@@ -1556,16 +1575,17 @@ function renderAllSubmittedWorkSummary() {
       });
     }
     if(cnRows.length){
-      cnList.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr cn-hdr" style="margin:10px 14px">👷 ${reporter || 'Người báo cáo'}</div>`);
+      cnList.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr cn-hdr" style="margin:10px 14px">👷 ${reporter || 'Người báo cáo'}${isLocked?' 🔒':''}</div>`);
       cnRows.forEach((r,idx)=>{
+        const actionBtns = isLocked ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
+                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
+              </div>`;
         cnList.insertAdjacentHTML('beforeend',`
           <div class="submitted-work-card collapsed" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px;margin:0 14px 10px;box-shadow:0 2px 8px rgba(22,163,74,.10)">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-              <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">✓ Đã gửi · ${reporter}</span>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
-                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
-              </div>
+              <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">${isLocked?'🔒':'✓'} Đã gửi · ${reporter}</span>
+              ${actionBtns}
             </div>
             <div class="cnt-hdr" style="padding:6px 0;border-bottom:0;background:#fff">
               <div class="qs-num">${idx+1}</div>
@@ -1584,10 +1604,41 @@ function renderAllSubmittedWorkSummary() {
   return true;
 }
 
+function _renderLockedNtcCard(r, idx) {
+  return `<div class="submitted-work-card qs-col" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(22,163,74,.10)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">🔒 Đã khóa</span>
+    </div>
+    <div class="qs-card-hdr" style="padding:6px 0;border-bottom:0">
+      <div class="qs-num">${idx+1}</div>
+      <div class="qs-hdr-info">
+        <div class="pi-name">${r.ntc||''}</div>
+        <div class="qs-sum-line">${[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')} — ${r.cn||0} CN</div>
+      </div>
+    </div>
+  </div>`;
+}
+function _renderLockedCnCard(r, idx) {
+  return `<div class="submitted-work-card collapsed" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px;margin-bottom:10px;box-shadow:0 2px 8px rgba(22,163,74,.10)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">🔒 Đã khóa</span>
+    </div>
+    <div class="cnt-hdr" style="padding:6px 0;border-bottom:0;background:#fff">
+      <div class="qs-num">${idx+1}</div>
+      <div class="cnt-hdr-info">
+        <div class="cnt-title">${r.task||'(Chưa điền nội dung)'}</div>
+        <div class="cnt-summary">${[r.workers,r.area].filter(Boolean).join(' · ')} — ${r.workerCount||0} CN</div>
+      </div>
+    </div>
+  </div>`;
+}
+const _BOSUNG_SEP_NTC = `<div id="qs-lock-sep" style="margin:14px 0 8px;padding:8px 12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;font-weight:800;color:#92400e;text-align:center;letter-spacing:.5px">── NỘI DUNG BỔ SUNG CHƯA GỬI ──<br><span style="font-weight:500;font-size:11px">Thêm nhà thầu mới bên dưới. Chỉ nội dung bổ sung sẽ được gửi.</span></div>`;
+const _BOSUNG_SEP_CN  = `<div id="cn-lock-sep" style="margin:14px 14px 8px;padding:8px 12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;font-size:12px;font-weight:800;color:#92400e;text-align:center;letter-spacing:.5px">── NỘI DUNG BỔ SUNG CHƯA GỬI ──<br><span style="font-weight:500;font-size:11px">Thêm công nhật mới bên dưới. Chỉ nội dung bổ sung sẽ được gửi.</span></div>`;
+
 function renderSubmittedWorkSummary(report) {
   if (!report) return false;
+  const isLocked = _isReportLocked(report);
   clearAllState();
-  setWorkEditButtonsVisible(false);
   window._photoData = {...(report.photoData || {})};
   window._qaData = {...(report.qaData || {})};
   window._qaResultData = report.qaResultData || null;
@@ -1597,7 +1648,27 @@ function renderSubmittedWorkSummary(report) {
   if (report.vmcdt) document.getElementById('f-vm-cdt2').value = report.vmcdt;
   if (report.vmalc) document.getElementById('f-vm-alc2').value = report.vmalc;
   const ntcRows = report.ntcRows || [];
-  const cnRows = report.cnTasks || [];
+  const cnRows  = report.cnTasks || [];
+
+  if (isLocked) {
+    // ── LOCKED MODE: hiện nội dung đã khóa + form trống cho bổ sung ──
+    const qsBody = document.getElementById('qs-body');
+    const cnList = document.getElementById('cn-task-list');
+    qsBody.innerHTML = '';
+    cnList.innerHTML = '';
+    ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx)));
+    qsBody.insertAdjacentHTML('beforeend', _BOSUNG_SEP_NTC);
+    cnRows.forEach((r,idx)  => cnList.insertAdjacentHTML('beforeend', _renderLockedCnCard(r, idx)));
+    cnList.insertAdjacentHTML('beforeend', _BOSUNG_SEP_CN);
+    setWorkEditButtonsVisible(true);
+    const btn = document.getElementById('btn-submit-qs');
+    if (btn) btn.textContent = '📤 GỬI BỔ SUNG';
+    calcTotal();
+    return true;
+  }
+
+  // ── UNLOCKED MODE (hành vi cũ) ──
+  setWorkEditButtonsVisible(false);
   document.getElementById('qs-body').innerHTML = ntcRows.length ? '' :
     `<div class="panel-empty">Người này chưa có báo cáo nhà thầu phụ đã gửi</div>`;
   ntcRows.forEach((r,idx)=>{
@@ -2034,7 +2105,7 @@ async function init() {
 }
 function populateReporters() {
   const sel=document.getElementById('f-gs');
-  sel.innerHTML='<option value="">— Chọn người báo cáo / Tất cả —</option>';
+  sel.innerHTML='<option value="">— Chọn người báo cáo —</option>';
   ['PHAN THANH QUY','LƯƠNG ANH'].forEach(function(nm){
     if(!PROJECT.reporters.map(x=>String(x).trim()).includes(nm)) PROJECT.reporters.push(nm);
   });
@@ -2079,7 +2150,8 @@ async function onReporterChange() {
   const newReporter=(document.getElementById('f-gs')?.value || '').trim();
   if (currentReporter && normalizeReporterName(currentReporter)!==normalizeReporterName(newReporter)) saveReporterState(currentReporter);
   showReporterView(newReporter);
-  if(newReporter)await hydrateReportStateFromServer(newReporter);
+  if(newReporter) await hydrateReportStateFromServer(newReporter);
+  else hydrateAllReportStatesFromServer(); // chế độ tổng hợp — không block UI
 }
 function setMode(m) {
   try {
@@ -3569,6 +3641,38 @@ function submitQS(){
     selected: [...cnTasks[id].selected],
   }));
   const assignedSet=new Set();Object.values(cnTasks).forEach(t=>t.selected.forEach(id=>assignedSet.add(id)));
+
+  // ── SUPPLEMENT MODE: nếu đã có báo cáo khóa, chỉ gửi nội dung MỚI ──
+  const _existingLockedReport = getSubmittedReport(reporter);
+  if (_existingLockedReport && _isReportLocked(_existingLockedReport)) {
+    if (!ntcRows.length && !cnTaskData.filter(t=>t.task||t.workerCount).length) {
+      toast('⚠️ Không có nội dung bổ sung. Hãy thêm nhà thầu hoặc công nhật mới trước khi gửi.', 'err');
+      return;
+    }
+    const _caLabelBs = reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
+    const _bsSid = createSubmitId('bo-sung');
+    const _bsPld = {type:'CÔNG NHẬT — BỔ SUNG',submitId:_bsSid,ca:reportSession,
+      ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),
+      cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),ts:new Date().toISOString()};
+    setQSSubmitting(true);
+    if(dauMucRows.length){try{postToGAS({type:'TIẾN ĐỘ SOW',ngay:v('f-ngay'),gs:v('f-gs'),rows:JSON.stringify(dauMucRows),ts:new Date().toISOString()});}catch(e){}}
+    const _mergedNtc=[...(_existingLockedReport.ntcRows||[]),...ntcRows];
+    const _mergedCn=[...(_existingLockedReport.cnTasks||[]),...cnTaskData.filter(t=>t.task||t.workerCount)];
+    storeSubmittedReport(reporter,{
+      ..._existingLockedReport,
+      ntcRows:_mergedNtc, cnTasks:_mergedCn,
+      workItems:reportToSubmittedWorkItems({ntcRows:_mergedNtc,cnTasks:_mergedCn}),
+      locked:true, updatedAt:new Date().toISOString()
+    });
+    if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(applyEmailTestMode(_bsPld)).finally(()=>setQSSubmitting(false));}
+    else{setTimeout(()=>setQSSubmitting(false),800);}
+    clearAllState();
+    renderSubmittedWorkSummary(getSubmittedReport(reporter));
+    updateWorkflowTabs();
+    toast(`✓ Đã gửi bổ sung: ${ntcRows.length} NTC · ${cnTaskData.filter(t=>t.task||t.workerCount).length} công nhật`,'ok');
+    return;
+  }
+
   const submittedWorkItems = [
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
@@ -3604,6 +3708,7 @@ function submitQS(){
     production100Items: [],
     qaResultData: null,
     qaData: {},
+    locked: true,
     savedAt: new Date().toISOString()
   });
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
@@ -3816,6 +3921,116 @@ async function downloadHinhAnhFiles(event){
   }finally{if(btn){btn.disabled=false;btn.textContent='⬇ Ảnh';}}
 }
 function cloneExcelStyle(style){try{return JSON.parse(JSON.stringify(style||{}));}catch(e){return {};}}
+
+// ══════════════════════════════════════════════════════════════════
+//  DS CÔNG NHẬT — worksheet thứ 2 trong file Excel
+//  Nguồn: BC_Alliance, lọc đúng ngày selectedDateVN (dd/mm/yyyy)
+// ══════════════════════════════════════════════════════════════════
+function buildDSCongnhatSheet(workbook, bcRows, selectedDateVN) {
+  // BC_Alliance cols (0-indexed): 0=Timestamp,1=Ngày,2=Ca,3=Người BC,
+  //   4=Nội dung CV, 5=Công nhân phân công, 6=Số CN, 7=Khu vực/Căn/Tầng
+  const ws = workbook.addWorksheet('DS Công nhật');
+
+  const dayRows = (bcRows||[]).slice(1).filter(r=>
+    String(r[1]||'').trim() === selectedDateVN
+  );
+
+  // Build unique worker map: normalised-key → {name, works, areas, cas, reporters}
+  const workerMap = new Map();
+  let reportCN = 0;
+  dayRows.forEach(r=>{
+    const task=String(r[4]||'').trim(), workers=String(r[5]||'').trim();
+    const ca=String(r[2]||'').trim(), reporter=String(r[3]||'').trim();
+    const area=String(r[7]||'').trim();
+    reportCN += (Number(r[6])||0);
+    if(!workers)return;
+    workers.split(/[,\n；;]/).map(n=>n.trim()).filter(Boolean).forEach(name=>{
+      const key=name.toLowerCase().replace(/\s+/g,' ');
+      if(!workerMap.has(key)) workerMap.set(key,{name,works:new Set(),areas:new Set(),cas:new Set(),reporters:new Set()});
+      const e=workerMap.get(key);
+      if(task)e.works.add(task);if(area)e.areas.add(area);
+      if(ca)e.cas.add(ca);if(reporter)e.reporters.add(reporter);
+    });
+  });
+
+  const uniqueCount=workerMap.size;
+  const isMatch=(uniqueCount===reportCN);
+  const _b=(c,v,opts={})=>{const cell=ws.getCell(c);cell.value=v;Object.assign(cell,opts);return cell;};
+  const _border={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  const _hdrFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}};
+  const _altFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F7FF'}};
+
+  // Row 1 — title
+  ws.mergeCells('A1:G1');
+  const titleCell=ws.getCell('A1');
+  titleCell.value=`DANH SÁCH CÔNG NHẬT ĐI LÀM NGÀY ${selectedDateVN}`;
+  titleCell.font={bold:true,size:13,color:{argb:'FF1E3A5F'}};
+  titleCell.alignment={horizontal:'center',vertical:'middle'};
+  titleCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD6E4F7'}};
+  ws.getRow(1).height=26;
+
+  // Rows 2-4 — comparison block
+  const _lb={font:{bold:true},alignment:{horizontal:'left'}};
+  const _val={font:{bold:true},alignment:{horizontal:'center'}};
+  _b('A2','Số người duy nhất trong danh sách:',_lb); _b('B2',uniqueCount,_val);
+  _b('A3','SL Công nhật trên báo cáo ngày:',_lb);   _b('B3',reportCN,_val);
+  _b('A4','Kết quả đối chiếu:',_lb);
+  const matchCell=ws.getCell('B4');
+  matchCell.value=isMatch?'KHỚP':'CHÊNH LỆCH';
+  matchCell.font={bold:true,size:12,color:{argb:isMatch?'FF16A34A':'FFDC2626'}};
+
+  // Row 5 — spacer; Row 6 — header
+  ws.getRow(5).height=6;
+  const COLS=['STT','Họ và tên','Công việc thực hiện','Vị trí / Khu vực','Ca','Người báo cáo','Ghi chú'];
+  const hdr=ws.getRow(6);
+  hdr.height=22;
+  COLS.forEach((h,i)=>{
+    const cell=hdr.getCell(i+1);
+    cell.value=h;cell.font={bold:true,color:{argb:'FFFFFFFF'}};
+    cell.fill=_hdrFill;cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    cell.border=_border;
+  });
+
+  // Data rows from row 7
+  if(!workerMap.size){
+    ws.mergeCells('A7:G7');
+    const ec=ws.getCell('A7');
+    ec.value='Không có dữ liệu công nhật trong ngày';
+    ec.alignment={horizontal:'center'};ec.font={italic:true,color:{argb:'FF888888'}};
+  } else {
+    let stt=1;
+    for(const [,e] of workerMap){
+      const rn=6+stt, row=ws.getRow(rn);
+      row.height=18;
+      const vals=[stt,e.name,[...e.works].join(' / '),[...e.areas].join(' / '),
+        [...e.cas].join('/'), [...e.reporters].join('/'), ''];
+      vals.forEach((v,i)=>{
+        const cell=row.getCell(i+1);
+        cell.value=v;cell.alignment={vertical:'middle',wrapText:true};cell.border=_border;
+        if(stt%2===0)cell.fill=_altFill;
+      });
+      stt++;
+    }
+    // Total row
+    const tn=6+stt;
+    ws.mergeCells(`A${tn}:G${tn}`);
+    const tc=ws.getCell(`A${tn}`);
+    tc.value=`Tổng số công nhật đi làm: ${uniqueCount} người`;
+    tc.font={bold:true};tc.alignment={horizontal:'center'};
+    tc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFEF9C3'}};
+    ws.getRow(tn).height=20;
+  }
+
+  // Column widths
+  [6,22,40,22,10,18,14].forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
+
+  // Freeze header row, autofilter
+  ws.views=[{state:'frozen',ySplit:6}];
+  if(workerMap.size>0){
+    ws.autoFilter={from:{row:6,column:1},to:{row:6+workerMap.size,column:7}};
+  }
+  return {ws,uniqueCount,reportCN,isMatch};
+}
 function fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN){
   const visible=workbook.worksheets.find(ws=>ws.state==='visible')||workbook.worksheets[workbook.worksheets.length-1];
   if(!visible)throw new Error('File mẫu không có sheet báo cáo');
@@ -3848,8 +4063,8 @@ function fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN)
     const entry=[...byNtc.entries()][i];
     const cell=visible.getCell(labelCell);
     cell.value=entry?'NTP '+entry[0]+':':null;
-    cell.alignment={...(cell.alignment||{}),shrinkToFit:true};
-    if(entry&&String(cell.value).length>20)cell.font={...(cell.font||{}),size:8};
+    cell.alignment={...(cell.alignment||{}),wrapText:true};
+    if(entry&&String(cell.value||'').length>20)visible.getRow(parseInt(labelCell.replace(/[A-Z]/g,''),10)).height=Math.max(visible.getRow(parseInt(labelCell.replace(/[A-Z]/g,''),10)).height||22,30);
     visible.getCell(valueCell).value=entry?entry[1]:null;
   });
   const dateParts=selectedDate.split('-').map(Number);
@@ -3875,19 +4090,32 @@ async function downloadHinhAnhExcel(event){
   if(btn){btn.disabled=true;btn.textContent='Đang tải…';}
   try{
     if(typeof ExcelJS==='undefined')throw new Error('Thiếu thư viện tạo Excel');
-    const {selectedDate,selectedDateVN,dailyRows}=await loadDailyPhotoExportData();
     if(!DAILY_REPORT_TEMPLATE_BASE64||DAILY_REPORT_TEMPLATE_BASE64.startsWith('__'))throw new Error('Thiếu file Excel mẫu');
+
+    // Tải Hinh_Anh + BC_Alliance song song để không làm chậm nút Excel
+    const [photoData, bcRaw] = await Promise.all([
+      loadDailyPhotoExportData(),
+      (typeof window.loadNamedSheetOnline==='function'
+        ? window.loadNamedSheetOnline('BC_Alliance').catch(()=>'')
+        : Promise.resolve(''))
+    ]);
+    const {selectedDate,selectedDateVN,dailyRows}=photoData;
+    const bcRows=Array.isArray(bcRaw)?bcRaw:parseCSV(String(bcRaw||''));
+
     const workbook=new ExcelJS.Workbook();
     const templateBytes=bytesFromBase64(DAILY_REPORT_TEMPLATE_BASE64);
     await workbook.xlsx.load(templateBytes.buffer);
     workbook.creator='Báo Cáo Thi Công Sailing Hạ Long';
     workbook.created=new Date();
+
     const summary=fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN);
+    const dsResult=buildDSCongnhatSheet(workbook,bcRows,selectedDateVN);
 
     const buffer=await workbook.xlsx.writeBuffer();
     const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     downloadBlob(blob,`Bao_cao_cong_nhan_hang_ngay_${selectedDate}.xlsx`);
-    toast(`Đã tải báo cáo mẫu ngày ${selectedDateVN}: ${dailyRows.length} dòng · ${summary.grandTotal} CN`,'ok');
+    const matchLabel=dsResult.isMatch?'KHỚP':'CHÊNH LỆCH';
+    toast(`Đã tải ngày ${selectedDateVN}: ${summary.grandTotal} CN · DS Công nhật: ${dsResult.uniqueCount} người (${matchLabel})`,'ok');
   }catch(err){
     console.error('Xuất Excel Hinh_Anh:',err);
     toast('⚠️ Không tải được Excel: '+err.message,'err');
