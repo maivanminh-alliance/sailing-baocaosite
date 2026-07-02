@@ -365,7 +365,7 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
   align-items:center;justify-content:center;background:var(--grey);
   -webkit-tap-highlight-color:transparent;flex-shrink:0}
 .ph-slot-sm:active{border-color:var(--blue);background:var(--lblue)}
-.ph-slot-sm input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+.ph-slot-sm input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0;z-index:1}
 .ph-slot-sm .ph-ic{font-size:30px}
 .ph-slot-sm .ph-lb{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase}
 .ph-slot-sm.taken{border-style:solid;border-color:var(--green);background:var(--lgreen)}
@@ -815,8 +815,18 @@ async function hydrateReportStateFromServer(reporter){
     const payload=await gasJsonp({action:'state',ngay:date,reporter},'__reportState');
     if(token!==serverStateHydrateToken||!payload||!payload.ok)return false;
     if(!payload.state){
-      const localOnly=getSubmittedReport(reporter);
-      if(localOnly)queueServerStateSync(reporter,localOnly);
+      // Server xác nhận không có dữ liệu (đã xóa) → xóa cache local để đồng bộ
+      const key=date+'::'+normalizeReporterName(reporter);
+      const all=loadSubmittedReports();
+      if(all[key]){
+        delete all[key];
+        delete submittedReportsCache[key];
+        saveSubmittedReports(all);
+        if(normalizeReporterName(selectedReporter())===normalizeReporterName(reporter)){
+          showReporterView(reporter);
+          toast('Dữ liệu trên server đã bị xóa — đã xóa khỏi thiết bị này','ok');
+        }
+      }
       return false;
     }
     const state=payload.state;
@@ -2122,8 +2132,13 @@ function updateReporterStrip(reporter) {
 }
 function rebuildActiveReporterTab() {
   const m=activeMode();
-  if(m===0 && hasSubmittedWorkForCurrentView()) renderAllSubmittedWorkSummary();
-  else if(m===0 && currentReporter && getSubmittedReport(currentReporter)) renderSubmittedWorkSummary(getSubmittedReport(currentReporter));
+  if(m===0){
+    const _sr=currentReporter,_srRpt=_sr?getSubmittedReport(_sr):null;
+    // Reporter cụ thể đã khóa → dùng locked view có nút "+"
+    if(_sr&&_srRpt&&_isReportLocked(_srRpt)) renderSubmittedWorkSummary(_srRpt);
+    else if(hasSubmittedWorkForCurrentView()) renderAllSubmittedWorkSummary();
+    else if(_sr&&_srRpt) renderSubmittedWorkSummary(_srRpt);
+  }
   if(m===1)buildPhotoPanel();
   if(m===2)buildResultPanel();
   if(m===3)buildQAPanel();
@@ -3877,14 +3892,27 @@ async function loadDailyPhotoExportData(){
   const selectedDate=v('f-ngay'),selectedDateVN=reportDateVN(selectedDate);
   const raw=await window.loadNamedSheetOnline('Hinh_Anh');
   const rows=Array.isArray(raw)?raw:parseCSV(String(raw||''));
-  let dailyRows=rows.length>1?rows.slice(1).filter(r=>String(r[1]||'').trim()===selectedDateVN):[];
+  // Chỉ dùng hàng server nếu có Drive URL (ảnh OverGridImage không có URL trong CSV)
+  const serverRows=rows.length>1?rows.slice(1).filter(r=>String(r[1]||'').trim()===selectedDateVN&&(driveFileIdFromUrl(r[5])||driveFileIdFromUrl(r[6]))):[];
+  let dailyRows=serverRows;
   const inlineDraftPhotos=new Map();
   if(!dailyRows.length){
-    const drafts=currentPhotoDraftRowsForExcel(selectedDateVN);
-    dailyRows=drafts.map((entry,rowIndex)=>{
-      entry.photos.forEach((data,photoIndex)=>{if(data)inlineDraftPhotos.set(rowIndex+':'+photoIndex,data);});
-      return entry.row;
+    // Lấy ảnh từ localStorage của các báo cáo đã gửi (report.photoData)
+    aggregateWorkItemsForCurrentView().forEach(item=>{
+      const ph1=item.savedPhoto1||null,ph2=item.savedPhoto2||null;
+      if(!ph1&&!ph2)return;
+      const rowIdx=dailyRows.length;
+      if(ph1)inlineDraftPhotos.set(rowIdx+':0',ph1);
+      if(ph2)inlineDraftPhotos.set(rowIdx+':1',ph2);
+      const workerCount=item.type==='ntc'?(item.meta?.cn||0):(item.meta?.workerCount||0);
+      dailyRows.push([new Date().toLocaleString('vi-VN'),selectedDateVN,item.reporter||'',item.name||'',item.detail||'','','','',workerCount]);
     });
+  }
+  if(!dailyRows.length){
+    // Fallback: ảnh draft chưa gửi
+    const drafts=currentPhotoDraftRowsForExcel(selectedDateVN);
+    drafts.forEach((entry,i)=>{entry.photos.forEach((data,j)=>{if(data)inlineDraftPhotos.set(i+':'+j,data);});});
+    dailyRows=drafts.map(e=>e.row);
   }
   if(!dailyRows.length)throw new Error('Chưa có ảnh ngày '+selectedDateVN+'. Hãy thêm ảnh hoặc gửi báo cáo hình ảnh trước.');
   return {selectedDate,selectedDateVN,dailyRows,inlineDraftPhotos};
@@ -4025,9 +4053,9 @@ function buildDSCongnhatSheet(workbook, bcRows, selectedDateVN) {
   [6,22,40,22,10,18,14].forEach((w,i)=>{ ws.getColumn(i+1).width=w; });
 
   // Freeze header row, autofilter
-  ws.views=[{state:'frozen',ySplit:6}];
+  ws.views=[{state:'frozen',xSplit:0,ySplit:6,topLeftCell:'A7',activeCell:'A7'}];
   if(workerMap.size>0){
-    ws.autoFilter={from:{row:6,column:1},to:{row:6+workerMap.size,column:7}};
+    ws.autoFilter=`A6:G${6+workerMap.size}`;
   }
   return {ws,uniqueCount,reportCN,isMatch};
 }
@@ -4080,8 +4108,8 @@ function fillDailyReportTemplate(workbook,dailyRows,selectedDate,selectedDateVN)
   visible.getCell('D4').value={formula:`F${grandTotalRow}`,result:grandTotal};
   visible.getCell('D5').value={formula:`F${cnTotalRow}`,result:cnTotal};
   visible.getCell('D6').value={formula:`F${ntpTotalRow}`,result:ntpTotal};
-  visible.pageSetup={...(visible.pageSetup||{}),printArea:`C1:G${grandTotalRow}`,fitToPage:true,fitToWidth:1,fitToHeight:0,orientation:'portrait'};
-  workbook.calcProperties.fullCalcOnLoad=true;
+  try{visible.pageSetup.printArea=`C1:G${grandTotalRow}`;visible.pageSetup.fitToPage=true;visible.pageSetup.fitToWidth=1;visible.pageSetup.fitToHeight=0;visible.pageSetup.orientation='portrait';}catch(e){}
+  try{workbook.calcProperties.fullCalcOnLoad=true;}catch(e){}
   return {sheet:visible,records,ntpTotal,cnTotal,grandTotal};
 }
 async function downloadHinhAnhExcel(event){
