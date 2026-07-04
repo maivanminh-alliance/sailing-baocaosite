@@ -940,7 +940,7 @@ function queueServerStateSync(reporter,report){
   // Nếu server đã xác nhận không có dữ liệu → không ghi ngược lại (tránh resurrection)
   if(serverDeleteConfirmed.has(key))return;
   clearTimeout(serverStateSyncTimers[key]);
-  // Timer 3000ms: đủ thời gian cho hydration server trả về và cancel nếu cần
+  // Timer 800ms: đủ để debounce nhiều call liên tiếp, không chờ quá lâu gây mất đồng bộ
   serverStateSyncTimers[key]=setTimeout(()=>{
     if(serverDeleteConfirmed.has(key))return; // kiểm tra lần 2 sau khi hydration xong
     const compact=compactReportForServer({...report,date,reporter,updatedAt:report.updatedAt||new Date().toISOString()});
@@ -949,7 +949,7 @@ function queueServerStateSync(reporter,report){
       ca:compact.reportSession||reportSession||'',stateJson:JSON.stringify(compact),
       ts:new Date().toISOString()
     }).catch(e=>console.warn('Không đồng bộ được trạng thái lên server:',e));
-  },3000);
+  },800);
 }
 async function hydrateReportStateFromServer(reporter){
   reporter=String(reporter||'').trim();if(!reporter)return false;
@@ -965,16 +965,20 @@ async function hydrateReportStateFromServer(reporter){
     if(!payload.state){
       // Server xác nhận không có dữ liệu (đã xóa) → xóa cache local + chặn reverse-sync
       const key=date+'::'+normalizeReporterName(reporter);
-      serverDeleteConfirmed.add(key);           // block queueServerStateSync cho key này
-      if(serverStateSyncTimers[key]){clearTimeout(serverStateSyncTimers[key]);delete serverStateSyncTimers[key];}
       const all=loadSubmittedReports();
       let changed=false;
       if(all[key]){
+        // Bảo vệ dữ liệu vừa gửi: nếu local mới dưới 30 giây, server chưa nhận kịp
+        // → giữ local, bỏ qua null từ server, không chặn reverse-sync
+        const age=Date.now()-(Date.parse(all[key].updatedAt||0)||0);
+        if(age<30000)return false;
         delete all[key];
         delete submittedReportsCache[key];
         saveSubmittedReports(all);
         changed=true;
       }
+      serverDeleteConfirmed.add(key);           // block queueServerStateSync cho key này
+      if(serverStateSyncTimers[key]){clearTimeout(serverStateSyncTimers[key]);delete serverStateSyncTimers[key];}
       // Dọn DRAFT ma
       const draft=reporterStates[key];
       if(draft){ delete reporterStates[key]; persistReporterStates(); changed=true; }
@@ -1351,6 +1355,7 @@ function storeSubmittedReport(reporter, payload) {
   all[key] = merged;
   submittedReportsCache[key] = merged;
   saveSubmittedReports(all);
+  serverDeleteConfirmed.delete(key); // vừa lưu mới → xóa khỏi danh sách "đã xác nhận xóa"
   queueServerStateSync(reporter,merged);
 }
 
@@ -2447,6 +2452,7 @@ async function init() {
   setReportSession(autoReportSessionByTime());
   showEmptyPlaceholder();
   updateWorkflowTabs();
+  hydrateAllReportStatesFromServer(); // tải dữ liệu mới nhất từ server khi khởi động
 }
 function populateReporters() {
   const sel=document.getElementById('f-gs');
