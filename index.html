@@ -480,6 +480,130 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
   background:#fff;-webkit-appearance:none}
 .vuong-inp:focus{outline:none;border-color:var(--red)}
 .scope-disabled{opacity:.38;pointer-events:none;user-select:none}
+
+/* ═══════════════════════════════════════════════════════
+   COMPACT MODE — Mobile ≤ 480px
+   Giảm kích thước padding/margin/height, giữ nguyên màu sắc & layout
+   ═══════════════════════════════════════════════════════ */
+@media (max-width:480px){
+  /* Body — chừa đủ chỗ cho nav */
+  body{padding-bottom:calc(108px + var(--sb))!important}
+
+  /* ── Header ── */
+  .hdr{padding:6px 10px!important;padding-top:calc(6px + var(--st))!important}
+  .hdr-row{margin-bottom:2px!important}
+  .hdr h1{font-size:12px!important}
+  .hdr-sub{font-size:8px!important}
+  .badge-alliance{font-size:7px!important;padding:2px 5px!important}
+  .hdr-time{font-size:14px!important}
+  .hdr-date{font-size:8px!important}
+  .hdr-person{font-size:10px!important;padding:3px 8px!important}
+  .mode-banner{padding:5px 10px!important;font-size:11px!important}
+
+  /* ── Content wrapper ── */
+  .content{padding:10px 10px 0!important}
+
+  /* ── Cards ── */
+  .card{margin-bottom:10px!important;border-radius:10px!important}
+  .card-hdr{padding:7px 12px!important;height:42px!important;font-size:12px!important;gap:5px!important}
+  .card-body{padding:10px!important}
+
+  /* ── Fields & labels ── */
+  .field{margin-bottom:10px!important}
+  label{margin-bottom:4px!important;font-size:10px!important}
+
+  /* ── Inputs chung ──
+     GIỮ font-size ≥ 16px: Safari iOS tự zoom màn hình nếu font < 16px khi tap vào ô ── */
+  input[type=text],input[type=number],input[type=date],select,textarea{
+    padding:8px 10px!important;border-radius:8px!important}
+  select{padding-right:30px!important}
+  textarea{min-height:56px!important}
+
+  /* ── Ô Ngày & Người báo cáo ── */
+  #card-general #f-ngay,#card-general #f-gs{
+    height:44px!important;min-height:44px!important;
+    line-height:44px!important;border-radius:10px!important}
+  .row2{gap:8px!important}
+  #f-ngay-txt{font-size:14px!important}
+
+  /* ── QS Cards (Nhà thầu phụ) ── */
+  .qs-card{margin-bottom:10px!important;border-radius:9px!important}
+  .qs-card-hdr{padding:8px!important;min-height:58px!important;gap:6px!important}
+  .qs-card-hdr .toggle-btn{margin-left:6px!important}
+  .qs-card-body{padding:8px!important}
+  .qs-grid{gap:5px!important;margin-top:5px!important}
+  .qs-grid input,.qs-grid select{padding:6px 7px!important;font-size:12px!important}
+  .qs-total-bar{padding:8px 10px!important}
+  .qs-total-bar .num{font-size:20px!important}
+  .qs-total-bar .lb{font-size:11px!important}
+  .qs-sow{padding:0 8px 6px!important;gap:3px!important}
+
+  /* ── Nút "+ Thêm nhà thầu / công việc" ── */
+  .add-row-btn,.add-task-btn{
+    min-height:40px!important;padding:8px 12px!important;
+    font-size:13px!important;margin-top:6px!important;border-radius:9px!important}
+
+  /* ── Area / work chips ── */
+  .area-chip{padding:4px 8px!important;font-size:11px!important;border-radius:13px!important}
+  .area-chips{gap:4px!important}
+  .area-filter-block{padding:10px!important;margin-bottom:8px!important;border-radius:9px!important}
+  .area-filter-title{margin-bottom:6px!important;font-size:10px!important}
+  .area-filter-row{margin-bottom:6px!important}
+  .qs-sf-section{margin-bottom:7px!important;padding-bottom:7px!important}
+
+  /* ── Worker chips (CN) ── */
+  .w-chip{padding:6px 10px!important;font-size:12px!important;border-radius:7px!important}
+  .w-chip-grid{gap:5px!important}
+  .cn-group-hdr{padding:9px 11px!important}
+  .cn-group-body{padding:9px!important}
+  .cn-groups-wrap{gap:6px!important}
+  .cn-grp-name{font-size:12px!important}
+  .cn-grp-count{padding:3px 8px!important;font-size:11px!important}
+
+  /* ── CN Task cards ── */
+  .cn-task-card{margin-bottom:10px!important;border-radius:10px!important}
+  .cnt-hdr{padding:9px 12px!important;min-height:60px!important;gap:8px!important}
+  .cnt-body{padding:12px!important}
+  .cnt-title{font-size:13px!important}
+  .cnt-summary{font-size:11px!important}
+  .cn-empty{padding:20px 16px!important;font-size:13px!important}
+
+  /* ── Toggle & delete buttons ── */
+  .toggle-btn{width:36px!important;height:36px!important;border-radius:9px!important;font-size:16px!important}
+  .qs-del,.cnt-del{width:36px!important;height:36px!important;border-radius:9px!important;font-size:18px!important}
+
+  /* ── Panel section headers ── */
+  .panel-sec-hdr{
+    padding:9px 12px!important;margin-bottom:8px!important;
+    font-size:12px!important;border-radius:8px!important}
+
+  /* ── Photo items ── */
+  .photo-item{padding:10px!important;margin-bottom:10px!important;border-radius:9px!important}
+  .photo-item-shots{margin-top:8px!important;gap:6px!important}
+  .ph-slot-sm{width:68px!important;height:68px!important;min-width:68px!important;border-radius:9px!important}
+  .ph-slot-sm .ph-ic{font-size:24px!important}
+  .pi-name{font-size:14px!important}
+  .pi-detail{font-size:11px!important;margin-top:3px!important}
+
+  /* ── Result items ── */
+  .result-item{padding:10px!important;margin-bottom:10px!important;border-radius:9px!important}
+  .kq-mini{min-height:40px!important;font-size:10px!important}
+  .kq-mini-row{gap:5px!important;margin:6px 0 5px!important}
+
+  /* ── Nút Gửi báo cáo (sticky footer) ── */
+  .work-sticky-footer{
+    bottom:calc(68px + var(--sb))!important;
+    padding:8px!important;border-radius:12px!important;
+    gap:6px!important;margin-top:8px!important}
+  .work-sticky-footer .submit-btn{
+    padding:12px!important;font-size:14px!important;min-height:46px!important}
+
+  /* ── Nav bar đáy ── */
+  .bot-nav{padding-bottom:env(safe-area-inset-bottom,0px)!important}
+  .nav-btn{min-height:50px!important;padding:5px 3px 4px!important;gap:2px!important}
+  .nav-btn .n-ic{font-size:22px!important}
+  .nav-btn .n-lb{font-size:9px!important}
+}
 </style>
   <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script></head>
@@ -750,8 +874,9 @@ let GRP_KEYS=[];
 // REPORTER STATE MANAGEMENT
 // ══════════════════════════════════════════
 const reporterStates = {};
-// v12: đổi khóa để mọi thiết bị bỏ draft cũ một lần (dọn dữ liệu ma kiểu "Hải Khánh")
-const REPORTER_STATE_KEY = 'alc_daily_report_states_v12';
+// v13: xóa draft ma từ session cũ — mỗi lần tải trang có SESSION_LOAD_TIME mới
+const REPORTER_STATE_KEY = 'alc_daily_report_states_v13';
+const SESSION_LOAD_TIME = Date.now();
 const SUBMITTED_REPORT_KEY = 'alc_submitted_reports_v3';
 const SUBMITTED_REPORT_OLD_KEYS = ['alc_submitted_reports_v2'];
 const PENDING_QA_KEY = 'alc_pending_qa_reinspection_v1';
@@ -833,16 +958,13 @@ async function hydrateReportStateFromServer(reporter){
         saveSubmittedReports(all);
         changed=true;
       }
-      // Dọn cả DRAFT ma: server không có gì cho người này mà máy còn giữ draft
-      // cũ (>30 phút hoặc không rõ thời điểm) → xóa, không tự "bung" lại form cũ.
+      // Dọn cả DRAFT ma: server xác nhận không có dữ liệu → luôn xóa draft local
+      // (server là nguồn chính xác; draft cũ gây hiện dữ liệu ma khi đổi người báo cáo).
       const draft=reporterStates[key];
       if(draft){
-        const age=Date.now()-(Date.parse(draft.updatedAt||0)||0);
-        if(!draft.updatedAt || age>30*60*1000){
-          delete reporterStates[key];
-          persistReporterStates();
-          changed=true;
-        }
+        delete reporterStates[key];
+        persistReporterStates();
+        changed=true;
       }
       if(changed && normalizeReporterName(selectedReporter())===normalizeReporterName(reporter)){
         showReporterView(reporter);
@@ -1805,6 +1927,9 @@ function loadReporterState(reporter) {
     return;
   }
   let state = reporterStates[reporterStateKey(reporter)];
+  // Bỏ qua draft được lưu từ session trước (trang cũ) — tránh hiện dữ liệu ma.
+  // Draft session hiện tại luôn có updatedAt >= SESSION_LOAD_TIME.
+  if (state && (Date.parse(state.updatedAt||0)||0) < SESSION_LOAD_TIME) state = null;
   if (!state) state = applyPendingWorkToReporterState(reporter);
   if (!state) {
     setWorkEditButtonsVisible(true);
@@ -2230,7 +2355,7 @@ async function init() {
 function populateReporters() {
   const sel=document.getElementById('f-gs');
   sel.innerHTML='<option value="">— Chọn người báo cáo —</option>';
-  ['PHAN THANH QUY','LƯƠNG ANH'].forEach(function(nm){
+  ['PHAN THANH QUY','HOÀNG LƯƠNG ANH'].forEach(function(nm){
     if(!PROJECT.reporters.map(x=>String(x).trim()).includes(nm)) PROJECT.reporters.push(nm);
   });
   PROJECT.reporters.forEach(r=>{const o=document.createElement('option');o.textContent=r;sel.appendChild(o);});
