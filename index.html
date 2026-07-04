@@ -911,6 +911,8 @@ function saveSubmittedReports(data) {
 }
 
 const serverStateSyncTimers={};
+// Keys mà server đã xác nhận KHÔNG CÓ DỮ LIỆU → chặn reverse-sync để tránh resurrection
+const serverDeleteConfirmed=new Set();
 // Token theo TỪNG người báo cáo: hủy response cũ của đúng người đó khi có
 // request mới hơn, không hủy oan request của người khác (chế độ tổng hợp
 // tải song song nhiều người).
@@ -926,15 +928,19 @@ function queueServerStateSync(reporter,report){
   reporter=String(reporter||'').trim();if(!reporter||!report)return;
   const date=String(report.date||v('f-ngay')||'').trim();if(!date)return;
   const key=date+'::'+normalizeReporterName(reporter);
+  // Nếu server đã xác nhận không có dữ liệu → không ghi ngược lại (tránh resurrection)
+  if(serverDeleteConfirmed.has(key))return;
   clearTimeout(serverStateSyncTimers[key]);
+  // Timer 3000ms: đủ thời gian cho hydration server trả về và cancel nếu cần
   serverStateSyncTimers[key]=setTimeout(()=>{
+    if(serverDeleteConfirmed.has(key))return; // kiểm tra lần 2 sau khi hydration xong
     const compact=compactReportForServer({...report,date,reporter,updatedAt:report.updatedAt||new Date().toISOString()});
     postToGAS({
       type:'ĐỒNG BỘ TRẠNG THÁI',ngay:date,gs:reporter,
       ca:compact.reportSession||reportSession||'',stateJson:JSON.stringify(compact),
       ts:new Date().toISOString()
     }).catch(e=>console.warn('Không đồng bộ được trạng thái lên server:',e));
-  },500);
+  },3000);
 }
 async function hydrateReportStateFromServer(reporter){
   reporter=String(reporter||'').trim();if(!reporter)return false;
@@ -948,8 +954,10 @@ async function hydrateReportStateFromServer(reporter){
     // không để response chậm ghi đè dữ liệu mới khi người dùng đổi lựa chọn.
     if(token!==serverStateHydrateTokens[tokenKey]||!payload||!payload.ok)return false;
     if(!payload.state){
-      // Server xác nhận không có dữ liệu (đã xóa) → xóa cache local để đồng bộ
+      // Server xác nhận không có dữ liệu (đã xóa) → xóa cache local + chặn reverse-sync
       const key=date+'::'+normalizeReporterName(reporter);
+      serverDeleteConfirmed.add(key);           // block queueServerStateSync cho key này
+      if(serverStateSyncTimers[key]){clearTimeout(serverStateSyncTimers[key]);delete serverStateSyncTimers[key];}
       const all=loadSubmittedReports();
       let changed=false;
       if(all[key]){
