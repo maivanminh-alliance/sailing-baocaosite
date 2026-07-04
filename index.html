@@ -93,9 +93,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
 .reload-btn{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:background .25s;color:#fff}
 .reload-btn.idle{background:rgba(100,116,139,.6)}
 .reload-btn.loading{background:rgba(251,146,60,.95);animation:reload-spin .8s linear infinite}
-.reload-btn.done{background:rgba(59,130,246,.95);animation:none}
+.reload-btn.done{background:rgba(34,197,94,.95);animation:none}
 .reload-btn.error{background:rgba(239,68,68,.95);animation:none}
-@keyframes reload-spin{to{transform:rotate(360deg)}}
+@keyframes reload-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .mode-banner{border-bottom:1px solid var(--border);padding:7px 14px;font-size:12px;
   font-weight:700;text-align:center;transition:background .3s,color .3s}
 .mode-banner.sang{background:#fffbeb;color:#b45309}
@@ -246,7 +246,7 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
 .area-filter-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;
   letter-spacing:.3px;margin-bottom:5px}
 .area-chips{display:flex;flex-wrap:wrap;gap:6px}
-.can-row .area-chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.can-row .area-chips{flex-wrap:wrap;overflow-x:hidden}
 .area-chip{padding:6px 11px;border-radius:16px;font-size:12px;font-weight:700;
   border:2px solid var(--border);background:#fff;color:var(--text);
   cursor:pointer;-webkit-tap-highlight-color:transparent;
@@ -493,7 +493,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
    ═══════════════════════════════════════════════════════ */
 @media (max-width:480px){
   /* Body — chừa đủ chỗ cho nav */
-  body{padding-bottom:calc(108px + var(--sb))!important}
+  body{padding-bottom:calc(72px + var(--sb))!important}
 
   /* ── Header ── */
   .hdr{padding:6px 10px!important;padding-top:calc(6px + var(--st))!important}
@@ -528,7 +528,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
   /* ── Ô Ngày & Người báo cáo ── */
   #card-general #f-ngay,#card-general #f-gs{
     height:44px!important;min-height:44px!important;
-    line-height:44px!important;border-radius:10px!important}
+    line-height:normal!important;border-radius:10px!important}
+  #card-general #f-gs{
+    padding-top:12px!important;padding-bottom:12px!important}
   .row2{gap:8px!important}
   #f-ngay-txt{font-size:14px!important}
 
@@ -632,7 +634,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
       <div class="hdr-sub canva-text" data-template-id="hdr-projcode" id="hdr-projcode" style="color: rgba(255, 255, 255, 0.55); font-size: 9px;">Sailing Hạ Long · DA25.328</div>
      </div>
     </div>
-    <button class="reload-btn idle" id="reload-btn" onclick="reloadFromServer()" title="Tải lại dữ liệu từ server">↺</button>
+    <button class="reload-btn idle" id="reload-btn" onclick="reloadFromServer()" title="Tải lại dữ liệu từ server">↻</button>
     <div class="hdr-clock">
      <div class="hdr-time" id="hdr-time"></div>
      <div class="hdr-date" id="hdr-date"></div>
@@ -1944,12 +1946,13 @@ function renderSubmittedWorkSummary(report) {
     cnList.innerHTML = '';
     // Nút Sửa lại — đặt trên cùng phần nhà thầu phụ
     const _editReporter = report.reporter || currentReporter || selectedReporter();
+    const _safeRep=_editReporter.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     qsBody.insertAdjacentHTML('afterbegin',`
       <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:10px">
         <span style="font-size:12px;color:#92400e;font-weight:600">✅ Báo cáo đã gửi và khóa</span>
-        <button type="button" onclick="unlockReportForEdit(${JSON.stringify(_editReporter)})"
+        <button type="button" onclick="unlockReportForEdit('${_safeRep}')"
           style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
-          ✏️ Sửa lại
+          Sửa lại
         </button>
       </div>`);
     ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx)));
@@ -3140,21 +3143,24 @@ function addCNTask() {
   cnTasks[id]={selected:new Set(),areaFilter:{khu:'',cans:new Set(),tangs:new Set()}};
   const empty=document.getElementById('cn-empty'); if(empty)empty.remove();
   const div=document.createElement('div');div.className='cn-task-card';div.id='cnt-'+id;div.dataset.editable='1';
+  const _CN_HIDDEN=new Set(['Kho','Thợ điện']);
   const grpsHtml=!GRP_KEYS.length
     ? `<div class="panel-empty" style="padding:12px">⚠️ Chưa tải được danh sách công nhân từ sheet CN_Workers. Kiểm tra mạng rồi tải lại trang.</div>`
-    : GRP_KEYS.map((g,gi)=>{
+    : GRP_KEYS.reduce((acc,g,gi)=>{
+    if(_CN_HIDDEN.has(g))return acc; // ẩn nhóm Kho và Thợ điện
     const{ids}=CN_GROUPS[g];const total=ids.length;
     const chips=ids.map(wid=>{const w=ALC_WORKERS.find(x=>x.id===wid);if(!w)return'';
       return`<span class="w-chip" data-wid="${wid}" onclick="toggleWChip(${id},${wid},'${g}')">${shortName(w.name)}</span>`;}).join('');
-    return`<div class="cn-group-section" id="cgs-${id}-${gi}">
+    acc.push(`<div class="cn-group-section" id="cgs-${id}-${gi}">
       <div class="cn-group-hdr" onclick="toggleGrp(${id},${gi})">
         <span class="cn-grp-name">${g}</span>
         <span class="cn-grp-count" id="cgc-${id}-${gi}">0/${total}</span>
         <div class="toggle-btn-sm cn-grp-chev-ref" id="cggchev-${id}-${gi}">▾</div>
       </div>
       <div class="cn-group-body"><div class="w-chip-grid">${chips}</div></div>
-    </div>`;
-  }).join('');
+    </div>`);
+    return acc;
+  },[]).join('');
   div.innerHTML=`
     <div class="cnt-hdr" onclick="toggleTaskCollapse(${id})">
       <div class="qs-num" id="cnt-num-${id}">${id}</div>
@@ -5687,6 +5693,17 @@ init();
     anchor.parentNode.insertBefore(b,anchor.nextSibling);
   }
   setTimeout(initBoSung,1200);
+})();
+
+// ── Auto-sync đa thiết bị ──────────────────────────────────
+// Khi màn hình bật lại hoặc bấm nút ↻ → cùng dùng reloadFromServer()
+// để tránh code trùng và đảm bảo nút phản ánh đúng trạng thái.
+(function(){
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden)reloadFromServer();
+  });
+  // Polling 3 phút/lần khi app đang mở
+  setInterval(function(){if(!document.hidden)reloadFromServer();},3*60*1000);
 })();
 
 </script>
