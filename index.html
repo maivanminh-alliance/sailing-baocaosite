@@ -1747,6 +1747,9 @@ function unlockReportForEdit(reporter) {
         qaData: {...(report.qaData || {})},
         qaResultData: report.qaResultData || null,
         updatedAt: new Date().toISOString(),
+        _resubOrigNgay: report.date || '',
+        _resubOrigCa: report.reportSession || '',
+        _resubOrigGs: reporter,
       };
       deleteSubmittedReport(reporter);
       persistReporterStates();
@@ -3957,11 +3960,18 @@ function submitQS(){
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const reporter = selectedReporter();
-  // Chặn gửi nếu còn card công việc chưa bấm Lưu ✓
+  // Chặn gửi nếu còn card NTC chưa bấm Lưu ✓
   const _openCards=document.querySelectorAll('.qs-card[data-editable="1"]:not(.qs-col)');
   if(_openCards.length>0){
-    toast('⚠️ Vui lòng bấm Lưu ✓ trước khi gửi báo cáo','err');
+    toast('⚠️ Vui lòng bấm Lưu ✓ (Section 1) trước khi gửi báo cáo','err');
     _openCards[0].scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  // Chặn gửi nếu còn card Công nhật ALLIANCE chưa bấm Lưu ✓
+  const _openCNCards=document.querySelectorAll('.cn-task-card[data-editable="1"]:not(.collapsed)');
+  if(_openCNCards.length>0){
+    toast('⚠️ Vui lòng bấm Lưu ✓ (Section 2) trước khi gửi báo cáo','err');
+    _openCNCards[0].scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
   for(const card of document.querySelectorAll('.qs-card[data-editable="1"]')){
@@ -4131,6 +4141,18 @@ function submitQS(){
   setQSSubmitting(true);
   updateWorkflowTabs();
   const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()};
+  // Nếu là gửi lại sau "Sửa lại" → báo GAS xóa dòng cũ trước khi ghi mới
+  const _rsk=reporterStateKey(reporter);
+  if(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay){
+    _qsPld.isResub=true;
+    _qsPld.origNgay=reporterStates[_rsk]._resubOrigNgay;
+    _qsPld.origCa=reporterStates[_rsk]._resubOrigCa;
+    _qsPld.origGs=reporterStates[_rsk]._resubOrigGs;
+    delete reporterStates[_rsk]._resubOrigNgay;
+    delete reporterStates[_rsk]._resubOrigCa;
+    delete reporterStates[_rsk]._resubOrigGs;
+    persistReporterStates();
+  }
   if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(_qsPld).finally(()=>setQSSubmitting(false));}
   else{setTimeout(()=>setQSSubmitting(false),800);}
   nextModeAfterSuccess = 1;
