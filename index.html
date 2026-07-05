@@ -145,7 +145,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);
 textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
 .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
 #card-general .row2 .field{min-width:0;margin-bottom:0}
-#card-general .row2 label{height:16px;line-height:16px;margin-bottom:6px}
+#card-general{margin-bottom:8px}
+#body-card-general{padding-top:10px;padding-bottom:10px}
+#f-gs{-webkit-appearance:none;appearance:none;background-image:none;padding-right:8px;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #card-general #f-ngay,#card-general #f-gs{
   height:56px;min-height:56px;border-radius:12px;
   padding-top:0;padding-bottom:0;line-height:56px;
@@ -652,11 +654,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
     <div class="card-body" id="body-card-general">
      <div class="row2">
       <div class="field">
-       <label data-template-id="label-ngay" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Ngày</label>
        <div class="ngay-wrap"><input type="date" id="f-ngay"><span id="f-ngay-txt"></span></div>
       </div>
       <div class="field">
-       <label data-template-id="label-reporter" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Người báo cáo</label> <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn người báo cáo —</option> </select>
+       <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn người báo cáo —</option> </select>
       </div>
      </div>
     </div>
@@ -830,6 +831,7 @@ function openAbsenceCard() {
 const SHEETS_ID = '1S8oRyhXt4CAYIFwxF0vyN2tOpy49OxIdM7WNi9bnQUs';
 const SOW_NTP_GID = '99059991';
 const GAS_URL   = 'https://script.google.com/macros/s/AKfycbx_Oec5ZYU0CyblhQ2idbaz8ZHR3B104g3Su2QNGmc65f3EUOOpVBE1j0MFesuFDquB/exec';
+const GAS_SECRET = 'sailing_DA25328_bctc';
 
 // Email configuration
 const EMAIL_CONFIG = {
@@ -3868,7 +3870,7 @@ function postToGAS(data) {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(applyEmailTestMode(data))
+    body: JSON.stringify({...applyEmailTestMode(data), secret: GAS_SECRET})
   });
 }
 
@@ -4227,7 +4229,7 @@ function gasJsonp(params,prefix='__gasData'){
     }
     window[callback]=payload=>finish(null,payload);
     script.onerror=()=>finish(new Error('Không tải được dữ liệu từ GAS'));
-    const query=new URLSearchParams({...params,callback,_:Date.now()});
+    const query=new URLSearchParams({...params,secret:GAS_SECRET,callback,_:Date.now()});
     script.src=GAS_URL+'?'+query.toString();
     document.head.appendChild(script);
   });
