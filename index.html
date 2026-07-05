@@ -91,7 +91,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
 .hdr-time{color:#fff;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .hdr-date{color:rgba(255,255,255,.65);font-size:9px;margin-top:2px}
 .reload-btn{width:34px;height:34px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:background .25s;color:#fff}
-.reload-btn.idle{background:rgba(100,116,139,.6)}
+.reload-btn.idle{background:rgba(34,197,94,.95)}
 .reload-btn.loading{background:rgba(251,146,60,.95);animation:reload-spin .8s linear infinite}
 .reload-btn.done{background:rgba(34,197,94,.95);animation:none}
 .reload-btn.error{background:rgba(239,68,68,.95);animation:none}
@@ -1723,14 +1723,20 @@ function showAppConfirm(title, message, onOk, icon) {
   ov.addEventListener('click', e => { if(e.target===ov) close(); });
 }
 
-function unlockReportForEdit(reporter) {
+function unlockReportForEdit(reporter, focusType, focusIdx) {
   reporter = String(reporter || currentReporter || selectedReporter() || '').trim();
   if (!reporter) return;
+  focusType = focusType || 'all';
+  focusIdx  = (focusIdx === undefined || focusIdx === null) ? -1 : Number(focusIdx);
   const report = getSubmittedReport(reporter);
   if (!report) { toast('Không tìm thấy báo cáo đã gửi','err'); return; }
+  const isSingle = focusType !== 'all' && focusIdx >= 0;
+  const confirmMsg = isSingle
+    ? 'Công việc này sẽ chuyển về bản nháp để sửa — bạn cần gửi lại sau khi xong.'
+    : 'Toàn bộ báo cáo sẽ chuyển về bản nháp — bạn cần gửi lại sau khi sửa xong.';
   showAppConfirm(
     `Mở lại báo cáo của "${reporter}"`,
-    'Báo cáo sẽ chuyển về bản nháp — bạn cần gửi lại sau khi sửa xong.',
+    confirmMsg,
     function() {
       const key = reporterStateKey(reporter);
       reporterStates[key] = {
@@ -1761,9 +1767,23 @@ function unlockReportForEdit(reporter) {
       ['mode-bc','mode-cd','mode-qa','mode-result'].forEach(id=>document.getElementById(id)?.classList.add('hide'));
       loadReporterState(reporter);
       setWorkEditButtonsVisible(true);
+      // Chỉ bung đúng card được chọn, thu gọn các card còn lại
+      if (isSingle) {
+        const cardNo = focusIdx + 1; // cards được đánh số từ 1
+        if (focusType === 'ntc') {
+          document.querySelectorAll('.qs-card[data-editable="1"]').forEach(c => {
+            c.classList.add('qs-col');
+            document.getElementById(c.id.replace('qsc-','qschev-'))?.classList.add('rotated');
+          });
+          setTimeout(() => openQSCard(cardNo), 50);
+        } else if (focusType === 'cn') {
+          Object.keys(cnTasks).forEach(id => document.getElementById('cnt-'+id)?.classList.add('collapsed'));
+          setTimeout(() => openCNCard(cardNo), 50);
+        }
+      }
       const strip = document.getElementById('reporter-strip');
       if (strip) { strip.textContent=`Đang sửa lại báo cáo đã khóa: ${reporter}`; strip.classList.add('show'); }
-      toast('Đã mở lại báo cáo để sửa. Kiểm tra lại rồi bấm gửi lại.','ok');
+      toast('Đã mở lại để sửa. Kiểm tra lại rồi bấm gửi lại.','ok');
     }
   );
 }
@@ -1918,7 +1938,7 @@ function _lockedDetailRows(pairs) {
     .map(p=>`<div style="display:flex;gap:6px;align-items:baseline"><span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;min-width:74px">${p[0]}</span><span style="flex:1;min-width:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere;line-height:1.45">${p[1]}</span></div>`)
     .join('');
 }
-function _renderLockedNtcCard(r, idx) {
+function _renderLockedNtcCard(r, idx, reporter) {
   const category = (typeof exactSowCategoryForWork==='function' ? exactSowCategoryForWork(r.works||'') : '') || '';
   const details = _lockedDetailRows([
     ['Nhà thầu', r.ntc||''],
@@ -1929,16 +1949,17 @@ function _renderLockedNtcCard(r, idx) {
     ['Số CN', (r.cn||0)+' CN'],
     ['Ghi chú', r.note||'']
   ]);
+  const _sr=(reporter||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return `<div class="submitted-work-card qs-col" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(22,163,74,.10);max-width:100%;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <div class="qs-num" style="flex-shrink:0">${idx+1}</div>
       <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r.ntc||''}</div>
-      <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase">🔒 Đã khóa</span>
+      <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idx})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${details}</div>
   </div>`;
 }
-function _renderLockedCnCard(r, idx) {
+function _renderLockedCnCard(r, idx, reporter) {
   const names = String(r.workers||'').split(/[,\n；;]/).map(x=>x.trim()).filter(Boolean);
   const group = (typeof attGroupsForWorkers==='function') ? attGroupsForWorkers(names) : '';
   const cans = Array.isArray(r.af_cans)&&r.af_cans.length ? r.af_cans.join(', ') : '';
@@ -1952,11 +1973,12 @@ function _renderLockedCnCard(r, idx) {
     ['Vị trí', r.area||''],
     ['Ghi chú', r.note||'']
   ]);
+  const _sr=(reporter||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   return `<div class="submitted-work-card" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(22,163,74,.10);max-width:100%;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <div class="qs-num" style="flex-shrink:0">${idx+1}</div>
       <div class="cnt-title" style="flex:1;min-width:0;overflow-wrap:anywhere">${r.task||'(Chưa điền nội dung)'}</div>
-      <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase">🔒 Đã khóa</span>
+      <button type="button" onclick="unlockReportForEdit('${_sr}','cn',${idx})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${details}</div>
   </div>`;
@@ -1992,22 +2014,22 @@ function renderSubmittedWorkSummary(report) {
     qsBody.insertAdjacentHTML('afterbegin',`
       <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:10px">
         <span style="font-size:12px;color:#92400e;font-weight:600">✅ Báo cáo đã gửi và khóa</span>
-        <button type="button" onclick="unlockReportForEdit('${_safeRep}')"
-          style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
-          Sửa lại
+        <button type="button" onclick="unlockReportForEdit('${_safeRep}','all',-1)"
+          style="background:#92400e;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          Sửa tất cả
         </button>
       </div>`);
-    ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx)));
+    ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx, _editReporter)));
     qsBody.insertAdjacentHTML('beforeend', _BOSUNG_SEP_NTC);
     cnList.insertAdjacentHTML('afterbegin',`
       <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:10px">
         <span style="font-size:12px;color:#92400e;font-weight:600">✅ Công nhật ALLIANCE đã khóa</span>
-        <button type="button" onclick="unlockReportForEdit('${_safeRep}')"
-          style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
-          Sửa lại
+        <button type="button" onclick="unlockReportForEdit('${_safeRep}','all',-1)"
+          style="background:#92400e;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          Sửa tất cả
         </button>
       </div>`);
-    cnRows.forEach((r,idx)  => cnList.insertAdjacentHTML('beforeend', _renderLockedCnCard(r, idx)));
+    cnRows.forEach((r,idx)  => cnList.insertAdjacentHTML('beforeend', _renderLockedCnCard(r, idx, _editReporter)));
     cnList.insertAdjacentHTML('beforeend', _BOSUNG_SEP_CN);
     setWorkEditButtonsVisible(true);
     const btn = document.getElementById('btn-submit-qs');
