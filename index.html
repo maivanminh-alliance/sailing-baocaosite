@@ -163,7 +163,7 @@ textarea{resize:vertical;min-height:64px;font-size:15px;line-height:1.5}
 .reporter-strip{display:none;padding:6px 14px;font-size:11px;font-weight:700;
   background:var(--lgreen);color:var(--green);border-bottom:1px solid rgba(22,163,74,.2)}
 .reporter-strip.show{display:none}
-.site-footer{grid-column:1/-1;padding:0 12px calc(var(--sb) + 3px);text-align:center;color:var(--muted);
+.site-footer{grid-column:1/-1;padding:2px 12px 4px;text-align:center;color:var(--muted);
   font-size:10px;font-weight:600;line-height:1.25;background:#fff}
 
 /* Toggle buttons */
@@ -979,9 +979,7 @@ async function hydrateReportStateFromServer(reporter){
       }
       serverDeleteConfirmed.add(key);           // block queueServerStateSync cho key này
       if(serverStateSyncTimers[key]){clearTimeout(serverStateSyncTimers[key]);delete serverStateSyncTimers[key];}
-      // Dọn DRAFT ma
-      const draft=reporterStates[key];
-      if(draft){ delete reporterStates[key]; persistReporterStates(); changed=true; }
+      // KHÔNG xóa draft — draft là dữ liệu đang nhập trên máy, server chưa có là bình thường
       // Dọn PENDING WORK ma: key này không đổi khi nâng version, nên phải xoá riêng
       // để tránh vòng lặp: applyPendingWork tạo draft → hydration xoá → applyPendingWork lại...
       const pendingStore=loadPendingWorkStore();
@@ -1000,6 +998,8 @@ async function hydrateReportStateFromServer(reporter){
     }
     const state=payload.state;
     const key=date+'::'+normalizeReporterName(reporter);
+    // Nếu đang soạn thảo (draft tồn tại) → không ghi đè từ server, giữ bản nháp
+    if(reporterStates[key])return false;
     const all=loadSubmittedReports();
     const local=all[key];
     const localTime=Date.parse(local&&local.updatedAt||0)||0;
@@ -1052,8 +1052,7 @@ async function reloadFromServer(){
   if(btn){
     btn.classList.remove('loading');
     if(ok){
-      btn.classList.add('done'); // xanh = load xong
-      setTimeout(()=>{btn.classList.remove('done');btn.classList.add('idle');},3000);
+      btn.classList.add('done'); // xanh = đã đồng bộ, giữ nguyên
     }else{
       btn.classList.add('error'); // đỏ = mất kết nối
       setTimeout(()=>{btn.classList.remove('error');btn.classList.add('idle');},4000);
@@ -1962,6 +1961,14 @@ function renderSubmittedWorkSummary(report) {
       </div>`);
     ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx)));
     qsBody.insertAdjacentHTML('beforeend', _BOSUNG_SEP_NTC);
+    cnList.insertAdjacentHTML('afterbegin',`
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:10px">
+        <span style="font-size:12px;color:#92400e;font-weight:600">✅ Công nhật ALLIANCE đã khóa</span>
+        <button type="button" onclick="unlockReportForEdit('${_safeRep}')"
+          style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;flex-shrink:0">
+          Sửa lại
+        </button>
+      </div>`);
     cnRows.forEach((r,idx)  => cnList.insertAdjacentHTML('beforeend', _renderLockedCnCard(r, idx)));
     cnList.insertAdjacentHTML('beforeend', _BOSUNG_SEP_CN);
     setWorkEditButtonsVisible(true);
@@ -2506,6 +2513,7 @@ async function onReporterChange() {
   const newReporter=(document.getElementById('f-gs')?.value || '').trim();
   if (currentReporter && normalizeReporterName(currentReporter)!==normalizeReporterName(newReporter)) saveReporterState(currentReporter);
   showReporterView(newReporter);
+  try{if(window.renderTonDong)renderTonDong();}catch(e){} // lọc section 3 theo GS đang chọn
   if(newReporter) await hydrateReportStateFromServer(newReporter);
   else hydrateAllReportStatesFromServer(); // chế độ tổng hợp — không block UI
 }
@@ -4334,10 +4342,17 @@ function buildAttendanceRosterIndex(chamCongSheet){
   return {byName,byCode,rows};
 }
 
+// Tên viết tắt trong template Excel ↔ tên đầy đủ trong báo cáo
+const BCH_NAME_ALIASES={
+  'LƯƠNG ANH':'HOÀNG LƯƠNG ANH',
+  'HOÀNG LƯƠNG ANH':'LƯƠNG ANH',
+};
 function attFindRosterRow(roster,name,code){
   if(code && roster.byCode.has(code)) return roster.byCode.get(code);
   const key=normU(name);
   if(key && roster.byName.has(key)) return roster.byName.get(key);
+  const aliasKey=BCH_NAME_ALIASES[key];
+  if(aliasKey && roster.byName.has(aliasKey)) return roster.byName.get(aliasKey);
   return null;
 }
 
@@ -4376,6 +4391,12 @@ function fillAttendanceReportWorkbook(workbook, selectedDate, entries){
   if (weather) wsBC.getCell('D4').value = weather;
   wsBC.getCell('F4').value = 'Trần Thị Việt Trinh';
 
+  // ── Đổi nhãn cột trong template: Quân số → Nhân lực, Số CN → Số lượng Công nhân ──
+  wsBC.getCell('C11').value = 'Nhân lực';
+  wsBC.getCell('G11').value = 'Nhân lực';
+  wsBC.getCell('D25').value = 'Số lượng Công nhân';
+  wsBC.getCell('D45').value = 'Số lượng Công nhân';
+
   // ── CHẤM CÔNG: B2 = ngày đầu tháng báo cáo (F4:AJ4 tự tính lại từ công thức) ──
   wsCC.getCell('B2').value = monthStart;
   const roster = buildAttendanceRosterIndex(wsCC);
@@ -4388,23 +4409,40 @@ function fillAttendanceReportWorkbook(workbook, selectedDate, entries){
     (entry.report.cnTasks||[]).filter(t=>t.task||t.workerCount).forEach(t=>cnAll.push({...t,reporter}));
   });
 
-  // ── BÁO CÁO NGÀY: B26:H40 — CÔNG NHẬT ALLIANCE (nội dung công việc thật, không dữ liệu giả) ──
-  const cnCap = Math.min(cnAll.length, 15);
-  for(let i=0;i<cnCap;i++){
-    const t=cnAll[i], rowNo=26+i;
+  // ── BÁO CÁO NGÀY: CN ALLIANCE — tự động thêm/xoá dòng cho phù hợp số liệu ──
+  const CN_START=26, CN_TMPL=15; // template có sẵn 15 dòng (26-40)
+  const NTC_GAP=5;               // rows 41-45: separator + header NTC (D45)
+  let ntcDataStart=CN_START+CN_TMPL+NTC_GAP; // =46 khi không overflow
+
+  const cnCount=cnAll.length;
+  if(cnCount>CN_TMPL){
+    // Chèn thêm dòng trống ngay sau vùng template CN (sau row 40), trước separator
+    const extra=cnCount-CN_TMPL;
+    for(let i=0;i<extra;i++) wsBC.spliceRows(CN_START+CN_TMPL+i,0,[]);
+    ntcDataStart+=extra; // đẩy NTC xuống
+    // Cập nhật nhãn D45 mới (đã bị shift)
+    wsBC.getCell(ntcDataStart-1,4).value='Số lượng Công nhân';
+  }
+  for(let i=0;i<cnCount;i++){
+    const t=cnAll[i], rowNo=CN_START+i;
     const names=String(t.workers||'').split(/[,\n；;]/).map(x=>x.trim()).filter(Boolean);
-    wsBC.getCell(rowNo,2).value = t.task||'';
-    wsBC.getCell(rowNo,4).value = Number(t.workerCount)||names.length||0;
-    wsBC.getCell(rowNo,5).value = attGroupsForWorkers(names);
-    wsBC.getCell(rowNo,6).value = t.area||'';
-    wsBC.getCell(rowNo,7).value = t.reporter||'';
-    wsBC.getCell(rowNo,8).value = t.note||'';
+    wsBC.getCell(rowNo,2).value=t.task||'';
+    wsBC.getCell(rowNo,4).value=Number(t.workerCount)||names.length||0;
+    wsBC.getCell(rowNo,5).value=attGroupsForWorkers(names);
+    wsBC.getCell(rowNo,6).value=t.area||'';
+    wsBC.getCell(rowNo,7).value=t.reporter||'';
+    wsBC.getCell(rowNo,8).value=t.note||'';
   }
 
-  // ── BÁO CÁO NGÀY: B46:H60 — nhà thầu phụ (tối đa 15 dòng cố định, không chèn dòng) ──
-  const ntcCap = Math.min(ntcAll.length, 15);
-  for(let i=0;i<ntcCap;i++){
-    const r=ntcAll[i], rowNo=46+i;
+  // ── BÁO CÁO NGÀY: NTC — tự động thêm/xoá dòng, chừa 1 dòng trống cuối ──
+  const NTC_TMPL=15;
+  const ntcCount=ntcAll.length;
+  if(ntcCount>NTC_TMPL){
+    const extra=ntcCount-NTC_TMPL;
+    for(let i=0;i<extra;i++) wsBC.spliceRows(ntcDataStart+NTC_TMPL+i,0,[]);
+  }
+  for(let i=0;i<ntcCount;i++){
+    const r=ntcAll[i], rowNo=ntcDataStart+i;
     const category = exactSowCategoryForWork(r.works||'') || '';
     const viTri = [r.kv||r.can||'', r.tang||''].filter(Boolean).join(' - ');
     wsBC.getCell(rowNo,2).value = r.ntc||'';
@@ -4462,7 +4500,7 @@ function fillAttendanceReportWorkbook(workbook, selectedDate, entries){
   });
 
   return {
-    ntcCount: ntcCap, ntcTotal: ntcAll.length, ntcTruncated: ntcAll.length>15,
+    ntcCount: ntcAll.length, ntcTotal: ntcAll.length, ntcTruncated: false,
     bchMatched, bchUnmatched, cnMatched, cnUnmatched, reportDate
   };
 }
@@ -5653,9 +5691,14 @@ init();
     var card=ensureTonDongCard();if(!card)return;
     card.style.display='';
     var all=window.__tonDongAll||[];
-    // Chỉ hiện các việc CHƯA được đưa vào Section 1
+    var _gsFilter=(document.getElementById('f-gs')?.value||'').trim();
+    // Chỉ hiện các việc CHƯA được đưa vào Section 1, lọc theo GS đang chọn
     var shown=[];
-    all.forEach(function(e,idx){ if(!_inSection1(e)) shown.push({e:e,idx:idx}); });
+    all.forEach(function(e,idx){
+      if(_inSection1(e))return;
+      if(_gsFilter&&(e.gs||'').trim()!==_gsFilter)return;
+      shown.push({e:e,idx:idx});
+    });
     var cEl=document.getElementById('td-count');if(cEl)cEl.textContent=shown.length;
     if(!shown.length){
       document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.</div>';
