@@ -1001,8 +1001,11 @@ async function hydrateReportStateFromServer(reporter){
     }
     const state=payload.state;
     const key=date+'::'+normalizeReporterName(reporter);
-    // Nếu đang soạn thảo (draft tồn tại) → không ghi đè từ server, giữ bản nháp
-    if(reporterStates[key])return false;
+    // Nếu đang soạn thảo TRONG PHIÊN NÀY → không ghi đè từ server, giữ bản nháp.
+    // Draft cũ từ phiên trước (updatedAt < SESSION_LOAD_TIME) không được chặn —
+    // nếu chặn thì thiết bị khác không bao giờ kéo được báo cáo từ server về.
+    const _draft=reporterStates[key];
+    if(_draft&&(Date.parse(_draft.updatedAt||0)||0)>=SESSION_LOAD_TIME)return false;
     const all=loadSubmittedReports();
     const local=all[key];
     const localTime=Date.parse(local&&local.updatedAt||0)||0;
@@ -4730,18 +4733,21 @@ async function sendProductionResults(items, summary){
   try{
     // Gửi một gói duy nhất để Apps Script khóa và ghi tuần tự toàn bộ hạng mục.
     await postToGAS({...aggregatePayload,submitId:createSubmitId('san-luong-batch')});
-    try{
-      const ack=await waitProductionAck(basePayload.productionBatchId);
+    // Hiển thị thành công NGAY (giống các tab khác) — không bắt người dùng
+    // chờ vòng poll xác nhận link NTP (có thể mất vài chục giây).
+    console.log(`[SẢN LƯỢNG] đã gửi trong ${_ms()}ms (batch ${basePayload.productionBatchId})`);
+    showSuccess(aggregatePayload,summary);
+    // Xác nhận liên kết bảng NTP chạy NGẦM — chỉ cảnh báo khi có vấn đề.
+    waitProductionAck(basePayload.productionBatchId).then(ack=>{
       const confirmed=(ack.linked||0)+(ack.alreadyLinked||0),expected=ack.ntpTotal||0;
-      const linkLine=((ack.errors||[]).length||confirmed<expected)
-        ? `⚠️ Sản lượng đã gửi; liên kết bảng NTP: ${confirmed}/${expected} hạng mục`
-        : `✅ Đã xác nhận link ${confirmed}/${expected} hạng mục qua SẢN LƯỢNG NHÀ THẦU PHỤ`;
-      console.log(`[SẢN LƯỢNG] gửi + xác nhận trong ${_ms()}ms (batch ${basePayload.productionBatchId})`);
-      showSuccess(aggregatePayload,summary+'\n'+linkLine+`\n⏱ ${(_ms()/1000).toFixed(1)}s`);
-    }catch(ackError){
+      if((ack.errors||[]).length||confirmed<expected){
+        toast(`⚠️ Liên kết bảng NTP: ${confirmed}/${expected} hạng mục — kiểm tra lại Google Sheet`,'err');
+      }else{
+        console.log(`[SẢN LƯỢNG] xác nhận link ${confirmed}/${expected} hạng mục trong ${_ms()}ms`);
+      }
+    }).catch(ackError=>{
       console.warn('Chưa nhận được xác nhận link NTP:',ackError);
-      showSuccess(aggregatePayload,summary+'\n⚠️ Sản lượng đã gửi; chưa nhận được xác nhận liên kết bảng NTP');
-    }
+    });
     // Server là nguồn dữ liệu duy nhất: sau khi gửi thành công, tải lại
     // trạng thái chuẩn từ server thay vì chỉ tin bản cập nhật DOM cục bộ.
     try{ hydrateReportStateFromServer(basePayload.gs); }catch(e){}
