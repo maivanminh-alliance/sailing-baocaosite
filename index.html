@@ -837,7 +837,7 @@ const GAS_SECRET = 'sailing_DA25328_bctc';
 // Email configuration
 const EMAIL_CONFIG = {
   qaqc_email: 'minh.mai@alliancevn.com',
-  test_mode: true,
+  test_mode: false, // ĐÃ TẮT chế độ test — email gửi tới người nhận thật
   test_recipient: 'minh.mai@alliancevn.com',
   send_qaqc_request: true,
   send_qa_result: true
@@ -4727,16 +4727,14 @@ async function sendProductionResults(items, summary){
     setTimeout(()=>showSuccess(aggregatePayload,summary),800);
     return;
   }
-  setSubmitBusy(true);
   const _t0=(typeof performance!=='undefined'?performance.now():Date.now());
   const _ms=()=>Math.round((typeof performance!=='undefined'?performance.now():Date.now())-_t0);
-  try{
-    // Gửi một gói duy nhất để Apps Script khóa và ghi tuần tự toàn bộ hạng mục.
-    await postToGAS({...aggregatePayload,submitId:createSubmitId('san-luong-batch')});
-    // Hiển thị thành công NGAY (giống các tab khác) — không bắt người dùng
-    // chờ vòng poll xác nhận link NTP (có thể mất vài chục giây).
+  // Hiển thị thành công NGAY, dữ liệu đẩy song song phía sau — giống hệt
+  // tab Công việc (submitQS): postToGAS không await.
+  showSuccess(aggregatePayload,summary);
+  // Gửi một gói duy nhất để Apps Script khóa và ghi tuần tự toàn bộ hạng mục.
+  postToGAS({...aggregatePayload,submitId:createSubmitId('san-luong-batch')}).then(()=>{
     console.log(`[SẢN LƯỢNG] đã gửi trong ${_ms()}ms (batch ${basePayload.productionBatchId})`);
-    showSuccess(aggregatePayload,summary);
     // Xác nhận liên kết bảng NTP chạy NGẦM — chỉ cảnh báo khi có vấn đề.
     waitProductionAck(basePayload.productionBatchId).then(ack=>{
       const confirmed=(ack.linked||0)+(ack.alreadyLinked||0),expected=ack.ntpTotal||0;
@@ -4751,11 +4749,10 @@ async function sendProductionResults(items, summary){
     // Server là nguồn dữ liệu duy nhất: sau khi gửi thành công, tải lại
     // trạng thái chuẩn từ server thay vì chỉ tin bản cập nhật DOM cục bộ.
     try{ hydrateReportStateFromServer(basePayload.gs); }catch(e){}
-  }catch(e){
-    setSubmitBusy(false);
+  }).catch(e=>{
     console.error('Gửi sản lượng:',e);
-    toast('⚠️ Không gửi được sản lượng: '+e.message,'err');
-  }
+    toast('⚠️ Không gửi được sản lượng: '+e.message+' — kiểm tra mạng rồi gửi lại','err');
+  });
 }
 function submitQA(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
