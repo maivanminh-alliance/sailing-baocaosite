@@ -1374,10 +1374,11 @@ function reportToSubmittedWorkItems(report) {
   return [
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
-      name:r.ntc,
+      name:r.defect?(r.ntc+' — DEFECT'):r.ntc,
       detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
       type:'ntc',
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cn||0,note:r.note||''}
+      defect:!!r.defect,
+      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cn||0,note:r.note||'',defect:!!r.defect}
     })),
     ...cnRows.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
@@ -1454,6 +1455,7 @@ function ntcReportRowToEditable(row) {
     ntc: row.ntc || '',
     hm: NTC_HM[row.ntc] || '',
     cn: row.cn || 0,
+    ntcCN: row.ntcCN || row.cn || 0,
     note: row.note || '',
     vuongMac: row.vuongMac || '',
     pending: !!row.pending,
@@ -1603,6 +1605,7 @@ function saveReporterState(reporter) {
       selectedWorks:[...(qs.selectedWorks || [])],
       items: [...(qs.items || [])],
       cnMap: Object.assign({}, qs.cnMap || {}),
+      ntcCN: qs.ntcCN || 0,
     });
   });
   const savedCN = Object.keys(cnTasks).map(id => ({
@@ -4070,14 +4073,24 @@ function submitQS(){
         selectedCans:[...qs.selectedCans],selectedTangs:[],selectedWorks:[],items:[...(qs.items||[])],cnMap:Object.assign({},qs.cnMap||{})});
       return;
     }
+    // Gom các cặp (đầu mục × căn) trước, rồi PHÂN BỔ tổng CN nhập ở MỤC 1
+    // đều cho từng dòng (dư chia cho các dòng đầu). Nếu chưa nhập tổng
+    // (bản nháp cũ) → dùng cnMap từng đầu mục như trước.
+    const _pairs=[];
     [...(qs.items||[])].forEach(gi=>{
-      const r=SOW_ITEMS[gi];const cnv=(qs.cnMap&&qs.cnMap[gi])||1;
-      [...qs.selectedCans].filter(c=>c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r)).forEach(can=>{
-        ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,vuongMac:'',pending:false,
-          selectedKhu:r[0],activeBlock:r[0],selectedWorkKey:itemSowWorkKey(r),selectedFloorCode:r[1],selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:cnv}});
-        ntcTotal+=cnv;
-        dauMucRows.push({ntc,loai:r[0],can,tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],wbs:r[5],dauMuc:r[6],m2:r[7],phanTram:getItemStatus(can,r[9]||r[5]).pct,soCN:cnv});
-      });
+      const r=SOW_ITEMS[gi];
+      [...qs.selectedCans].filter(c=>c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r)).forEach(can=>_pairs.push({gi,r,can}));
+    });
+    const _T=qs.ntcCN>0?qs.ntcCN:0;
+    const _base=_T&&_pairs.length?Math.floor(_T/_pairs.length):0;
+    const _rem=_T&&_pairs.length?_T%_pairs.length:0;
+    _pairs.forEach((p,pi)=>{
+      const {gi,r,can}=p;
+      const cnv=_T?(_base+(pi<_rem?1:0)):((qs.cnMap&&qs.cnMap[gi])||1);
+      ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,vuongMac:'',pending:false,
+        selectedKhu:r[0],activeBlock:r[0],selectedWorkKey:itemSowWorkKey(r),selectedFloorCode:r[1],selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:cnv},ntcCN:cnv});
+      ntcTotal+=cnv;
+      dauMucRows.push({ntc,loai:r[0],can,tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],wbs:r[5],dauMuc:r[6],m2:r[7],phanTram:getItemStatus(can,r[9]||r[5]).pct,soCN:cnv});
     });
   });
   if(dauMucRows.length){try{postToGAS({type:'TIẾN ĐỘ SOW',ngay:v('f-ngay'),gs:v('f-gs'),rows:JSON.stringify(dauMucRows),ts:new Date().toISOString()});}catch(e){}}
@@ -4525,12 +4538,12 @@ function fillAttendanceReportWorkbook(workbook, selectedDate, entries){
   }
   for(let i=0;i<ntcCount;i++){
     const r=ntcAll[i], rowNo=ntcDataStart+i;
-    const category = exactSowCategoryForWork(r.works||'') || '';
+    const category = r.defect ? 'DEFECT (sửa lỗi)' : (exactSowCategoryForWork(r.works||'') || '');
     const viTri = [r.kv||r.can||'', r.tang||''].filter(Boolean).join(' - ');
     wsBC.getCell(rowNo,2).value = r.ntc||'';
     wsBC.getCell(rowNo,3).value = category;
     wsBC.getCell(rowNo,4).value = Number(r.cn)||0;
-    wsBC.getCell(rowNo,5).value = r.works||'';
+    wsBC.getCell(rowNo,5).value = r.defect ? ('[DEFECT] '+(r.works||'')) : (r.works||'');
     wsBC.getCell(rowNo,6).value = viTri;
     wsBC.getCell(rowNo,7).value = r.reporter||'';
     wsBC.getCell(rowNo,8).value = r.note||'';
@@ -5171,7 +5184,7 @@ init();
     clearQSEmptyPlaceholder();
     qsIdx++;var i=qsIdx;
     qsCards[i]={ntc:data.ntc||'',selectedCans:new Set(data.selectedCans||[]),items:new Set(data.items||[]),
-      cnMap:Object.assign({},data.cnMap||{}),openT:new Set(),openN:new Set(),
+      cnMap:Object.assign({},data.cnMap||{}),ntcCN:parseInt(data.ntcCN,10)||parseInt(data.cn,10)||0,openT:new Set(),openN:new Set(),
       selectedTangs:new Set(),selectedWorks:new Set(),selectedKhu:restoredBlock,activeBlock:restoredBlock,
       selectedBlocks:new Set((data.selectedBlocks||[restoredBlock]).filter(Boolean)),
       selectedWorkKey:restoredWork,selectedFloorCode:restoredFloor,
@@ -5216,7 +5229,8 @@ init();
     if(qs.selectedWorkKey&&workKeys.indexOf(qs.selectedWorkKey)<0){qs.selectedWorkKey='';qs.activeBlock='';qs.selectedKhu='';qs.selectedCans=new Set();qs.selectedFloorCode='';clearSelectedItems(qs);}
     document.getElementById('sw-cats-'+i).innerHTML='<div class="sw-workrow">'+workKeys.map(function(key){
       return '<span class="sw-work-chip'+(key===qs.selectedWorkKey?' act':'')+'" onclick="qsPickWork('+i+',\''+key+'\')">'+workKeyLabel(key)+'</span>';
-    }).join('')+'</div>'+(workKeys.length?'':'<div class="sw-note">SOW_NTP chưa có công việc cho nhà thầu này.</div>');
+    }).join('')+'</div>'+(workKeys.length?'':'<div class="sw-note">SOW_NTP chưa có công việc cho nhà thầu này.</div>')
+      +(qs.selectedWorkKey?'<div class="sw-cnm" style="margin-top:10px" onclick="event.stopPropagation()"><span class="sw-cnm-lb">Số lượng công nhân</span><button class="sw-cnm-b" type="button" onclick="qsNtcCN('+i+',-1)">−</button><span class="sw-cnm-v" id="sw-ncn-'+i+'">'+(qs.ntcCN||1)+'</span><button class="sw-cnm-b" type="button" onclick="qsNtcCN('+i+',1)">＋</button></div>':'');
 
     var areaStep=document.getElementById('sw-area-step-'+i),canStep=document.getElementById('sw-can-step-'+i),floorStep=document.getElementById('sw-floor-step-'+i),itemLabel=document.getElementById('sw-item-label-'+i);
     if(!qs.selectedWorkKey){areaStep.style.display='none';canStep.style.display='none';floorStep.style.display='none';itemLabel.style.display='none';renderSOWItems(i);return;}
@@ -5257,7 +5271,7 @@ init();
 
   window.qsPickWork=function(i,key){
     var qs=qsCards[i];if(!qs||qs.selectedWorkKey===key)return;
-    qs.selectedWorkKey=key;qs.activeBlock='';qs.selectedKhu='';qs.selectedBlocks=new Set();qs.selectedCans=new Set();qs.selectedFloorCode='';qs.selectedFloorCodes=new Set();clearSelectedItems(qs);
+    qs.selectedWorkKey=key;qs.ntcCN=qs.ntcCN||1;qs.activeBlock='';qs.selectedKhu='';qs.selectedBlocks=new Set();qs.selectedCans=new Set();qs.selectedFloorCode='';qs.selectedFloorCodes=new Set();clearSelectedItems(qs);
     buildScope(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();
   };
 
@@ -5323,7 +5337,7 @@ init();
               +'<div class="sw-cb">'+(lock?'🔒':(sel?'✓':''))+'</div>'
               +'<div class="sw-main"><div class="sw-iname">'+r[6]+(lock?'<span class="sw-nt">'+lockLbl+'</span>':'')+'</div>'
               +'<div class="sw-imeta">Khối lượng: '+m2+'</div>'
-              +(sel?'<div class="sw-cnm" onclick="event.stopPropagation()"><span class="sw-cnm-lb">Nhân công</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',-1)">−</button><span class="sw-cnm-v">'+((qs.cnMap[gi]||1))+'</span><button class="sw-cnm-b" onclick="event.stopPropagation();qsItemCN('+i+','+gi+',1)">＋</button></div>':'')
+              /* Stepper nhân công từng đầu mục đã chuyển lên MỤC 1 (tổng CN nhà thầu) */
               +'</div><div class="sw-pct '+pctCls(p)+'">'+p+'%</div></div>';
           });
           inner+='<div class="sw-nhom'+(nopen?' open':'')+'"><div class="sw-nhdr" onclick="qsToggleN('+i+',\''+nkey+'\')">'
@@ -5347,6 +5361,12 @@ init();
     if(qs.items.has(gi)){qs.items.delete(gi);delete qs.cnMap[gi];}else{qs.items.add(gi);if(!qs.cnMap[gi])qs.cnMap[gi]=1;}
     renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
   window.qsItemCN=function(i,gi,d){var qs=qsCards[i];qs.cnMap[gi]=Math.max(1,(qs.cnMap[gi]||1)+d);renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
+  // Tổng số công nhân của nhà thầu — nhập ở MỤC 1, thay cho stepper từng đầu mục
+  window.qsNtcCN=function(i,d){var qs=qsCards[i];if(!qs)return;
+    qs.ntcCN=Math.max(1,(qs.ntcCN||1)+d);
+    var el=document.getElementById('sw-ncn-'+i);if(el)el.textContent=qs.ntcCN;
+    updateQSSumLine(i);if(typeof calcTotal==='function')calcTotal();
+    if(typeof commitReporterState==='function')commitReporterState();};
   window.qsAllNhom=function(i,nkey){var qs=qsCards[i];var p=nkey.split('|');var loai=p[0],tc=p[1],nc=p[2];
     var list=SOW_ITEMS.map(function(r,gi){return[r,gi];}).filter(function(pr){return pr[0][0]===loai&&pr[0][1]===tc&&pr[0][3]===nc&&itemSowWorkKey(pr[0])===qs.selectedWorkKey&&relevantCans(qs,pr[0]).length&&!itemLock(qs,pr[0]);}).map(function(pr){return pr[1];});
     var all=list.every(function(gi){return qs.items.has(gi);});
@@ -5357,7 +5377,8 @@ init();
     var qs=qsCards[i];var el=document.getElementById('qs-sum-'+i);if(!el)return;
     if(qs&&qs.vuongMac){el.textContent='⚠️ Vướng mắc: '+(qs.vuongMac.length>30?qs.vuongMac.slice(0,30)+'…':qs.vuongMac);return;}
     if(!qs){el.textContent='—';return;}
-    var tot=0;qs.items.forEach(function(gi){tot+=(qs.cnMap[gi]||1);});
+    var tot=qs.ntcCN>0?qs.ntcCN:0;
+    if(!tot){qs.items.forEach(function(gi){tot+=(qs.cnMap[gi]||1);});}
     var cans=[...qs.selectedCans].join(', ');
     var flow=[];if(qs.selectedWorkKey)flow.push(workKeyLabel(qs.selectedWorkKey));if(cans)flow.push(cans);
     el.textContent=(qs.items.size?qs.items.size+' đầu mục · '+tot+' CN':'Chưa chọn đầu mục')+(flow.length?' · '+flow.join(' · '):'');
@@ -5388,7 +5409,11 @@ init();
   // calcTotal cũ đếm .qs-cn-inp (không còn) -> bổ sung tổng CN Section 1 theo cnMap
   var _calc=window.calcTotal;
   window.calcTotal=function(){try{_calc&&_calc();}catch(e){}
-    var t=0;Object.values(qsCards).forEach(function(qs){if(qs&&qs.items)qs.items.forEach(function(gi){t+=(qs.cnMap&&qs.cnMap[gi])||1;});});
+    var t=0;Object.values(qsCards).forEach(function(qs){
+      if(!qs)return;
+      if(qs.ntcCN>0&&qs.items&&qs.items.size){t+=qs.ntcCN;return;}
+      if(qs.items)qs.items.forEach(function(gi){t+=(qs.cnMap&&qs.cnMap[gi])||1;});
+    });
     var b=document.getElementById('qs-total-badge');if(b)b.textContent=t;};
 
   // Reset Section 1 nếu init cũ đã render (giữ Section 2 nguyên)
@@ -5563,8 +5588,15 @@ init();
       +'<div class="bs-h"><h3>➕ Bổ sung nhân công</h3><button class="bs-x" onclick="closeBoSung()">✕</button></div>'
       +'<p class="bs-sub">Dùng khi nhà thầu đến trễ, bổ sung thêm quân số <b>sau khi đã gửi báo cáo</b>. '
       +'Hệ thống sẽ cộng dồn vào tổng quân số trong ngày và gửi email cập nhật vào đúng luồng cảnh báo thiếu quân số.</p>'
+      +'<div id="bs-gs-line" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>'
       +'<label class="bs-lb">Nhà thầu</label>'
-      +'<select class="bs-sel" id="bs-ntc"><option value="">— Chọn nhà thầu —</option></select>'
+      +'<select class="bs-sel" id="bs-ntc" onchange="bsBuildItems()"><option value="">— Chọn nhà thầu —</option></select>'
+      +'<label class="bs-lb">Chọn khu (có thể chọn nhiều)</label>'
+      +'<div class="area-chips" id="bs-khu" style="margin-bottom:4px"><div style="font-size:11px;color:var(--muted)">Chọn nhà thầu trước</div></div>'
+      +'<label class="bs-lb">Chọn căn (có thể chọn nhiều)</label>'
+      +'<div class="area-chips" id="bs-can" style="margin-bottom:4px"><div style="font-size:11px;color:var(--muted)">Chọn khu trước</div></div>'
+      +'<label class="bs-lb">Công việc chưa hoàn thành (tích chọn — có thể chọn nhiều)</label>'
+      +'<div id="bs-items"><div style="font-size:11px;color:var(--muted)">Chọn căn trước</div></div>'
       +'<label class="bs-lb">Số người đến thêm</label>'
       +'<div class="bs-num-row">'
       +'<button class="bs-num-b" onclick="bsAdd(-1)">−</button>'
@@ -5582,12 +5614,106 @@ init();
     var el=document.getElementById('bs-num');if(!el)return;
     var n=Math.max(1,(parseInt(el.textContent,10)||1)+d);el.textContent=n;
   };
+  // Lọc dần: Nhà thầu → nhiều Khu → nhiều Căn → nhiều công việc CHƯA ĐẠT 100%
+  // (đúng tập công việc còn chọn được ở tab "Thêm nhà thầu / tổ đội")
+  var _bsAll=[],_bsKhuSet=new Set(),_bsCanSet=new Set(),_bsSelKeys=new Set(),_bsOpenG=new Set();
+  function _bsKey(x){return x.can+'||'+x.tang+'||'+x.hangMuc;}
+  window.bsBuildItems=function(){
+    var ntc=(document.getElementById('bs-ntc')||{}).value||'';
+    _bsAll=[];_bsKhuSet=new Set();_bsCanSet=new Set();_bsSelKeys=new Set();_bsOpenG=new Set();
+    var khuBox=document.getElementById('bs-khu'),canBox=document.getElementById('bs-can'),box=document.getElementById('bs-items');
+    if(box)box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn căn trước</div>';
+    if(canBox)canBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn khu trước</div>';
+    if(!ntc){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn nhà thầu trước</div>';return;}
+    contractorWorkKeys(ntc).forEach(function(wk){
+      (cansForWork(ntc,wk)||[]).forEach(function(can){
+        if(!isVisibleCan(can))return;
+        SOW_ITEMS.forEach(function(r){
+          if(r[0]!==can.charAt(0))return;
+          if(itemSowWorkKey(r)!==wk)return;
+          if(!sowNtpAllows(ntc,can,r))return;
+          var st=getItemStatus(can,r[9]||r[5])||{pct:0,nt:false};
+          if(st.nt||(st.pct||0)>=100)return; // CHỈ công việc chưa đạt 100%
+          _bsAll.push({ntc:ntc,can:can,tang:r[2],hangMuc:r[6],pct:st.pct||0});
+        });
+      });
+    });
+    if(!_bsAll.length){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Nhà thầu này không còn công việc nào chưa hoàn thành</div>';return;}
+    var khus=[...new Set(_bsAll.map(function(x){return x.can.charAt(0);}))].sort();
+    if(khuBox)khuBox.innerHTML=khus.map(function(L){
+      return '<span class="area-chip" data-khu="'+L+'" onclick="bsToggleKhu(\''+L+'\')">Khu '+L+'</span>';
+    }).join('');
+    if(khus.length===1)bsToggleKhu(khus[0]);
+  };
+  window.bsToggleKhu=function(L){
+    _bsKhuSet.has(L)?_bsKhuSet.delete(L):_bsKhuSet.add(L);
+    var khuBox=document.getElementById('bs-khu');
+    if(khuBox)[].forEach.call(khuBox.querySelectorAll('.area-chip'),function(c){c.classList.toggle('khu-sel',_bsKhuSet.has(c.getAttribute('data-khu')));});
+    var cans=[...new Set(_bsAll.filter(function(x){return _bsKhuSet.has(x.can.charAt(0));}).map(function(x){return x.can;}))]
+      .sort(function(a,b){var la=a.charAt(0),lb=b.charAt(0);return la!==lb?(la<lb?-1:1):((parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0));});
+    [..._bsCanSet].forEach(function(c){if(!_bsKhuSet.has(c.charAt(0)))_bsCanSet.delete(c);});
+    var canBox=document.getElementById('bs-can');
+    if(canBox)canBox.innerHTML=cans.length?cans.map(function(c){
+      return '<span class="area-chip'+(_bsCanSet.has(c)?' sel':'')+'" data-can="'+c+'" onclick="bsToggleCan(\''+c+'\')">'+c+'</span>';
+    }).join(''):'<div style="font-size:11px;color:var(--muted)">Chọn khu trước</div>';
+    bsRenderItems();
+  };
+  window.bsToggleCan=function(can){
+    _bsCanSet.has(can)?_bsCanSet.delete(can):_bsCanSet.add(can);
+    var canBox=document.getElementById('bs-can');
+    if(canBox)[].forEach.call(canBox.querySelectorAll('.area-chip'),function(c){c.classList.toggle('sel',_bsCanSet.has(c.getAttribute('data-can')));});
+    [..._bsSelKeys].forEach(function(k){var cn=k.split('||')[0];if(!_bsCanSet.has(cn))_bsSelKeys.delete(k);});
+    bsRenderItems();
+  };
+  window.bsRenderItems=function(){
+    var box=document.getElementById('bs-items');if(!box)return;
+    var items=_bsAll.filter(function(x){return _bsCanSet.has(x.can);});
+    if(!_bsCanSet.size){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn căn trước</div>';return;}
+    if(!items.length){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Các căn đã chọn không còn công việc chưa hoàn thành</div>';return;}
+    var groups=[],gmap={};
+    items.forEach(function(it){var gk=it.can+'||'+it.tang;if(!gmap[gk]){gmap[gk]={can:it.can,tang:it.tang,items:[]};groups.push(gk);}gmap[gk].items.push(it);});
+    var html='';
+    groups.forEach(function(gk){
+      var g=gmap[gk];var nSel=g.items.filter(function(it){return _bsSelKeys.has(_bsKey(it));}).length;
+      var open=_bsOpenG.has(gk);
+      var its='';
+      g.items.forEach(function(it){
+        var k=_bsKey(it),sel=_bsSelKeys.has(k);
+        its+='<div class="sw-item'+(sel?' sel':'')+'" onclick="bsToggleItem(\''+k.replace(/'/g,"\\'")+'\')">'
+          +'<div class="sw-cb">'+(sel?'✓':'')+'</div>'
+          +'<div class="sw-main"><div class="sw-iname">'+it.hangMuc+'</div></div>'
+          +'<div class="sw-pct">'+it.pct+'%</div></div>';
+      });
+      html+='<div class="sw-tang'+(open?' open':'')+'"><div class="sw-thdr" onclick="bsToggleGroup(\''+gk.replace(/'/g,"\\'")+'\')">'
+        +'<span class="sw-tname">'+g.can+' · '+g.tang+'</span>'
+        +'<span class="sw-cnt'+(nSel?' has':'')+'">'+nSel+'/'+g.items.length+'</span>'
+        +'<span class="sw-chev">▾</span></div><div class="sw-tbody">'+its+'</div></div>';
+    });
+    box.innerHTML=html;
+  };
+  window.bsToggleItem=function(k){
+    _bsSelKeys.has(k)?_bsSelKeys.delete(k):_bsSelKeys.add(k);
+    bsRenderItems();
+  };
+  window.bsToggleGroup=function(gk){
+    _bsOpenG.has(gk)?_bsOpenG.delete(gk):_bsOpenG.add(gk);
+    bsRenderItems();
+  };
   window.openBoSung=function(){
+    // BẮT BUỘC chọn Người báo cáo trước khi bổ sung nhân công
+    var gs=(typeof v==='function'?v('f-gs'):'')||(typeof selectedReporter==='function'?selectedReporter():'');
+    if(!gs){
+      if(typeof toast==='function')toast('⚠️ Vui lòng chọn Người báo cáo trước khi bổ sung nhân công','err');
+      var fg=document.getElementById('f-gs');if(fg){try{fg.focus();fg.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
+      return;
+    }
     buildBoSungModal();
+    var gsLine=document.getElementById('bs-gs-line');if(gsLine)gsLine.innerHTML='Người báo cáo: <b style="color:var(--navy)">'+gs+'</b>';
     var sel=document.getElementById('bs-ntc');
     if(sel){var cur=sel.value;
       sel.innerHTML='<option value="">— Chọn nhà thầu —</option>'+
         (typeof NTC_LIST!=='undefined'?NTC_LIST:[]).map(function(n){return '<option'+(n===cur?' selected':'')+'>'+n+'</option>';}).join('');}
+    bsBuildItems();
     document.getElementById('bs-num').textContent='1';
     var nt=document.getElementById('bs-note');if(nt)nt.value='';
     var inf=document.getElementById('bs-info');if(inf){inf.className='bs-info';inf.innerHTML='';}
@@ -5601,12 +5727,21 @@ init();
     var note=(document.getElementById('bs-note')||{}).value||'';
     var ngay=(typeof v==='function'?v('f-ngay'):'');
     var gs=(typeof v==='function'?v('f-gs'):'')||(typeof selectedReporter==='function'?selectedReporter():'');
+    if(!gs){if(typeof toast==='function')toast('Vui lòng chọn người báo cáo','err');return;}
     if(!ntc){if(typeof toast==='function')toast('Vui lòng chọn nhà thầu','err');return;}
+    var sels=_bsAll.filter(function(x){return _bsSelKeys.has(_bsKey(x));});
+    if(!sels.length){if(typeof toast==='function')toast('Vui lòng tích chọn ít nhất 1 công việc chưa hoàn thành','err');return;}
     if(addCN<=0){if(typeof toast==='function')toast('Số người bổ sung phải ≥ 1','err');return;}
     if(!ngay){if(typeof toast==='function')toast('Chưa có ngày báo cáo','err');return;}
-    if(!gs){if(typeof toast==='function')toast('Vui lòng chọn người báo cáo','err');return;}
     var btn=document.getElementById('bs-send');if(btn){btn.disabled=true;}
+    // Phân bổ đều số người đến thêm cho các công việc đã chọn (dư chia cho dòng đầu),
+    // tổng vẫn đúng addCN nên phần tính lại quân số / cảnh báo cam kết không đổi.
+    var base=Math.floor(addCN/sels.length),rem=addCN%sels.length;
+    var items=sels.map(function(it,i){
+      return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,cn:base+(i<rem?1:0),pct:it.pct};
+    }).filter(function(x){return x.cn>0;});
     var payload={type:'BO SUNG NHAN CONG',ntc:ntc,addCN:addCN,note:note,
+      items:JSON.stringify(items),
       ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
       submitId:(typeof createSubmitId==='function'?createSubmitId('bosung'):('bosung-'+Date.now())),
       ts:new Date().toISOString()};
@@ -5614,7 +5749,8 @@ init();
       var p=(typeof postToGAS==='function')?postToGAS(payload):
         fetch(window.GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
       Promise.resolve(p).catch(function(){}).then(function(){
-        if(typeof toast==='function')toast('Đã gửi bổ sung '+addCN+' CN cho '+ntc+' ✓','ok');
+        var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
+        if(typeof toast==='function')toast('Đã gửi bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cans+') ✓','ok');
         closeBoSung();if(btn){btn.disabled=false;}
       });
     }catch(e){if(btn){btn.disabled=false;}if(typeof toast==='function')toast('Lỗi gửi bổ sung','err');}
@@ -5813,6 +5949,226 @@ init();
   setTimeout(function(){try{loadTonDong();}catch(e){}},5200);
   try{var _fn=document.getElementById('f-ngay');if(_fn)_fn.addEventListener('change',function(){try{loadTonDong();}catch(e){}});}catch(e){}
 
+  // ════════════════════════════════════════════════════════════════
+  //  CÔNG VIỆC DEFECT — sửa lỗi trên hạng mục ĐÃ THI CÔNG.
+  //  % hoàn thành sửa defect CHỈ GHI NHẬN vào sheet BC_Defect,
+  //  KHÔNG cập nhật % vào CĂN A–E hay SẢN LƯỢNG NHÀ THẦU PHỤ.
+  // ════════════════════════════════════════════════════════════════
+  var _dfItems=[];
+  function buildDefectModal(){
+    if(document.getElementById('df-mask'))return;
+    var mask=document.createElement('div');mask.className='bs-mask';mask.id='df-mask';
+    mask.innerHTML=
+      '<div class="bs-sheet" onclick="event.stopPropagation()">'
+      +'<div class="bs-h"><h3>Công việc defect</h3><button class="bs-x" onclick="closeDefect()">✕</button></div>'
+      +'<div id="df-gs-line" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>'
+      +'<label class="bs-lb">Nhà thầu</label>'
+      +'<select class="bs-sel" id="df-ntc" onchange="dfBuildItems()"><option value="">— Chọn nhà thầu —</option></select>'
+      +'<label class="bs-lb">Chọn khu (có thể chọn nhiều)</label>'
+      +'<div class="area-chips" id="df-khu" style="margin-bottom:4px"><div style="font-size:11px;color:var(--muted)">Chọn nhà thầu trước</div></div>'
+      +'<label class="bs-lb">Chọn căn (có thể chọn nhiều)</label>'
+      +'<div class="area-chips" id="df-can" style="margin-bottom:4px"><div style="font-size:11px;color:var(--muted)">Chọn khu trước</div></div>'
+      +'<label class="bs-lb">Hạng mục đã thi công (tích chọn — có thể chọn nhiều)</label>'
+      +'<div id="df-items"><div style="font-size:11px;color:var(--muted)">Chọn căn trước</div></div>'
+      +'<label class="bs-lb">Mô tả defect</label>'
+      +'<textarea class="bs-ta" id="df-mota" rows="2" placeholder="VD: nứt ron đá bậc 3, ố keo mép tường…"></textarea>'
+      +'<label class="bs-lb">Số công nhân sửa</label>'
+      +'<div class="bs-num-row">'
+      +'<button class="bs-num-b" type="button" onclick="dfNum(\'df-cn\',-1,1)">−</button>'
+      +'<div class="bs-num-v" id="df-cn">1</div>'
+      +'<button class="bs-num-b" type="button" onclick="dfNum(\'df-cn\',1,1)">＋</button></div>'
+      +'<button class="bs-send" id="df-send" onclick="submitDefect()">Thêm công việc defect vào báo cáo</button>'
+      +'<div id="df-list" style="margin-top:14px"></div>'
+      +'</div>';
+    mask.addEventListener('click',function(){closeDefect();});
+    document.body.appendChild(mask);
+  }
+  window.dfNum=function(id,d,min,max){
+    var el=document.getElementById(id);if(!el)return;
+    var n=(parseInt(el.textContent,10)||0)+d;
+    n=Math.max(min===undefined?0:min,n);
+    if(max!==undefined)n=Math.min(max,n);
+    el.textContent=n;
+  };
+  // Lọc dần: Nhà thầu → nhiều Khu → nhiều Căn → nhiều Hạng mục (nhóm theo Căn·Tầng)
+  var _dfAll=[],_dfKhuSet=new Set(),_dfCanSet=new Set(),_dfSelKeys=new Set(),_dfOpenG=new Set();
+  function _dfKey(x){return x.can+'||'+x.tang+'||'+x.hangMuc;}
+  window.dfBuildItems=function(){
+    var ntc=(document.getElementById('df-ntc')||{}).value||'';
+    _dfAll=[];_dfKhuSet=new Set();_dfCanSet=new Set();_dfSelKeys=new Set();_dfOpenG=new Set();
+    var khuBox=document.getElementById('df-khu'),canBox=document.getElementById('df-can'),box=document.getElementById('df-items');
+    if(box)box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn căn trước</div>';
+    if(canBox)canBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn khu trước</div>';
+    if(!ntc){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn nhà thầu trước</div>';return;}
+    contractorWorkKeys(ntc).forEach(function(wk){
+      (cansForWork(ntc,wk)||[]).forEach(function(can){
+        if(!isVisibleCan(can))return;
+        SOW_ITEMS.forEach(function(r){
+          if(r[0]!==can.charAt(0))return;
+          if(itemSowWorkKey(r)!==wk)return;
+          if(!sowNtpAllows(ntc,can,r))return;
+          var st=getItemStatus(can,r[9]||r[5]);
+          if(!st||!(st.pct>0))return; // chỉ hạng mục ĐÃ thi công
+          _dfAll.push({ntc:ntc,can:can,tang:r[2],hangMuc:r[6],pctThiCong:st.pct});
+        });
+      });
+    });
+    if(!_dfAll.length){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Nhà thầu này chưa có hạng mục nào đã thi công</div>';return;}
+    var khus=[...new Set(_dfAll.map(function(x){return x.can.charAt(0);}))].sort();
+    if(khuBox)khuBox.innerHTML=khus.map(function(L){
+      return '<span class="area-chip" data-khu="'+L+'" onclick="dfToggleKhu(\''+L+'\')">Khu '+L+'</span>';
+    }).join('');
+    if(khus.length===1)dfToggleKhu(khus[0]); // chỉ 1 khu → chọn sẵn
+  };
+  window.dfToggleKhu=function(L){
+    _dfKhuSet.has(L)?_dfKhuSet.delete(L):_dfKhuSet.add(L);
+    var khuBox=document.getElementById('df-khu');
+    if(khuBox)[].forEach.call(khuBox.querySelectorAll('.area-chip'),function(c){c.classList.toggle('khu-sel',_dfKhuSet.has(c.getAttribute('data-khu')));});
+    // Căn: gộp mọi căn thuộc các khu đang chọn; bỏ chọn căn không còn thuộc khu nào
+    var cans=[...new Set(_dfAll.filter(function(x){return _dfKhuSet.has(x.can.charAt(0));}).map(function(x){return x.can;}))]
+      .sort(function(a,b){var la=a.charAt(0),lb=b.charAt(0);return la!==lb?(la<lb?-1:1):((parseInt(a.slice(1),10)||0)-(parseInt(b.slice(1),10)||0));});
+    [..._dfCanSet].forEach(function(c){if(!_dfKhuSet.has(c.charAt(0)))_dfCanSet.delete(c);});
+    var canBox=document.getElementById('df-can');
+    if(canBox)canBox.innerHTML=cans.length?cans.map(function(c){
+      return '<span class="area-chip'+(_dfCanSet.has(c)?' sel':'')+'" data-can="'+c+'" onclick="dfToggleCan(\''+c+'\')">'+c+'</span>';
+    }).join(''):'<div style="font-size:11px;color:var(--muted)">Chọn khu trước</div>';
+    dfRenderItems();
+  };
+  window.dfToggleCan=function(can){
+    _dfCanSet.has(can)?_dfCanSet.delete(can):_dfCanSet.add(can);
+    var canBox=document.getElementById('df-can');
+    if(canBox)[].forEach.call(canBox.querySelectorAll('.area-chip'),function(c){c.classList.toggle('sel',_dfCanSet.has(c.getAttribute('data-can')));});
+    // bỏ chọn hạng mục thuộc căn vừa gỡ
+    [..._dfSelKeys].forEach(function(k){var cn=k.split('||')[0];if(!_dfCanSet.has(cn))_dfSelKeys.delete(k);});
+    dfRenderItems();
+  };
+  // Nhóm theo Căn · Tầng (giống mục "4. Đầu mục công việc"), mặc định thu gọn
+  window.dfRenderItems=function(){
+    var box=document.getElementById('df-items');if(!box)return;
+    var items=_dfAll.filter(function(x){return _dfCanSet.has(x.can);});
+    if(!_dfCanSet.size){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn căn trước</div>';return;}
+    if(!items.length){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Các căn đã chọn chưa có hạng mục đã thi công</div>';return;}
+    var groups=[],gmap={};
+    items.forEach(function(it){var gk=it.can+'||'+it.tang;if(!gmap[gk]){gmap[gk]={can:it.can,tang:it.tang,items:[]};groups.push(gk);}gmap[gk].items.push(it);});
+    var html='';
+    groups.forEach(function(gk){
+      var g=gmap[gk];var nSel=g.items.filter(function(it){return _dfSelKeys.has(_dfKey(it));}).length;
+      var open=_dfOpenG.has(gk);
+      var its='';
+      g.items.forEach(function(it){
+        var k=_dfKey(it),sel=_dfSelKeys.has(k);
+        its+='<div class="sw-item'+(sel?' sel':'')+'" onclick="dfToggleItem(\''+k.replace(/'/g,"\\'")+'\')">'
+          +'<div class="sw-cb">'+(sel?'✓':'')+'</div>'
+          +'<div class="sw-main"><div class="sw-iname">'+it.hangMuc+'</div></div>'
+          +'<div class="sw-pct">'+it.pctThiCong+'%</div></div>';
+      });
+      html+='<div class="sw-tang'+(open?' open':'')+'"><div class="sw-thdr" onclick="dfToggleGroup(\''+gk.replace(/'/g,"\\'")+'\')">'
+        +'<span class="sw-tname">'+g.can+' · '+g.tang+'</span>'
+        +'<span class="sw-cnt'+(nSel?' has':'')+'">'+nSel+'/'+g.items.length+'</span>'
+        +'<span class="sw-chev">▾</span></div><div class="sw-tbody">'+its+'</div></div>';
+    });
+    box.innerHTML=html;
+  };
+  window.dfToggleItem=function(k){
+    _dfSelKeys.has(k)?_dfSelKeys.delete(k):_dfSelKeys.add(k);
+    dfRenderItems();
+  };
+  window.dfToggleGroup=function(gk){
+    _dfOpenG.has(gk)?_dfOpenG.delete(gk):_dfOpenG.add(gk);
+    dfRenderItems();
+  };
+  window.openDefect=function(){
+    // BẮT BUỘC chọn Người báo cáo trước khi làm defect
+    var gs=(typeof v==='function'?v('f-gs'):'')||(typeof selectedReporter==='function'?selectedReporter():'');
+    if(!gs){
+      if(typeof toast==='function')toast('⚠️ Vui lòng chọn Người báo cáo trước khi thêm defect','err');
+      var fg=document.getElementById('f-gs');if(fg){try{fg.focus();fg.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
+      return;
+    }
+    buildDefectModal();
+    var gsLine=document.getElementById('df-gs-line');if(gsLine)gsLine.innerHTML='Người báo cáo: <b style="color:var(--navy)">'+gs+'</b>';
+    var sel=document.getElementById('df-ntc');
+    if(sel){var cur=sel.value;
+      sel.innerHTML='<option value="">— Chọn nhà thầu —</option>'+
+        (typeof NTC_LIST!=='undefined'?NTC_LIST:[]).map(function(n){return '<option'+(n===cur?' selected':'')+'>'+n+'</option>';}).join('');}
+    dfBuildItems();
+    var mt=document.getElementById('df-mota');if(mt)mt.value='';
+    document.getElementById('df-cn').textContent='1';
+    document.getElementById('df-mask').classList.add('show');
+    dfLoadList(); // tải danh sách defect đang theo dõi từ sheet BC_Defect
+  };
+  // Đọc sheet BC_Defect (chỉ đọc) — hiện các defect với % mới nhất
+  window.dfLoadList=function(){
+    var box=document.getElementById('df-list');if(!box)return;
+    box.innerHTML='<div style="font-size:11px;color:var(--muted)">Đang tải danh sách defect…</div>';
+    Promise.resolve(loadNamedSheetOnline('BC_Defect')).then(function(csv){
+      var rows=parseCSV(csv||'');
+      // Cột: 0 Timestamp 1 Ngày 2 Ca 3 Người BC 4 Nhà thầu 5 Căn 6 Tầng 7 Hạng mục 8 Mô tả 9 Số CN 10 % 11 Ghi chú
+      var latest={},order=[];
+      rows.slice(1).forEach(function(r){
+        if(!r||!r[4])return;
+        var key=[r[4],r[5],r[7],r[8]].join('|');
+        if(!(key in latest))order.push(key);
+        latest[key]=r; // dòng sau cùng = trạng thái mới nhất
+      });
+      if(!order.length){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chưa có defect nào được ghi nhận.</div>';return;}
+      var html='<div style="font-size:12px;font-weight:800;color:var(--navy);margin-bottom:6px">Defect đang theo dõi ('+order.length+')</div>';
+      order.slice(-20).reverse().forEach(function(key){
+        var r=latest[key];var pct=parseInt(String(r[10]||'').replace('%',''),10)||0;var done=pct>=100;
+        html+='<div style="display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid '+(done?'#bbf7d0':'#fbcfe8')+';background:'+(done?'#f0fdf4':'#fdf2f8')+';border-radius:9px;margin-bottom:6px">'
+          +'<span style="flex-shrink:0;font-size:10px;font-weight:900;color:'+(done?'#166534':'#9d174d')+'">'+pct+'%</span>'
+          +'<div style="flex:1;min-width:0;font-size:11px;line-height:1.45"><b>'+r[4]+'</b> · '+r[5]+' · '+r[7]
+          +(r[8]?'<div style="color:var(--muted)">'+r[8]+'</div>':'')+'</div>'
+          +'<span style="flex-shrink:0;font-size:10px;color:var(--muted)">'+(r[1]||'')+'</span></div>';
+      });
+      box.innerHTML=html;
+    }).catch(function(){
+      box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chưa tải được danh sách defect (sheet BC_Defect chưa có hoặc mất mạng).</div>';
+    });
+  };
+  window.closeDefect=function(){var m=document.getElementById('df-mask');if(m)m.classList.remove('show');};
+  window.submitDefect=function(){
+    var ntc=(document.getElementById('df-ntc')||{}).value||'';
+    var moTa=((document.getElementById('df-mota')||{}).value||'').trim();
+    var cn=parseInt((document.getElementById('df-cn')||{}).textContent,10)||0;
+    var ngay=(typeof v==='function'?v('f-ngay'):'');
+    var gs=(typeof v==='function'?v('f-gs'):'')||(typeof selectedReporter==='function'?selectedReporter():'');
+    if(!gs){toast('Vui lòng chọn người báo cáo','err');return;}
+    if(!ntc){toast('Vui lòng chọn nhà thầu','err');return;}
+    var sels=_dfAll.filter(function(x){return _dfSelKeys.has(_dfKey(x));});
+    if(!sels.length){toast('Vui lòng tích chọn ít nhất 1 hạng mục đã thi công','err');return;}
+    if(!moTa){toast('Vui lòng mô tả defect','err');return;}
+    if(cn<=0){toast('Số công nhân sửa phải ≥ 1','err');return;}
+    if(!ngay){toast('Chưa có ngày báo cáo','err');return;}
+    // Defect gắn vào BÁO CÁO ĐÃ GỬI của GS để đi qua đủ tab Hình ảnh → Sản lượng
+    var report=getSubmittedReport(gs);
+    if(!report){toast('⚠️ GS "'+gs+'" chưa gửi báo cáo Công việc hôm nay. Gửi báo cáo trước rồi mới thêm defect.','err');return;}
+    var btn=document.getElementById('df-send');if(btn)btn.disabled=true;
+    // Mỗi hạng mục tích chọn = 1 dòng ntcRows defect. Nhờ đó defect chảy vào:
+    //   • tab Hình ảnh / Sản lượng (qua workItems sinh lại từ ntcRows)
+    //   • BÁO CÁO EXCEL nhân lực (đọc thẳng report.ntcRows)
+    var newRows=sels.map(function(it){
+      return {ntc:it.ntc,kv:it.can,can:it.can,tang:it.tang,tangCode:'',nhomCode:'',nhom:'',wbs:'',
+        works:it.hangMuc,dvt:'',khoiLuong:0,note:'DEFECT: '+moTa,cn:cn,vuongMac:'',pending:false,defect:true};
+    });
+    var mergedNtc=[...(report.ntcRows||[]),...newRows];
+    var workItems=reportToSubmittedWorkItems({...report,ntcRows:mergedNtc});
+    storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});
+    // Ghi nhận đăng ký defect lên sheet BC_Defect (0% — % cập nhật qua tab Sản lượng)
+    var payload={type:'CÔNG VIỆC DEFECT',ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
+      items:JSON.stringify(sels.map(function(it){return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,moTa:moTa,cn:cn,pct:0,note:'Ghi nhận mới'};})),
+      submitId:(typeof createSubmitId==='function'?createSubmitId('defect'):('defect-'+Date.now())),
+      ts:new Date().toISOString()};
+    try{
+      Promise.resolve(postToGAS(payload)).catch(function(){}).then(function(){
+        var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
+        toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+        closeDefect();if(btn)btn.disabled=false;
+        try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
+      });
+    }catch(e){if(btn)btn.disabled=false;toast('Lỗi gửi công việc defect','err');}
+  };
+
   function initBoSung(){
     if(document.getElementById('bs-open-btn'))return;
     var anchor=document.querySelector('#qs-body ~ .add-row-btn')||document.querySelector('.add-row-btn[data-template-id="add-ntc-btn"]')||document.querySelector('.add-row-btn');
@@ -5822,6 +6178,13 @@ init();
     b.textContent='➕ Bổ sung nhân công (đến trễ)';
     b.onclick=function(){openBoSung();};
     anchor.parentNode.insertBefore(b,anchor.nextSibling);
+    // Nút Công việc defect nằm NGAY DƯỚI nút bổ sung nhân công
+    var d=document.createElement('button');
+    d.id='df-open-btn';d.className='bs-btn';d.type='button';
+    d.style.background='#9d174d';
+    d.textContent='➕ Công việc defect (hạng mục đã thi công)';
+    d.onclick=function(){openDefect();};
+    b.parentNode.insertBefore(d,b.nextSibling);
   }
   setTimeout(initBoSung,1200);
 })();
