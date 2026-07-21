@@ -1374,11 +1374,12 @@ function reportToSubmittedWorkItems(report) {
   return [
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
-      name:r.defect?(r.ntc+' — DEFECT'):r.ntc,
+      name:r.defect?(r.ntc+' — DEFECT'):(r.boSung?(r.ntc+' — BỔ SUNG (đến trễ)'):r.ntc),
       detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
       type:'ntc',
       defect:!!r.defect,
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cn||0,note:r.note||'',defect:!!r.defect}
+      boSung:!!r.boSung,
+      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cn||0,note:r.note||'',defect:!!r.defect,boSung:!!r.boSung}
     })),
     ...cnRows.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
@@ -5634,7 +5635,10 @@ init();
           if(!sowNtpAllows(ntc,can,r))return;
           var st=getItemStatus(can,r[9]||r[5])||{pct:0,nt:false};
           if(st.nt||(st.pct||0)>=100)return; // CHỈ công việc chưa đạt 100%
-          _bsAll.push({ntc:ntc,can:can,tang:r[2],hangMuc:r[6],pct:st.pct||0});
+          // Giữ đủ WBS/tầng/nhóm/khối lượng để dòng bổ sung chạy đúng luồng
+          // sản lượng như công việc thường (không thì SL NTP báo "không khớp").
+          _bsAll.push({ntc:ntc,can:can,tang:r[2],hangMuc:r[6],pct:st.pct||0,
+            wbs:r[5],tangCode:r[1],nhomCode:r[3],nhom:r[4],dvt:r[8]||'',khoiLuong:r[7]});
         });
       });
     });
@@ -5733,13 +5737,29 @@ init();
     if(!sels.length){if(typeof toast==='function')toast('Vui lòng tích chọn ít nhất 1 công việc chưa hoàn thành','err');return;}
     if(addCN<=0){if(typeof toast==='function')toast('Số người bổ sung phải ≥ 1','err');return;}
     if(!ngay){if(typeof toast==='function')toast('Chưa có ngày báo cáo','err');return;}
+    // Quân bổ sung vẫn làm việc như bình thường → gắn vào BÁO CÁO ĐÃ GỬI của GS
+    // để đi qua đủ tab Hình ảnh (chụp ảnh) / Sản lượng và vào file Excel + ZIP ảnh.
+    var report=getSubmittedReport(gs);
+    if(!report){toast('⚠️ GS "'+gs+'" chưa gửi báo cáo Công việc hôm nay. Gửi báo cáo trước rồi mới bổ sung nhân công.','err');return;}
     var btn=document.getElementById('bs-send');if(btn){btn.disabled=true;}
     // Phân bổ đều số người đến thêm cho các công việc đã chọn (dư chia cho dòng đầu),
     // tổng vẫn đúng addCN nên phần tính lại quân số / cảnh báo cam kết không đổi.
     var base=Math.floor(addCN/sels.length),rem=addCN%sels.length;
     var items=sels.map(function(it,i){
-      return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,cn:base+(i<rem?1:0),pct:it.pct};
+      return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,cn:base+(i<rem?1:0),pct:it.pct,
+        wbs:it.wbs,tangCode:it.tangCode,nhomCode:it.nhomCode,nhom:it.nhom,dvt:it.dvt,khoiLuong:it.khoiLuong};
     }).filter(function(x){return x.cn>0;});
+    // Ghi vào ntcRows của báo cáo — giữ nguyên WBS/khối lượng thật để sản lượng
+    // link đúng sang SẢN LƯỢNG NHÀ THẦU PHỤ như công việc thường.
+    var newRows=items.map(function(it){
+      return {ntc:it.ntc,kv:it.can,can:it.can,tang:it.tang,tangCode:it.tangCode||'',
+        nhomCode:it.nhomCode||'',nhom:it.nhom||'',wbs:it.wbs||'',works:it.hangMuc,
+        dvt:it.dvt||'',khoiLuong:it.khoiLuong||0,
+        note:'➕ Bổ sung đến trễ'+(note?' — '+note:''),cn:it.cn,vuongMac:'',pending:false,boSung:true};
+    });
+    var mergedNtc=[...(report.ntcRows||[]),...newRows];
+    var workItems=reportToSubmittedWorkItems({...report,ntcRows:mergedNtc});
+    storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});
     var payload={type:'BO SUNG NHAN CONG',ntc:ntc,addCN:addCN,note:note,
       items:JSON.stringify(items),
       ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
@@ -5750,8 +5770,9 @@ init();
         fetch(window.GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
       Promise.resolve(p).catch(function(){}).then(function(){
         var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
-        if(typeof toast==='function')toast('Đã gửi bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cans+') ✓','ok');
+        if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cans+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
         closeBoSung();if(btn){btn.disabled=false;}
+        try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
       });
     }catch(e){if(btn){btn.disabled=false;}if(typeof toast==='function')toast('Lỗi gửi bổ sung','err');}
   };
