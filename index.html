@@ -1046,13 +1046,17 @@ async function hydrateAllReportStatesFromServer(){
   rebuildActiveReporterTab();
 }
 
-async function reloadFromServer(){
+// scope='current': chỉ đồng bộ người báo cáo đang chọn (dùng cho tự động chạy nền)
+// scope='all'   : quét toàn bộ người báo cáo (nút ↻ và lúc mở app)
+async function reloadFromServer(scope){
   const btn=document.getElementById('reload-btn');
   if(btn&&btn.classList.contains('loading'))return;
   if(btn){btn.classList.remove('idle','done','error');btn.classList.add('loading');}
   let ok=false;
   try{
-    await hydrateAllReportStatesFromServer();
+    const only=(scope==='current')?selectedReporter():'';
+    if(only) await hydrateReportStateFromServer(only);
+    else await hydrateAllReportStatesFromServer();
     ok=true;
   }catch(e){console.warn('reload error',e);}
   if(btn){
@@ -1375,7 +1379,8 @@ function reportToSubmittedWorkItems(report) {
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.defect?(r.ntc+' — DEFECT'):(r.boSung?(r.ntc+' — BỔ SUNG (đến trễ)'):r.ntc),
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
+      // Hiện tổng quân tổ đội (cnTong) — số CN không chia theo từng dòng công việc
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cnTong||r.cn||0} CN`,
       type:'ntc',
       defect:!!r.defect,
       boSung:!!r.boSung,
@@ -4074,25 +4079,25 @@ function submitQS(){
         selectedCans:[...qs.selectedCans],selectedTangs:[],selectedWorks:[],items:[...(qs.items||[])],cnMap:Object.assign({},qs.cnMap||{})});
       return;
     }
-    // Gom các cặp (đầu mục × căn) trước, rồi PHÂN BỔ tổng CN nhập ở MỤC 1
-    // đều cho từng dòng (dư chia cho các dòng đầu). Nếu chưa nhập tổng
-    // (bản nháp cũ) → dùng cnMap từng đầu mục như trước.
+    // KHÔNG chia nhỏ số công nhân theo từng dòng: một công nhân trong ngày làm
+    // được nhiều đầu mục ở nhiều căn. Tổ đội N người ghi ĐÚNG MỘT LẦN ở dòng đầu,
+    // các dòng còn lại để TRỐNG cột Số CN (vẫn liệt kê đủ công việc đã làm).
+    // Nhờ vậy tổng quân số trong ngày = N, không bị nhân lên theo số dòng.
     const _pairs=[];
     [...(qs.items||[])].forEach(gi=>{
       const r=SOW_ITEMS[gi];
       [...qs.selectedCans].filter(c=>c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r)).forEach(can=>_pairs.push({gi,r,can}));
     });
-    const _T=qs.ntcCN>0?qs.ntcCN:0;
-    const _base=_T&&_pairs.length?Math.floor(_T/_pairs.length):0;
-    const _rem=_T&&_pairs.length?_T%_pairs.length:0;
+    let _T=qs.ntcCN>0?qs.ntcCN:0;
+    if(!_T){ _pairs.forEach(p=>{ _T+=((qs.cnMap&&qs.cnMap[p.gi])||1); }); } // bản nháp cũ
     _pairs.forEach((p,pi)=>{
       const {gi,r,can}=p;
-      const cnv=_T?(_base+(pi<_rem?1:0)):((qs.cnMap&&qs.cnMap[gi])||1);
-      ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,vuongMac:'',pending:false,
-        selectedKhu:r[0],activeBlock:r[0],selectedWorkKey:itemSowWorkKey(r),selectedFloorCode:r[1],selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:cnv},ntcCN:cnv});
-      ntcTotal+=cnv;
+      const cnv=(pi===0)?_T:'';            // '' = ô trống, không phải 0
+      ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,cnTong:_T,vuongMac:'',pending:false,
+        selectedKhu:r[0],activeBlock:r[0],selectedWorkKey:itemSowWorkKey(r),selectedFloorCode:r[1],selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:1},ntcCN:_T});
       dauMucRows.push({ntc,loai:r[0],can,tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],wbs:r[5],dauMuc:r[6],m2:r[7],phanTram:getItemStatus(can,r[9]||r[5]).pct,soCN:cnv});
     });
+    ntcTotal+=_T;
   });
   if(dauMucRows.length){try{postToGAS({type:'TIẾN ĐỘ SOW',ngay:v('f-ngay'),gs:v('f-gs'),rows:JSON.stringify(dauMucRows),ts:new Date().toISOString()});}catch(e){}}
   const cnTaskData=Object.keys(cnTasks).map(id=>({
@@ -4142,9 +4147,10 @@ function submitQS(){
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.ntc,
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cn||0} CN`,
+      // Hiện tổng quân tổ đội, không chia theo từng dòng công việc
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cnTong||r.cn||0} CN`,
       type:'ntc',
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cn||0,note:r.note||''}
+      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cnTong||r.cn||0,note:r.note||''}
     })),
     ...cnTaskData.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
@@ -4543,7 +4549,8 @@ function fillAttendanceReportWorkbook(workbook, selectedDate, entries){
     const viTri = [r.kv||r.can||'', r.tang||''].filter(Boolean).join(' - ');
     wsBC.getCell(rowNo,2).value = r.ntc||'';
     wsBC.getCell(rowNo,3).value = category;
-    wsBC.getCell(rowNo,4).value = Number(r.cn)||0;
+    // Số CN chỉ ghi ở dòng đầu của tổ đội; các dòng sau để TRỐNG (không phải 0)
+    wsBC.getCell(rowNo,4).value = (r.cn===''||r.cn==null) ? null : (Number(r.cn)||0);
     wsBC.getCell(rowNo,5).value = r.defect ? ('[DEFECT] '+(r.works||'')) : (r.works||'');
     wsBC.getCell(rowNo,6).value = viTri;
     wsBC.getCell(rowNo,7).value = r.reporter||'';
@@ -4715,13 +4722,15 @@ function submitCD(){
   sendProductionResults(items, `${items.length} hạng mục cập nhật sản lượng${carryCount?`\n${carryCount} công việc chưa đạt 100% sẽ tự chuyển sang ngày hôm sau`:''}`);
 }
 async function waitProductionAck(batchId){
+  // Khi nhiều GS cùng gửi, Apps Script xếp hàng — đo thực tế có lượt chờ tới 60s.
+  // Cửa sổ chờ ~2 phút (10 lần/1s rồi 35 lần/3s) để không báo động giả.
   let lastError=null;
-  for(let attempt=0;attempt<20;attempt++){
+  for(let attempt=0;attempt<45;attempt++){
     try{
       const payload=await gasJsonp({action:'production_ack',batchId},'__productionAck');
       if(payload&&payload.ok&&payload.ack)return payload.ack;
     }catch(e){lastError=e;}
-    await new Promise(resolve=>setTimeout(resolve,750));
+    await new Promise(resolve=>setTimeout(resolve,attempt<10?1000:3000));
   }
   throw lastError||new Error('Không nhận được xác nhận ghi sản lượng từ máy chủ');
 }
@@ -5374,6 +5383,18 @@ init();
     list.forEach(function(gi){if(all){qs.items.delete(gi);delete qs.cnMap[gi];}else{qs.items.add(gi);if(!qs.cnMap[gi])qs.cnMap[gi]=1;}});
     renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
 
+  // Số dòng sẽ ghi lên Sheet = số cặp (đầu mục × căn hợp lệ)
+  window.qsSoDongSeGhi=function(qs){
+    if(!qs||!qs.items)return 0;
+    var ntc=qs.ntc||'',n=0;
+    qs.items.forEach(function(gi){
+      var r=SOW_ITEMS[gi];if(!r)return;
+      [...qs.selectedCans].forEach(function(c){
+        if(c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r))n++;
+      });
+    });
+    return n;
+  };
   window.updateQSSumLine=function(i){
     var qs=qsCards[i];var el=document.getElementById('qs-sum-'+i);if(!el)return;
     if(qs&&qs.vuongMac){el.textContent='⚠️ Vướng mắc: '+(qs.vuongMac.length>30?qs.vuongMac.slice(0,30)+'…':qs.vuongMac);return;}
@@ -6202,7 +6223,10 @@ init();
     // Nút Công việc defect nằm NGAY DƯỚI nút bổ sung nhân công
     var d=document.createElement('button');
     d.id='df-open-btn';d.className='bs-btn';d.type='button';
+    // Nền đậm nên phải đặt lại màu chữ/viền, không thì thừa hưởng chữ cam của .bs-btn
     d.style.background='#9d174d';
+    d.style.color='#fff';
+    d.style.borderColor='#9d174d';
     d.textContent='➕ Công việc defect (hạng mục đã thi công)';
     d.onclick=function(){openDefect();};
     b.parentNode.insertBefore(d,b.nextSibling);
@@ -6214,11 +6238,28 @@ init();
 // Khi màn hình bật lại hoặc bấm nút ↻ → cùng dùng reloadFromServer()
 // để tránh code trùng và đảm bảo nút phản ánh đúng trạng thái.
 (function(){
-  document.addEventListener('visibilitychange',function(){
-    if(!document.hidden)reloadFromServer();
+  // Chạy nền chỉ đồng bộ NGƯỜI ĐANG CHỌN (1 lượt gọi) thay vì quét mọi người
+  // báo cáo — với ~20 máy cùng mở, cách cũ tạo ~100 lượt gọi mỗi chu kỳ khiến
+  // Apps Script xếp hàng. Nút ↻ vẫn quét đầy đủ khi cần.
+  var _lastAuto=0, _lastTouch=0;
+  // Ghi nhận lúc người dùng chạm vào app. Mọi thao tác gõ/chọn/bấm đều tính.
+  ['input','change','click','keydown','touchstart'].forEach(function(ev){
+    document.addEventListener(ev,function(){_lastTouch=Date.now();},true);
   });
-  // Polling 3 phút/lần khi app đang mở
-  setInterval(function(){if(!document.hidden)reloadFromServer();},3*60*1000);
+  window.dangThaoTac=function(){return Date.now()-_lastTouch<120000;};
+  function autoSync(){
+    var now=Date.now();
+    if(now-_lastAuto<60000)return;        // gộp các lần bật/tắt màn hình liên tiếp
+    // ĐANG THAO TÁC (chạm vào app trong 2 phút gần đây) → KHÔNG đồng bộ nền,
+    // tuyệt đối không để màn hình bị dựng lại giữa chừng khi đang nhập liệu.
+    if(dangThaoTac())return;
+    _lastAuto=now;
+    reloadFromServer('current');
+  }
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden)autoSync();
+  });
+  setInterval(function(){if(!document.hidden)autoSync();},3*60*1000);
 })();
 
 </script>
