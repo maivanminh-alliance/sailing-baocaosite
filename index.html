@@ -1379,9 +1379,9 @@ function reportToSubmittedWorkItems(report) {
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.defect?(r.ntc+' — DEFECT'):(r.boSung?(r.ntc+' — BỔ SUNG (đến trễ)'):r.ntc),
-      // Số CN chỉ hiện ở DÒNG ĐẦU của tổ đội (giống cột Số CN trên Sheet),
-      // các dòng sau chỉ ghi công việc — tránh hiểu nhầm cộng dồn quân số.
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+(Number(r.cn)>0?` — ${r.cn} CN`:''),
+      // Sản lượng / Nghiệm thu tính theo TỪNG ĐẦU MỤC nên không hiển thị số công
+      // nhân ở đây. Quân số chỉ hiện một lần ở bảng tổ đội (mục 1) và trên Sheet.
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · '),
       type:'ntc',
       defect:!!r.defect,
       boSung:!!r.boSung,
@@ -4193,8 +4193,8 @@ function submitQS(){
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.ntc,
-      // Số CN chỉ hiện ở dòng đầu của tổ đội (khớp cột Số CN trên Sheet)
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+(Number(r.cn)>0?` — ${r.cn} CN`:''),
+      // Không hiện số CN ở đây — sản lượng/nghiệm thu tính theo từng đầu mục
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · '),
       type:'ntc',
       meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:Number(r.cn)||0,cnTong:r.cnTong||Number(r.cn)||0,note:r.note||''}
     })),
