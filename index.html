@@ -1379,8 +1379,9 @@ function reportToSubmittedWorkItems(report) {
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.defect?(r.ntc+' — DEFECT'):(r.boSung?(r.ntc+' — BỔ SUNG (đến trễ)'):r.ntc),
-      // Hiện tổng quân tổ đội (cnTong) — số CN không chia theo từng dòng công việc
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cnTong||r.cn||0} CN`,
+      // Số CN chỉ hiện ở DÒNG ĐẦU của tổ đội (giống cột Số CN trên Sheet),
+      // các dòng sau chỉ ghi công việc — tránh hiểu nhầm cộng dồn quân số.
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+(Number(r.cn)>0?` — ${r.cn} CN`:''),
       type:'ntc',
       defect:!!r.defect,
       boSung:!!r.boSung,
@@ -1950,25 +1951,60 @@ function _lockedDetailRows(pairs) {
     .map(p=>`<div style="display:flex;gap:6px;align-items:baseline"><span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;min-width:74px">${p[0]}</span><span style="flex:1;min-width:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere;line-height:1.45">${p[1]}</span></div>`)
     .join('');
 }
-function _renderLockedNtcCard(r, idx, reporter) {
-  const category = (typeof exactSowCategoryForWork==='function' ? exactSowCategoryForWork(r.works||'') : '') || '';
-  const details = _lockedDetailRows([
-    ['Nhà thầu', r.ntc||''],
-    ['Hạng mục', category],
-    ['Khu/Căn', r.kv||r.can||''],
-    ['Tầng', r.tang||''],
-    ['Nội dung', r.works||''],
-    ['Số CN', (r.cn||0)+' CN'],
-    ['Ghi chú', r.note||'']
-  ]);
+// MỘT THẺ = MỘT TỔ ĐỘI: ghi số công nhân đúng một lần, liệt kê mọi công việc
+// tổ đó đã làm trong ngày (một công nhân làm nhiều việc ở nhiều căn).
+function _renderLockedNtcCard(rows, idxs, gi, reporter) {
+  rows = Array.isArray(rows) ? rows : [rows];
+  idxs = Array.isArray(idxs) ? idxs : [idxs];
+  const r0 = rows[0] || {};
+  const category = (typeof exactSowCategoryForWork==='function' ? exactSowCategoryForWork(r0.works||'') : '') || '';
+  const quanSo = Number(r0.cnTong || r0.cn || 0) || 0;
   const _sr=(reporter||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+  // Dòng vướng mắc / chuyển tiếp giữ nguyên kiểu cũ (1 dòng, không gom)
+  if (r0.vuongMac || r0.pending) {
+    const d1 = _lockedDetailRows([
+      ['Nhà thầu', r0.ntc||''],
+      ['Khu/Căn', r0.kv||r0.can||''],
+      ['Vướng mắc', r0.vuongMac||''],
+      ['Ghi chú', r0.note||'']
+    ]);
+    return `<div class="submitted-work-card qs-col" data-locked="1" style="border-left:5px solid var(--orange);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px;max-width:100%;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div class="qs-num" style="flex-shrink:0">${gi+1}</div>
+        <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r0.ntc||''}</div>
+        <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idxs[0]})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${d1}</div>
+    </div>`;
+  }
+
+  const details = _lockedDetailRows([
+    ['Nhà thầu', r0.ntc||''],
+    ['Hạng mục', category],
+    ['Số CN', quanSo+' CN'],
+    ['Ghi chú', r0.note||'']
+  ]);
+  // Danh sách công việc tổ đội đã làm
+  const dsCongViec = rows.map(r=>{
+    const viTri=[r.kv||r.can||'', r.tang||''].filter(Boolean).join(' · ');
+    return `<div style="display:flex;gap:6px;font-size:11.5px;line-height:1.5;padding:3px 0;border-bottom:1px dashed var(--line)">
+      <span style="flex-shrink:0;color:var(--muted);font-weight:700;min-width:64px">${viTri}</span>
+      <span style="flex:1;min-width:0;overflow-wrap:anywhere">${r.works||''}</span>
+    </div>`;
+  }).join('');
+
   return `<div class="submitted-work-card qs-col" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(22,163,74,.10);max-width:100%;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-      <div class="qs-num" style="flex-shrink:0">${idx+1}</div>
-      <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r.ntc||''}</div>
-      <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idx})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
+      <div class="qs-num" style="flex-shrink:0">${gi+1}</div>
+      <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r0.ntc||''} — ${quanSo} CN</div>
+      <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idxs[0]})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${details}</div>
+    <div style="margin-top:8px">
+      <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;margin-bottom:4px">Công việc đã làm (${rows.length})</div>
+      ${dsCongViec}
+    </div>
   </div>`;
 }
 function _renderLockedCnCard(r, idx, reporter) {
@@ -2031,7 +2067,17 @@ function renderSubmittedWorkSummary(report) {
           Sửa tất cả
         </button>
       </div>`);
-    ntcRows.forEach((r,idx) => qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(r, idx, _editReporter)));
+    // Gom theo TỔ ĐỘI: cùng nhà thầu + cùng công tác + cùng quân số = 1 thẻ.
+    // Dòng vướng mắc/chuyển tiếp để riêng từng dòng.
+    const _gKeys=[], _gMap={};
+    ntcRows.forEach((r,idx)=>{
+      const k=(r.vuongMac||r.pending)
+        ? ('__rieng_'+idx)
+        : [r.ntc||'', r.selectedWorkKey||'', (r.cnTong||r.cn||0)].join('|');
+      if(!_gMap[k]){ _gMap[k]={rows:[],idxs:[]}; _gKeys.push(k); }
+      _gMap[k].rows.push(r); _gMap[k].idxs.push(idx);
+    });
+    _gKeys.forEach((k,gi)=> qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(_gMap[k].rows, _gMap[k].idxs, gi, _editReporter)));
     qsBody.insertAdjacentHTML('beforeend', _BOSUNG_SEP_NTC);
     cnList.insertAdjacentHTML('afterbegin',`
       <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:10px">
@@ -4147,10 +4193,10 @@ function submitQS(){
     ...ntcRows.filter(r=>r.ntc).map((r,idx)=>({
       id:'ntc-submitted-'+idx,
       name:r.ntc,
-      // Hiện tổng quân tổ đội, không chia theo từng dòng công việc
-      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+` — ${r.cnTong||r.cn||0} CN`,
+      // Số CN chỉ hiện ở dòng đầu của tổ đội (khớp cột Số CN trên Sheet)
+      detail:[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')+(Number(r.cn)>0?` — ${r.cn} CN`:''),
       type:'ntc',
-      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:r.cnTong||r.cn||0,note:r.note||''}
+      meta:{ntc:r.ntc,works:r.works,kv:r.kv,can:r.can||r.kv,wbs:r.wbs||'',tangCode:r.tangCode||'',tang:r.tang,nhomCode:r.nhomCode||'',dvt:r.dvt||'',khoiLuong:r.khoiLuong,cn:Number(r.cn)||0,cnTong:r.cnTong||Number(r.cn)||0,note:r.note||''}
     })),
     ...cnTaskData.filter(t=>t.task||t.workerCount).map((t,idx)=>({
       id:'cnt-submitted-'+idx,
