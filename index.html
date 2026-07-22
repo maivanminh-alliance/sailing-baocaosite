@@ -1330,6 +1330,19 @@ function syncPendingQAItems(qaData) {
   savePendingQAItems(pending);
 }
 
+// Gom qaDrive của báo cáo đang xem. Ở chế độ tổng hợp thì gộp mọi giám sát,
+// vì tab Nghiệm thu hiển thị công việc của tất cả người báo cáo trong ngày.
+function qaDriveForCurrentView() {
+  const reporter = selectedReporter();
+  if (reporter) {
+    const report = getSubmittedReport(reporter) || {};
+    return report.qaDrive || {};
+  }
+  const merged = {};
+  submittedReportEntriesForDate().forEach(entry => Object.assign(merged, (entry.report || {}).qaDrive || {}));
+  return merged;
+}
+
 function qaResultDataForCurrentView() {
   const reporter = selectedReporter();
   if (reporter) {
@@ -3753,7 +3766,12 @@ function buildQAPanel(){
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
     const im_qa=item.meta||{};
     wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
-    for(let i=1;i<=5;i++) restoreQASlot('qa'+i+'-'+qid, window._qaData?.['qa'+i+'-'+qid] || window._photoData?.['qa'+i+'-'+qid]);
+    // Ưu tiên base64 cục bộ; máy chưa có ảnh thì dùng URL Drive do server ghi.
+    const qaDrive=qaDriveForCurrentView();
+    for(let i=1;i<=5;i++){
+      const sid='qa'+i+'-'+qid;
+      restoreQASlot(sid, window._qaData?.[sid] || window._photoData?.[sid] || qaDrive[sid]);
+    }
   });
 }
 function onQAPassChange(qid,isPassed){
@@ -3916,9 +3934,45 @@ function buildResultPanel(){
   if(!wrap.querySelector('.result-item'))wrap.innerHTML='<div class="panel-empty">Tất cả đầu mục đã đạt 100% và đã được khóa.</div>';
 }
 // Ảnh Drive URL → link thumbnail hiển thị được trong <img> (file đã share ANYONE VIEW)
-function _drivePhotoSrc(url){
-  const id=driveFileIdFromUrl(url);
-  return id?('https://drive.google.com/thumbnail?id='+id+'&sz=w800'):url;
+// ── ẢNH LƯU TRÊN DRIVE ─────────────────────────────────────────
+// Nhúng thẳng link Drive KHÔNG dùng được: đã test thật 22/07/2026 với ảnh có
+// quyền "ai cũng xem được", cả ba kiểu đều lỗi khi nhúng từ trang khác —
+//   drive.google.com/thumbnail?id=…  ·  lh3.googleusercontent.com/d/…
+//   drive.google.com/uc?export=view&id=…
+// Đường DUY NHẤT tin cậy là kéo base64 qua chính web app (?action=photo_data):
+// chạy bằng quyền của chủ script nên không phụ thuộc chia sẻ công khai và
+// không bị chặn nhúng. Có cache theo fileId + tối đa 3 ảnh tải song song để
+// một báo cáo nhiều ảnh không làm nghẽn Apps Script.
+const _drivePhotoCache=new Map();
+const _drivePhotoQueue=[];
+let _drivePhotoActive=0;
+function _drivePhotoPump(){
+  while(_drivePhotoActive<3&&_drivePhotoQueue.length){
+    const job=_drivePhotoQueue.shift();
+    _drivePhotoActive++;
+    Promise.resolve().then(job).finally(()=>{_drivePhotoActive--;_drivePhotoPump();});
+  }
+}
+function loadDrivePhoto(url){
+  const fileId=driveFileIdFromUrl(url);
+  if(!fileId)return Promise.resolve(null);
+  if(_drivePhotoCache.has(fileId))return Promise.resolve(_drivePhotoCache.get(fileId));
+  return new Promise(resolve=>{
+    _drivePhotoQueue.push(async()=>{
+      if(_drivePhotoCache.has(fileId)){resolve(_drivePhotoCache.get(fileId));return;}
+      try{
+        const p=await gasJsonp({action:'photo_data',fileId},'__photoView');
+        if(p&&p.ok&&p.data){
+          const src='data:'+(p.mimeType||'image/jpeg')+';base64,'+p.data;
+          _drivePhotoCache.set(fileId,src);
+          resolve(src);return;
+        }
+      }catch(e){console.warn('Không tải được ảnh Drive:',e);}
+      _drivePhotoCache.set(fileId,null); // hỏng thì nhớ luôn, không gọi lại
+      resolve(null);
+    });
+    _drivePhotoPump();
+  });
 }
 function restorePhotoSlot(slotId, data) {
   if(!data)return;
@@ -3926,10 +3980,17 @@ function restorePhotoSlot(slotId, data) {
   const img=document.getElementById('pp'+slotId);
   if(slot)slot.classList.add('taken');
   if(/^https?:\/\//i.test(String(data))){
-    // Ảnh từ thiết bị khác: hiển thị qua URL Drive, không có base64 cục bộ
-    if(img)img.src=_drivePhotoSrc(data);
+    // Ảnh của thiết bị khác: máy này không có base64, phải kéo qua web app.
     window._photoDriveUrl=window._photoDriveUrl||{};
     window._photoDriveUrl[slotId]=data;
+    if(img){
+      img.dataset.loading='1';
+      loadDrivePhoto(data).then(src=>{
+        delete img.dataset.loading;
+        if(src)img.src=src;
+        else if(slot)slot.classList.add('anh-loi');
+      });
+    }
     return;
   }
   if(img)img.src='data:image/jpeg;base64,'+data;
@@ -3940,6 +4001,20 @@ function restoreQASlot(slotId, data) {
   const slot=document.getElementById(slotId);
   const img=document.getElementById('qa'+slotId);
   if(slot)slot.classList.add('taken');
+  if(/^https?:\/\//i.test(String(data))){
+    // Ảnh nghiệm thu của thiết bị khác: kéo base64 qua web app, y như ảnh thi công.
+    window._qaDriveUrl=window._qaDriveUrl||{};
+    window._qaDriveUrl[slotId]=data;
+    if(img){
+      img.dataset.loading='1';
+      loadDrivePhoto(data).then(src=>{
+        delete img.dataset.loading;
+        if(src)img.src=src;
+        else if(slot)slot.classList.add('anh-loi');
+      });
+    }
+    return;
+  }
   if(img)img.src='data:image/jpeg;base64,'+data;
   window._qaData[slotId]=data;
   window._photoData[slotId]=data;
