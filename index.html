@@ -954,6 +954,22 @@ function queueServerStateSync(reporter,report){
     }).catch(e=>console.warn('Không đồng bộ được trạng thái lên server:',e));
   },800);
 }
+// Draft có nội dung thật hay không. Draft trống (chỉ do autosave sinh ra khi
+// chọn ngày/người báo cáo) phải được coi như KHÔNG có, để dữ liệu trên server
+// vẫn tải về được.
+function draftHasContent(d){
+  if(!d)return false;
+  const rows=(d.ntcRows||[]).filter(r=>r&&(String(r.ntc||'').trim()||(r.items&&r.items.length)||(r.selectedCans&&r.selectedCans.length)||(r.selectedWorks&&r.selectedWorks.length)));
+  if(rows.length)return true;
+  const cn=(d.cnTasks||[]).filter(t=>t&&(String(t.content||t.task||'').trim()||String(t.area||'').trim()||(t.selected&&t.selected.length)||t.workerCount));
+  if(cn.length)return true;
+  if((d.submittedWorkItems||[]).length)return true;
+  if((d.resultItems||[]).length||(d.draftResultItems||[]).length)return true;
+  if(d.photoData&&Object.keys(d.photoData).length)return true;
+  if(d.qaData&&Object.keys(d.qaData).length)return true;
+  if(d.qaResultData)return true;
+  return ['vang','vmbc','vmcdt','vmalc'].some(k=>String(d[k]||'').trim());
+}
 async function hydrateReportStateFromServer(reporter){
   reporter=String(reporter||'').trim();if(!reporter)return false;
   const date=v('f-ngay')||new Date().toISOString().split('T')[0];
@@ -1004,8 +1020,12 @@ async function hydrateReportStateFromServer(reporter){
     // Nếu đang soạn thảo TRONG PHIÊN NÀY → không ghi đè từ server, giữ bản nháp.
     // Draft cũ từ phiên trước (updatedAt < SESSION_LOAD_TIME) không được chặn —
     // nếu chặn thì thiết bị khác không bao giờ kéo được báo cáo từ server về.
+    // QUAN TRỌNG: draft RỖNG cũng không được chặn. Chỉ cần chọn ngày/người báo
+    // cáo là autosave đã đẻ ra một draft trống với updatedAt = bây giờ; nếu tính
+    // cả draft trống thì máy chưa có dữ liệu sẽ KHÔNG BAO GIỜ kéo được báo cáo
+    // của ngày quá khứ về (đã dính lỗi này khi test thật ngày 20/07).
     const _draft=reporterStates[key];
-    if(_draft&&(Date.parse(_draft.updatedAt||0)||0)>=SESSION_LOAD_TIME)return false;
+    if(_draft&&draftHasContent(_draft)&&(Date.parse(_draft.updatedAt||0)||0)>=SESSION_LOAD_TIME)return false;
     const all=loadSubmittedReports();
     const local=all[key];
     const localTime=Date.parse(local&&local.updatedAt||0)||0;
@@ -2556,9 +2576,16 @@ async function init() {
   _updateNgayTxt();
   document.getElementById('f-ngay').addEventListener('change',()=>{
     _updateNgayTxt();
+    // Đổi ngày = xem dữ liệu của ngày khác → BẮT BUỘC tải lại từ server.
+    // Trước đây chỉ tải khi đã chọn người báo cáo, nên chọn ngày quá khứ lúc
+    // chưa chọn ai thì mọi tab đều trống dù server có dữ liệu.
     if (currentReporter) {
       showReporterView(currentReporter);
-      hydrateReportStateFromServer(currentReporter);
+      hydrateReportStateFromServer(currentReporter).then(()=>{
+        updateWorkflowTabs(); rebuildActiveReporterTab();
+      });
+    } else {
+      hydrateAllReportStatesFromServer();
     }
   });
   document.getElementById('main-content').addEventListener('input', scheduleReporterAutosave);
@@ -6096,12 +6123,14 @@ init();
           if(itemSowWorkKey(r)!==wk)return;
           if(!sowNtpAllows(ntc,can,r))return;
           var st=getItemStatus(can,r[9]||r[5]);
-          if(!st||!(st.pct>0))return; // chỉ hạng mục ĐÃ thi công
+          // CHỈ hạng mục đã HOÀN THÀNH 100% mới được coi là defect. Hạng mục
+          // chưa xong (vd 80%) là công việc đang thi công dở, không phải defect.
+          if(!st||!(st.pct>=100))return;
           _dfAll.push({ntc:ntc,can:can,tang:r[2],hangMuc:r[6],pctThiCong:st.pct});
         });
       });
     });
-    if(!_dfAll.length){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Nhà thầu này chưa có hạng mục nào đã thi công</div>';return;}
+    if(!_dfAll.length){if(khuBox)khuBox.innerHTML='<div style="font-size:11px;color:var(--muted)">Nhà thầu này chưa có hạng mục nào hoàn thành 100%</div>';return;}
     var khus=[...new Set(_dfAll.map(function(x){return x.can.charAt(0);}))].sort();
     if(khuBox)khuBox.innerHTML=khus.map(function(L){
       return '<span class="area-chip" data-khu="'+L+'" onclick="dfToggleKhu(\''+L+'\')">Khu '+L+'</span>';
@@ -6135,7 +6164,7 @@ init();
     var box=document.getElementById('df-items');if(!box)return;
     var items=_dfAll.filter(function(x){return _dfCanSet.has(x.can);});
     if(!_dfCanSet.size){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Chọn căn trước</div>';return;}
-    if(!items.length){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Các căn đã chọn chưa có hạng mục đã thi công</div>';return;}
+    if(!items.length){box.innerHTML='<div style="font-size:11px;color:var(--muted)">Các căn đã chọn chưa có hạng mục nào hoàn thành 100%</div>';return;}
     var groups=[],gmap={};
     items.forEach(function(it){var gk=it.can+'||'+it.tang;if(!gmap[gk]){gmap[gk]={can:it.can,tang:it.tang,items:[]};groups.push(gk);}gmap[gk].items.push(it);});
     var html='';
@@ -6224,13 +6253,22 @@ init();
     if(!gs){toast('Vui lòng chọn người báo cáo','err');return;}
     if(!ntc){toast('Vui lòng chọn nhà thầu','err');return;}
     var sels=_dfAll.filter(function(x){return _dfSelKeys.has(_dfKey(x));});
-    if(!sels.length){toast('Vui lòng tích chọn ít nhất 1 hạng mục đã thi công','err');return;}
+    if(!sels.length){toast('Vui lòng tích chọn ít nhất 1 hạng mục đã hoàn thành 100%','err');return;}
     if(!moTa){toast('Vui lòng mô tả defect','err');return;}
     if(cn<=0){toast('Số công nhân sửa phải ≥ 1','err');return;}
     if(!ngay){toast('Chưa có ngày báo cáo','err');return;}
-    // Defect gắn vào BÁO CÁO ĐÃ GỬI của GS để đi qua đủ tab Hình ảnh → Sản lượng
+    // Defect KHÔNG phụ thuộc báo cáo Công việc nữa: một ngày GS có thể vừa làm
+    // mới vừa sửa defect. Nếu chưa có báo cáo, tự mở một phiếu độc lập ngay tại
+    // đây (điền sẵn thông tin chung: ngày / ca / GS) để defect vẫn chảy đủ
+    // đường tab Hình ảnh → Sản lượng như báo cáo thường.
     var report=getSubmittedReport(gs);
-    if(!report){toast('⚠️ GS "'+gs+'" chưa gửi báo cáo Công việc hôm nay. Gửi báo cáo trước rồi mới thêm defect.','err');return;}
+    var laPhieuMoi=!report;
+    if(laPhieuMoi){
+      report={date:ngay,reporter:gs,reportSession:(typeof reportSession!=='undefined'?reportSession:'sang'),
+        ntcRows:[],cnTasks:[],workItems:[],resultItems:[],draftResultItems:[],
+        productionSubmittedAt:null,production100Items:[],qaResultData:null,qaData:{},
+        locked:true,defectOnly:true,savedAt:new Date().toISOString()};
+    }
     var btn=document.getElementById('df-send');if(btn)btn.disabled=true;
     // Mỗi hạng mục tích chọn = 1 dòng ntcRows defect. Nhờ đó defect chảy vào:
     //   • tab Hình ảnh / Sản lượng (qua workItems sinh lại từ ntcRows)
@@ -6241,7 +6279,8 @@ init();
     });
     var mergedNtc=[...(report.ntcRows||[]),...newRows];
     var workItems=reportToSubmittedWorkItems({...report,ntcRows:mergedNtc});
-    storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});
+    storeSubmittedReport(gs,laPhieuMoi?{...report,ntcRows:mergedNtc,workItems:workItems}:{ntcRows:mergedNtc,workItems:workItems});
+    if(laPhieuMoi&&typeof currentReporter!=='undefined')currentReporter=gs;
     // Ghi nhận đăng ký defect lên sheet BC_Defect (0% — % cập nhật qua tab Sản lượng)
     var payload={type:'CÔNG VIỆC DEFECT',ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
       items:JSON.stringify(sels.map(function(it){return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,moTa:moTa,cn:cn,pct:0,note:'Ghi nhận mới'};})),
@@ -6273,7 +6312,7 @@ init();
     d.style.background='#9d174d';
     d.style.color='#fff';
     d.style.borderColor='#9d174d';
-    d.textContent='➕ Công việc defect (hạng mục đã thi công)';
+    d.textContent='➕ Công việc defect (hạng mục đã hoàn thành 100%)';
     d.onclick=function(){openDefect();};
     b.parentNode.insertBefore(d,b.nextSibling);
   }
