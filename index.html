@@ -917,9 +917,28 @@ function loadSubmittedReports() {
   catch(e) { return {}; }
 }
 
+// Lưu vào bộ nhớ máy, CÓ BÁO khi đầy. Trước đây ba chỗ lưu đều nuốt lỗi im
+// lặng: điện thoại đầy bộ nhớ (thường vì ảnh base64) là mất dữ liệu mà GS không
+// hề biết. Nay: thử bỏ ảnh để cứu phần chữ, và luôn báo cho người dùng.
+function _luuVaoMay(key, obj, moTa) {
+  try { localStorage.setItem(key, JSON.stringify(obj)); return true; }
+  catch(e) {
+    try {
+      const khongAnh = JSON.stringify(obj, (k, v) =>
+        (k === 'photoData' || k === 'qaData' || /_data$/i.test(k)) ? undefined : v);
+      localStorage.setItem(key, khongAnh);
+      if (typeof toast === 'function') toast('⚠️ Bộ nhớ máy đã đầy — đã tạm bỏ ảnh lưu trên máy để giữ phần dữ liệu. Hãy GỬI báo cáo ngay.', 'err');
+      return true;
+    } catch(e2) {
+      if (typeof toast === 'function') toast('⚠️ Bộ nhớ máy đã đầy, KHÔNG lưu được ' + (moTa || 'dữ liệu') + '. Hãy gửi báo cáo ngay rồi tải lại trang.', 'err');
+      console.error('localStorage đầy:', key, e2);
+      return false;
+    }
+  }
+}
+
 function saveSubmittedReports(data) {
-  try { localStorage.setItem(SUBMITTED_REPORT_KEY, JSON.stringify(data)); }
-  catch(e) {}
+  _luuVaoMay(SUBMITTED_REPORT_KEY, data, 'báo cáo đã gửi');
 }
 
 const serverStateSyncTimers={};
@@ -929,9 +948,18 @@ const serverDeleteConfirmed=new Set();
 // request mới hơn, không hủy oan request của người khác (chế độ tổng hợp
 // tải song song nhiều người).
 const serverStateHydrateTokens={};
+// Các trường chỉ dùng để DỰNG LẠI FORM nhập trên chính máy đó — không cần đẩy
+// lên server, mà lại chiếm gần một nửa dung lượng (471 → 259 ký tự/dòng).
+// Cắt bớt để báo cáo ngày cao điểm không phình quá giới hạn ô Google Sheets.
+const TRUONG_CHI_DUNG_CUC_BO = new Set([
+  'selectedKhu','activeBlock','selectedWorkKey','selectedFloorCode',
+  'selectedCans','selectedTangs','selectedWorks','items','cnMap','ntcCN',
+  'af_khu','af_cans','af_tangs','selected'
+]);
 function compactReportForServer(report){
   return JSON.parse(JSON.stringify(report||{},(key,value)=>{
     if(key==='photoData'||key==='qaData'||/_data$/i.test(key))return undefined;
+    if(TRUONG_CHI_DUNG_CUC_BO.has(key))return undefined;
     if(key==='data'&&typeof value==='string'&&value.length>500)return undefined;
     return value;
   }));
@@ -1173,6 +1201,24 @@ function submittedWorkEntriesForCurrentView() {
 
 function hasSubmittedWorkForCurrentView() {
   return submittedWorkEntriesForCurrentView().length > 0;
+}
+
+// GS đã thực sự GỬI báo cáo Công việc chưa. Khác hẳn "phiếu có dòng nào đó":
+// thêm defect cũng tạo dòng trong phiếu, nhưng KHÔNG có nghĩa là đã gửi báo
+// cáo Công việc — nếu lẫn lộn thì tab Công việc bị khoá và GS không gửi được
+// báo cáo trong ngày (đã dính lỗi này 22/07/2026).
+function reportWorkSubmitted(report) {
+  if (!report) return false;
+  if (report.workSubmittedAt) return true;
+  // Phiếu do DEFECT tạo ở bản lỗi trước bị đánh dấu locked oan. Không được coi
+  // là "đã gửi công việc", nếu không GS đang kẹt sẽ kẹt tiếp sau khi cập nhật.
+  if (report.defectOnly) return false;
+  return !!report.locked;   // báo cáo cũ (trước khi có workSubmittedAt)
+}
+function hasWorkSubmittedForCurrentView() {
+  const reporter = selectedReporter();
+  if (reporter) return reportWorkSubmitted(getSubmittedReport(reporter));
+  return submittedReportEntriesForDate().some(e => reportWorkSubmitted(e.report));
 }
 
 function reportHasWork(report) {
@@ -1488,18 +1534,48 @@ function markPhotoSubmitted(reporter, photoRows) {
   persistReporterStates();
 }
 
+// Dò lại vị trí đầu mục trong SOW_ITEMS từ WBS + khu. Cần cho việc MỞ LẠI BÁO
+// CÁO ĐỂ SỬA: thẻ nhập dựng danh sách theo qs.items (chỉ số SOW_ITEMS), mà chỉ
+// số đó không nằm trong dòng báo cáo lấy từ server. Không dò lại thì thẻ mở ra
+// trống trơn và gửi lại là mất sạch dòng (đã dính lỗi thật 22/07/2026).
+function sowIndexForRow(row) {
+  if (!row) return -1;
+  if (Array.isArray(row.items) && row.items.length) return Number(row.items[0]);
+  if (row.items && typeof row.items[Symbol.iterator] === 'function') {
+    const arr = [...row.items]; if (arr.length) return Number(arr[0]);
+  }
+  const wbs = String(row.wbs || '').trim();
+  const khu = String(row.can || row.kv || '').trim().charAt(0).toUpperCase();
+  if (!wbs || typeof SOW_ITEMS === 'undefined') return -1;
+  for (let i = 0; i < SOW_ITEMS.length; i++) {
+    const r = SOW_ITEMS[i];
+    if (String(r[5] || '').trim() === wbs && String(r[0] || '') === khu) return i;
+  }
+  return -1;
+}
+
 function ntcReportRowToEditable(row) {
   const kv = row.kv || '';
   const selectedCans = row.selectedCans || (kv.startsWith('Khu ') ? [] : splitList(kv));
+  const gi = sowIndexForRow(row);
+  const sow = (gi >= 0 && typeof SOW_ITEMS !== 'undefined') ? SOW_ITEMS[gi] : null;
+  const khu = row.selectedKhu || row.activeBlock ||
+    (kv.startsWith('Khu ') ? kv.replace('Khu ','').trim() : String(selectedCans[0] || '').charAt(0).toUpperCase());
   return {
     ntc: row.ntc || '',
     hm: NTC_HM[row.ntc] || '',
     cn: row.cn || 0,
-    ntcCN: row.ntcCN || row.cn || 0,
+    ntcCN: row.ntcCN || row.cnTong || row.cn || 0,
     note: row.note || '',
     vuongMac: row.vuongMac || '',
     pending: !!row.pending,
-    selectedKhu: row.selectedKhu || (kv.startsWith('Khu ') ? kv.replace('Khu ','').trim() : ''),
+    selectedKhu: khu,
+    // Ba trường dưới đây là thứ thẻ nhập dùng để dựng lại danh sách đầu mục.
+    activeBlock: row.activeBlock || khu,
+    selectedWorkKey: row.selectedWorkKey || (sow ? itemSowWorkKey(sow) : ''),
+    selectedFloorCode: row.selectedFloorCode || row.tangCode || (sow ? sow[1] : ''),
+    items: (gi >= 0) ? [gi] : [...(row.items || [])],
+    cnMap: row.cnMap || (gi >= 0 ? {[gi]: 1} : {}),
     selectedCans,
     selectedTangs: row.selectedTangs || splitList(row.tang),
     selectedWorks: row.selectedWorks || splitList(row.works),
@@ -1534,9 +1610,7 @@ function loadStoredReporterStates() {
 }
 
 function persistReporterStates() {
-  try {
-    localStorage.setItem(REPORTER_STATE_KEY, JSON.stringify(reporterStates));
-  } catch(e) {}
+  _luuVaoMay(REPORTER_STATE_KEY, reporterStates, 'bản nháp đang nhập');
 }
 
 function getReporterState(reporter=currentReporter) {
@@ -1698,7 +1772,9 @@ function setWorkEditButtonsVisible(visible) {
   });
 }
 
-function _isReportLocked(report) { return !!(report && report.locked); }
+// Khoá chỉnh sửa chỉ áp dụng cho báo cáo Công việc ĐÃ GỬI. Phiếu defect-only
+// (kể cả bản cũ lỡ gắn cờ locked) vẫn phải cho GS nhập và gửi báo cáo trong ngày.
+function _isReportLocked(report) { return !!(report && report.locked && reportWorkSubmitted(report)); }
 
 function showSubmittedEditMode(type, index) {
   const reporter = currentReporter || selectedReporter();
@@ -1723,7 +1799,7 @@ function showSubmittedEditMode(type, index) {
     qaData: {...(report.qaData || {})},
     qaResultData: report.qaResultData || null,
   };
-  deleteSubmittedReport(reporter);
+  moKhoaBaoCaoGiuTienDo(reporter);
   persistReporterStates();
   currentReporter = reporter;
   [0,1,2,3,4].forEach(i=>document.getElementById('tab'+i)?.classList.toggle('active',i===0));
@@ -1769,6 +1845,24 @@ function showAppConfirm(title, message, onOk, icon) {
   ov.addEventListener('click', e => { if(e.target===ov) close(); });
 }
 
+// Mở báo cáo về nháp NHƯNG GIỮ NGUYÊN tiến độ đã có. Trước đây chỗ này gọi
+// deleteSubmittedReport() — xoá sạch phiếu, kéo theo mất ảnh đã gửi, sản lượng,
+// nghiệm thu và link ảnh Drive. GS chỉ sửa một dòng chữ là phải làm lại từ đầu
+// (đã kiểm chứng trên báo cáo thật của ĐOÀN NGỌC NHƠN ngày 22/07/2026).
+function moKhoaBaoCaoGiuTienDo(reporter) {
+  const rpt = getSubmittedReport(reporter);
+  if (!rpt) return;
+  storeSubmittedReport(reporter, {
+    ...rpt,
+    ntcRows: (rpt.ntcRows || []).filter(r => r && (r.defect || r.boSung)), // dòng thường chuyển sang nháp
+    cnTasks: [],
+    workItems: [],
+    locked: false,
+    workSubmittedAt: null,      // quay về trạng thái "chưa gửi báo cáo Công việc"
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function unlockReportForEdit(reporter, focusType, focusIdx) {
   reporter = String(reporter || currentReporter || selectedReporter() || '').trim();
   if (!reporter) return;
@@ -1803,7 +1897,7 @@ function unlockReportForEdit(reporter, focusType, focusIdx) {
         _resubOrigCa: report.reportSession || '',
         _resubOrigGs: reporter,
       };
-      deleteSubmittedReport(reporter);
+      moKhoaBaoCaoGiuTienDo(reporter);
       persistReporterStates();
       currentReporter = reporter;
       const sel = document.getElementById('f-gs');
@@ -1897,6 +1991,23 @@ function deleteSubmittedItemFor(reporter,type,index) {
   deleteSubmittedItem(type,index);
 }
 
+// Nút thao tác trên từng dòng ở CHẾ ĐỘ TỔNG HỢP. Báo cáo đã khoá vẫn phải có
+// lối sửa — trước đây khoá là mất sạch nút, GS không biết sửa bằng cách nào
+// (phải bấm chọn đúng tên mình mới thấy). Khoá thì dùng "Sửa lại" (mở lại báo
+// cáo về nháp) đúng như chế độ xem một giám sát.
+function _nutThaoTacDong(reporter, type, idx, isLocked) {
+  const rep = String(reporter || '').replace(/'/g, "\\'");
+  if (isLocked) {
+    return `<div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onclick="unlockReportForEdit('${rep}','${type}',${idx})" style="border:1px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Sửa lại</button>
+              </div>`;
+  }
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" onclick="showSubmittedEditModeFor('${rep}','${type}',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Chỉnh sửa</button>
+                <button type="button" onclick="deleteSubmittedItemFor('${rep}','${type}',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">🗑 Xóa</button>
+              </div>`;
+}
+
 function renderAllSubmittedWorkSummary() {
   const entries = submittedWorkEntriesForCurrentView();
   clearAllState();
@@ -1921,10 +2032,7 @@ function renderAllSubmittedWorkSummary() {
     if(ntcRows.length){
       qsBody.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr ntc-hdr" style="margin-top:10px">📋 ${reporter || 'Người báo cáo'}${isLocked?' 🔒':''}</div>`);
       ntcRows.forEach((r,idx)=>{
-        const actionBtns = isLocked ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
-                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','ntc',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
-              </div>`;
+        const actionBtns = _nutThaoTacDong(reporter, 'ntc', idx, isLocked);
         const ntcCategory=(typeof exactSowCategoryForWork==='function'?exactSowCategoryForWork(r.works||''):'')||'';
         const ntcDetails=_lockedDetailRows([
           ['Nhà thầu',r.ntc||''],['Hạng mục',ntcCategory],['Khu/Căn',r.kv||r.can||''],
@@ -1935,7 +2043,7 @@ function renderAllSubmittedWorkSummary() {
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
               <div class="qs-num" style="flex-shrink:0">${idx+1}</div>
               <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r.ntc||''}</div>
-              <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase">${isLocked?'🔒':'✓'} Đã gửi · ${reporter}</span>
+              <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase">${r.defect?'🛠 Defect':(r.boSung?'➕ Bổ sung':(isLocked?'🔒 Đã gửi':'✓ Đã gửi'))} · ${reporter}</span>
               ${actionBtns}
             </div>
             <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${ntcDetails}</div>
@@ -1945,10 +2053,7 @@ function renderAllSubmittedWorkSummary() {
     if(cnRows.length){
       cnList.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr cn-hdr" style="margin:10px 14px">👷 ${reporter || 'Người báo cáo'}${isLocked?' 🔒':''}</div>`);
       cnRows.forEach((r,idx)=>{
-        const actionBtns = isLocked ? '' : `<div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button type="button" onclick="showSubmittedEditModeFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>
-                <button type="button" onclick="deleteSubmittedItemFor('${reporter.replace(/'/g,"\\'")}','cn',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
-              </div>`;
+        const actionBtns = _nutThaoTacDong(reporter, 'cn', idx, isLocked);
         const cnNames=String(r.workers||'').split(/[,\n；;]/).map(x=>x.trim()).filter(Boolean);
         const cnGroup=(typeof attGroupsForWorkers==='function')?attGroupsForWorkers(cnNames):'';
         const cnDetails=_lockedDetailRows([
@@ -2177,11 +2282,43 @@ function renderSubmittedWorkSummary(report) {
   return true;
 }
 
+// Dòng defect / bổ sung đã ghi NHƯNG chưa gửi báo cáo Công việc: phải hiện ở
+// ngay tab Công việc, nếu không GS nhìn vào thấy trống trơn, tưởng chưa ghi
+// được gì và dễ nhập trùng (defect chỉ hiện ở tab Hình ảnh).
+function renderDongDaGhiTruoc(reporter) {
+  const rpt = getSubmittedReport(reporter);
+  if (!rpt || reportWorkSubmitted(rpt)) return;
+  const rows = (rpt.ntcRows || []).filter(r => r && (r.defect || r.boSung));
+  if (!rows.length) return;
+  const qsBody = document.getElementById('qs-body');
+  if (!qsBody) return;
+  const the = rows.map((r, i) => {
+    const nhan = r.defect ? 'DEFECT' : 'BỔ SUNG';
+    const mau  = r.defect ? '#9d174d' : '#b45309';
+    const nen  = r.defect ? '#fdf2f8' : '#fffbeb';
+    const idx  = (rpt.ntcRows || []).indexOf(r);
+    return `<div class="submitted-work-card qs-col" style="border-left:5px solid ${mau};background:${nen};border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="flex-shrink:0;background:${mau};color:#fff;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:900">${nhan}</span>
+        <div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:var(--navy);overflow-wrap:anywhere">${r.ntc || ''}</div>
+        <span style="flex-shrink:0;font-size:11px;color:var(--muted);font-weight:700">${r.cn || 0} CN</span>
+        <button type="button" onclick="deleteSubmittedItemFor('${String(reporter).replace(/'/g, "\\'")}','ntc',${idx})" style="flex-shrink:0;border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer">🗑 Xóa</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere">${[r.can || r.kv, r.tang, r.works].filter(Boolean).join(' · ')}</div>
+      ${r.note ? `<div style="font-size:11px;color:${mau};margin-top:3px;overflow-wrap:anywhere">${r.note}</div>` : ''}
+    </div>`;
+  }).join('');
+  qsBody.insertAdjacentHTML('afterbegin',
+    `<div style="font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase;margin:2px 0 6px">Đã ghi trong ngày (chưa gửi báo cáo Công việc)</div>${the}`);
+}
+
 function loadReporterState(reporter) {
   clearAllState();
   loadStoredReporterStates();
   const submittedReport = getSubmittedReport(reporter);
-  if (submittedReport) {
+  // Chỉ hiện bản tóm tắt khi GS ĐÃ GỬI báo cáo Công việc. Phiếu mới chỉ có
+  // defect thì vẫn phải mở form nhập, nếu không GS không gửi được báo cáo ngày.
+  if (submittedReport && reportWorkSubmitted(submittedReport)) {
     renderSubmittedWorkSummary(submittedReport);
     return;
   }
@@ -2198,6 +2335,7 @@ function loadReporterState(reporter) {
     setReportSession(autoReportSessionByTime());
     document.getElementById('qs-body').innerHTML='';
     document.getElementById('cn-task-list').innerHTML='';
+    renderDongDaGhiTruoc(reporter);
     return;
   }
   isRestoring = true;
@@ -2235,6 +2373,7 @@ function loadReporterState(reporter) {
   if ((state.cnTasks || []).length === 0) document.getElementById('cn-task-list').innerHTML='';
   isRestoring = false;
   calcTotal(); updateCNAssigned(); updateAllGroupCounts();
+  renderDongDaGhiTruoc(reporter);
 }
 
 function ensureReporterWorkLoaded() {
@@ -2642,8 +2781,8 @@ function rebuildActiveReporterTab() {
     const _sr=currentReporter,_srRpt=_sr?getSubmittedReport(_sr):null;
     // Reporter cụ thể đã khóa → dùng locked view có nút "+"
     if(_sr&&_srRpt&&_isReportLocked(_srRpt)) renderSubmittedWorkSummary(_srRpt);
-    else if(hasSubmittedWorkForCurrentView()) renderAllSubmittedWorkSummary();
-    else if(_sr&&_srRpt) renderSubmittedWorkSummary(_srRpt);
+    else if(hasWorkSubmittedForCurrentView()) renderAllSubmittedWorkSummary();
+    else if(_sr&&_srRpt&&reportWorkSubmitted(_srRpt)) renderSubmittedWorkSummary(_srRpt);
   }
   if(m===1)buildPhotoPanel();
   if(m===2)buildResultPanel();
@@ -2652,7 +2791,7 @@ function rebuildActiveReporterTab() {
 }
 function showReporterView(reporter) {
   currentReporter=String(reporter||'').trim();
-  if (hasSubmittedWorkForCurrentView()) {
+  if (hasWorkSubmittedForCurrentView()) {
     updateReporterStrip(currentReporter);
     rebuildActiveReporterTab();
   } else if (currentReporter) {
@@ -4092,6 +4231,19 @@ function postToGAS(data) {
   });
 }
 
+// GỬI NỀN: giao diện phản hồi NGAY, request chạy phía sau. Người dùng không
+// phải chờ Apps Script (thường 2-5 giây). Chỉ lên tiếng khi gửi THẤT BẠI —
+// lúc đó dữ liệu vẫn còn trên máy và bấm ↻ sẽ đồng bộ lại.
+function guiNen(payload, moTa) {
+  if (GAS_URL.includes('YOUR_GAS_ID')) return Promise.resolve();
+  let p;
+  try { p = postToGAS(payload); } catch (e) { p = Promise.reject(e); }
+  return Promise.resolve(p).catch(function(err){
+    console.warn('Gửi nền thất bại [' + (moTa || '') + ']:', err);
+    toast('⚠️ Đã lưu ' + (moTa || 'dữ liệu') + ' trên máy nhưng chưa gửi được lên server. Kiểm tra mạng rồi bấm ↻ để đồng bộ lại.', 'err');
+  });
+}
+
 function createSubmitId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 }
@@ -4262,7 +4414,7 @@ function submitQS(){
 
   // ── SUPPLEMENT MODE: nếu đã có báo cáo khóa, chỉ gửi nội dung MỚI ──
   const _existingLockedReport = getSubmittedReport(reporter);
-  if (_existingLockedReport && _isReportLocked(_existingLockedReport)) {
+  if (_existingLockedReport && _isReportLocked(_existingLockedReport) && reportWorkSubmitted(_existingLockedReport)) {
     if (!ntcRows.length && !cnTaskData.filter(t=>t.task||t.workerCount).length) {
       toast('⚠️ Không có nội dung bổ sung. Hãy thêm nhà thầu hoặc công nhật mới trước khi gửi.', 'err');
       return;
@@ -4280,10 +4432,11 @@ function submitQS(){
       ..._existingLockedReport,
       ntcRows:_mergedNtc, cnTasks:_mergedCn,
       workItems:reportToSubmittedWorkItems({ntcRows:_mergedNtc,cnTasks:_mergedCn}),
-      locked:true, updatedAt:new Date().toISOString()
+      locked:true, workSubmittedAt:_existingLockedReport.workSubmittedAt||new Date().toISOString(),
+      updatedAt:new Date().toISOString()
     });
-    if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(applyEmailTestMode(_bsPld)).finally(()=>setQSSubmitting(false));}
-    else{setTimeout(()=>setQSSubmitting(false),800);}
+    guiNen(applyEmailTestMode(_bsPld),'báo cáo bổ sung');
+    setQSSubmitting(false);
     clearAllState();
     renderSubmittedWorkSummary(getSubmittedReport(reporter));
     updateWorkflowTabs();
@@ -4314,19 +4467,32 @@ function submitQS(){
   reporterStates[stateKey] = reporterStates[stateKey] || {};
   reporterStates[stateKey].submittedWorkItems = submittedWorkItems;
   persistReporterStates();
+  // Các dòng KHÔNG do form Công việc sinh ra (defect, bổ sung nhân công đến trễ)
+  // phải được giữ lại — form chỉ quản lý dòng của chính nó. Bỏ sót cờ boSung ở
+  // đây từng làm mất trắng quân bổ sung khi GS bấm Gửi (đã dính lỗi 22/07/2026).
+  const _prevRpt = getSubmittedReport(reporter);
+  const _keptRows = ((_prevRpt && _prevRpt.ntcRows) || []).filter(r => r && (r.defect || r.boSung));
+  const _finalNtcRows = [...ntcRows, ..._keptRows];
+  const _finalWorkItems = _keptRows.length
+    ? reportToSubmittedWorkItems({ntcRows:_finalNtcRows, cnTasks:cnTaskData})
+    : submittedWorkItems;
   storeSubmittedReport(reporter, {
     date: v('f-ngay'),
     reporter,
     reportSession,
-    ntcRows,
+    ntcRows: _finalNtcRows,
     cnTasks: cnTaskData,
-    workItems: submittedWorkItems,
-    resultItems: [],
-    draftResultItems: [],
-    productionSubmittedAt: null,
-    production100Items: [],
-    qaResultData: null,
-    qaData: {},
+    workItems: _finalWorkItems,
+    workSubmittedAt: new Date().toISOString(),
+    // KHÔNG xoá tiến độ đã có. Nhờ defect, GS có thể đã đi tới tab Sản lượng /
+    // Nghiệm thu TRƯỚC khi gửi báo cáo Công việc; reset cứng về rỗng như trước
+    // sẽ thổi bay toàn bộ tiến độ đó và bắt làm lại (đã dính lỗi 22/07/2026).
+    resultItems: (_prevRpt && _prevRpt.resultItems) || [],
+    draftResultItems: (_prevRpt && _prevRpt.draftResultItems) || [],
+    productionSubmittedAt: (_prevRpt && _prevRpt.productionSubmittedAt) || null,
+    production100Items: (_prevRpt && _prevRpt.production100Items) || [],
+    qaResultData: (_prevRpt && _prevRpt.qaResultData) || null,
+    qaData: (_prevRpt && _prevRpt.qaData) || {},
     locked: true,
     savedAt: new Date().toISOString()
   });
@@ -4346,8 +4512,8 @@ function submitQS(){
     delete reporterStates[_rsk]._resubOrigGs;
     persistReporterStates();
   }
-  if(!GAS_URL.includes('YOUR_GAS_ID')){postToGAS(_qsPld).finally(()=>setQSSubmitting(false));}
-  else{setTimeout(()=>setQSSubmitting(false),800);}
+  guiNen(_qsPld,'báo cáo công việc');
+  setQSSubmitting(false);
   nextModeAfterSuccess = 1;
   showSuccess(applyEmailTestMode(_qsPld),`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
 }
@@ -5068,8 +5234,7 @@ function loadPendingWorkStore() {
 }
 
 function savePendingWorkStore(store) {
-  try { localStorage.setItem(PENDING_WORK_KEY, JSON.stringify(store || {})); }
-  catch(e) {}
+  _luuVaoMay(PENDING_WORK_KEY, store || {}, 'công việc tồn đọng');
 }
 
 function pendingWorkCount(work) {
@@ -5910,7 +6075,8 @@ init();
     // để đi qua đủ tab Hình ảnh (chụp ảnh) / Sản lượng và vào file Excel + ZIP ảnh.
     var report=getSubmittedReport(gs);
     if(!report){toast('⚠️ GS "'+gs+'" chưa gửi báo cáo Công việc hôm nay. Gửi báo cáo trước rồi mới bổ sung nhân công.','err');return;}
-    var btn=document.getElementById('bs-send');if(btn){btn.disabled=true;}
+    var btn=document.getElementById('bs-send');
+    if(btn){btn.disabled=true;}   // chặn bấm hai lần trong tích tắc
     // Phân bổ đều số người đến thêm cho các công việc đã chọn (dư chia cho dòng đầu),
     // tổng vẫn đúng addCN nên phần tính lại quân số / cảnh báo cam kết không đổi.
     var base=Math.floor(addCN/sels.length),rem=addCN%sels.length;
@@ -5934,16 +6100,13 @@ init();
       ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
       submitId:(typeof createSubmitId==='function'?createSubmitId('bosung'):('bosung-'+Date.now())),
       ts:new Date().toISOString()};
-    try{
-      var p=(typeof postToGAS==='function')?postToGAS(payload):
-        fetch(window.GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-      Promise.resolve(p).catch(function(){}).then(function(){
-        var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
-        if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cans+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
-        closeBoSung();if(btn){btn.disabled=false;}
-        try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
-      });
-    }catch(e){if(btn){btn.disabled=false;}if(typeof toast==='function')toast('Lỗi gửi bổ sung','err');}
+    // Đã ghi vào phiếu ở trên → phản hồi NGAY, request chạy nền.
+    var cansBS=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
+    if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cansBS+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    closeBoSung();
+    if(btn){btn.disabled=false;}
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
+    guiNen(payload,'bổ sung nhân công');
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -6339,12 +6502,16 @@ init();
     var report=getSubmittedReport(gs);
     var laPhieuMoi=!report;
     if(laPhieuMoi){
+      // locked:false — defect KHÔNG được khoá tab Công việc. GS vẫn phải gửi
+      // được báo cáo Công việc bình thường trong ngày; lúc gửi, các dòng defect
+      // sẽ tự động gộp vào (xem submitQS).
       report={date:ngay,reporter:gs,reportSession:(typeof reportSession!=='undefined'?reportSession:'sang'),
         ntcRows:[],cnTasks:[],workItems:[],resultItems:[],draftResultItems:[],
         productionSubmittedAt:null,production100Items:[],qaResultData:null,qaData:{},
-        locked:true,defectOnly:true,savedAt:new Date().toISOString()};
+        locked:false,defectOnly:true,savedAt:new Date().toISOString()};
     }
-    var btn=document.getElementById('df-send');if(btn)btn.disabled=true;
+    var btn=document.getElementById('df-send');
+    if(btn)btn.disabled=true;   // chặn bấm hai lần trong tích tắc
     // Mỗi hạng mục tích chọn = 1 dòng ntcRows defect. Nhờ đó defect chảy vào:
     //   • tab Hình ảnh / Sản lượng (qua workItems sinh lại từ ntcRows)
     //   • BÁO CÁO EXCEL nhân lực (đọc thẳng report.ntcRows)
@@ -6361,14 +6528,14 @@ init();
       items:JSON.stringify(sels.map(function(it){return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,moTa:moTa,cn:cn,pct:0,note:'Ghi nhận mới'};})),
       submitId:(typeof createSubmitId==='function'?createSubmitId('defect'):('defect-'+Date.now())),
       ts:new Date().toISOString()};
-    try{
-      Promise.resolve(postToGAS(payload)).catch(function(){}).then(function(){
-        var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
-        toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
-        closeDefect();if(btn)btn.disabled=false;
-        try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
-      });
-    }catch(e){if(btn)btn.disabled=false;toast('Lỗi gửi công việc defect','err');}
+    // Defect đã lưu vào máy ở trên → đóng modal và báo thành công NGAY,
+    // request lên server chạy nền. Người dùng không phải chờ Apps Script.
+    var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
+    toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    closeDefect();
+    if(btn)btn.disabled=false;
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
+    guiNen(payload,'công việc defect');
   };
 
   function initBoSung(){
