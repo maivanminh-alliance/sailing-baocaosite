@@ -615,6 +615,742 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
   .nav-btn .n-ic{font-size:22px!important}
   .nav-btn .n-lb{font-size:9px!important}
 }
+
+/* ═══════════════════════════════════════════════════════
+   iOS SKIN OVERRIDE v2 — Apple / HIG (grouped inset list)
+   Chỉ đổi LỚP TRÌNH BÀY. Không đổi ID / onclick / tên hàm /
+   cấu trúc DOM mà JS đang dùng, không đụng luồng GAS_URL.
+   Bám theo App-Apple-Redesign-standalone.html + README tokens.
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --navy:#1c1c1e;--blue:#007AFF;--lblue:rgba(0,122,255,.12);
+  --green:#34C759;--lgreen:rgba(52,199,89,.14);
+  --red:#FF3B30;--lred:rgba(255,59,48,.12);
+  --orange:#FF9500;--lorng:rgba(255,149,0,.14);
+  --purple:#AF52DE;--maroon:#AF2955;
+  --grey:#F2F2F7;--border:#E5E5EA;
+  --text:#1c1c1e;--muted:#8A8E99;
+  --r:12px;--shadow:none;
+  /* iOS tokens */
+  --ios-bg:#F2F2F7;--ios-sep:#E5E5EA;--ios-hdrtxt:#6D6D72;--ios-chev:#C7C7CC;
+  --ios-fill:rgba(120,120,128,.12);--ios-rad:12px;
+  --ic-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='14' viewBox='0 0 8 14' fill='none'%3E%3Cpath d='M1 1l6 6-6 6' stroke='%23C7C7CC' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --ic-chev-down:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 24 16' fill='none'%3E%3Cpath d='M4 4l8 8 8-8' stroke='%23C7C7CC' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+body{background:var(--ios-bg)!important;color:var(--text);-webkit-font-smoothing:antialiased;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Segoe UI',system-ui,sans-serif!important;
+  padding-bottom:calc(104px + var(--sb))!important}
+@keyframes iosFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+#mode-qs:not(.hide),#mode-bc:not(.hide),#mode-cd:not(.hide),
+#mode-qa:not(.hide),#mode-result:not(.hide){animation:iosFade .3s ease}
+
+/* ── HEADER: large title kiểu iOS ───────────────────────── */
+.hdr{background:rgba(242,242,247,.94)!important;box-shadow:none!important;
+  border-bottom:.5px solid rgba(0,0,0,.08)!important;
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  padding:6px 20px 10px!important;padding-top:calc(6px + var(--st))!important}
+.hdr-row{margin-bottom:0!important;gap:10px!important;min-height:20px}
+.hdr-left{gap:8px!important;flex:0 1 auto;overflow:visible!important}
+/* mockup không có badge ALLIANCE ở header → ẩn, nhường chỗ cho tên dự án */
+.badge-alliance{display:none!important}
+.hdr-sub{color:#8A8E99!important;font-size:13px!important;font-weight:400!important;
+  white-space:nowrap;overflow:visible!important;text-overflow:clip!important}
+.hdr-left > div:last-child{overflow:visible!important}
+.hdr-clock{display:none!important}
+.hdr-person{color:#8A8E99!important;background:transparent!important;font-size:13px!important;
+  font-weight:400!important;padding:0!important;border-radius:0!important;
+  display:inline-flex!important;align-items:center;gap:6px;
+  flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-person::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);flex:none}
+.hdr-bottom{display:flex!important;align-items:flex-end;justify-content:space-between!important;
+  gap:12px;margin-top:1px}
+.hdr h1{color:#1c1c1e!important;font-size:22px!important;font-weight:700!important;
+  letter-spacing:-.4px;line-height:1.3;white-space:nowrap}
+.reload-btn{width:34px!important;height:34px!important;font-size:17px!important;
+  margin-bottom:3px;flex:none}
+.reload-btn,.reload-btn.idle,.reload-btn.done{background:rgba(0,122,255,.12)!important;color:var(--blue)!important}
+.reload-btn.loading{background:rgba(255,149,0,.16)!important;color:var(--orange)!important}
+.reload-btn.error{background:rgba(255,59,48,.14)!important;color:var(--red)!important}
+
+/* ── Mode banner → dòng phụ nhẹ ─────────────────────────── */
+.mode-banner{border:none!important;background:transparent!important;text-align:left!important;
+  padding:6px 20px 0!important;font-size:13px!important;font-weight:600!important;letter-spacing:.2px}
+.mode-banner.sang{color:var(--orange)!important}
+.mode-banner.toi{color:var(--blue)!important}
+.mode-banner:empty{display:none}
+
+/* ── Grouped inset list: .card = nhóm, .card-hdr = section header ── */
+.content{padding:6px 16px 0!important}
+.card{background:transparent!important;border:none!important;box-shadow:none!important;
+  border-radius:0!important;overflow:visible!important;margin-bottom:22px!important}
+.card-hdr{background:transparent!important;color:var(--ios-hdrtxt)!important;
+  font-size:13px!important;font-weight:600!important;text-transform:uppercase;letter-spacing:.4px;
+  height:auto!important;min-height:0!important;padding:8px 4px 6px!important;
+  border:none!important;border-bottom:none!important;
+  display:flex!important;align-items:center;gap:8px!important;line-height:1.35}
+.card-body{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;padding:14px 16px!important;overflow:hidden}
+
+/* Card mở/đóng → 1 dòng list màu trắng (mockup: "Các công nhật nghỉ phép") */
+.card-hdr.card-toggle-hdr{background:#fff!important;color:var(--text)!important;
+  text-transform:none!important;letter-spacing:0!important;
+  font-size:16px!important;font-weight:500!important;
+  padding:13px 16px!important;min-height:50px!important;
+  border:1px solid rgba(0,0,0,.04)!important;border-bottom:none!important;
+  border-radius:var(--ios-rad) var(--ios-rad) 0 0!important}
+.card:has(> .card-body[style*="none"]) > .card-hdr.card-toggle-hdr{
+  border-radius:var(--ios-rad)!important;border-bottom:1px solid rgba(0,0,0,.04)!important}
+.card-hdr.card-toggle-hdr + .card-body{border-top:.5px solid var(--ios-sep)!important;
+  border-radius:0 0 var(--ios-rad) var(--ios-rad)!important}
+.card-fold-icon{background:transparent!important;color:var(--ios-chev)!important;
+  width:22px!important;height:22px!important;font-size:18px!important;font-weight:400!important;
+  margin-left:auto;transition:transform .25s}
+.card-fold-icon.rotated{transform:rotate(-90deg)!important;background:transparent!important}
+/* "Thông tin chung" giữ dạng section header như mockup */
+#card-general{margin-bottom:22px!important}
+#card-general > .card-hdr{background:transparent!important;border:none!important;
+  color:var(--ios-hdrtxt)!important;text-transform:uppercase!important;letter-spacing:.4px!important;
+  font-size:13px!important;font-weight:600!important;padding:8px 4px 6px!important;
+  min-height:0!important;border-radius:0!important}
+#card-general > .card-hdr .card-fold-icon{font-size:13px!important}
+
+/* Hàng "Ngày báo cáo" / "Người báo cáo" kiểu list row */
+#body-card-general{padding:0!important}
+#card-general .row2{display:block!important;gap:0!important}
+#card-general .row2 .field{display:flex!important;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:0!important;padding:11px 16px!important;
+  border-bottom:.5px solid var(--ios-sep);position:relative}
+#card-general .row2 .field:last-child{border-bottom:none}
+#card-general .row2 .field::before{font-size:16px;color:var(--text);white-space:nowrap;flex:none}
+#card-general .row2 .field:first-child::before{content:'Ngày báo cáo'}
+#card-general .row2 .field:last-child::before{content:'Người báo cáo'}
+#card-general .row2 .field::after{content:'';width:8px;height:14px;flex:none;
+  background:var(--ic-chev) center/8px 14px no-repeat}
+#card-general #f-ngay,#card-general #f-gs{
+  height:26px!important;min-height:26px!important;line-height:26px!important;
+  border:none!important;background:transparent!important;background-image:none!important;
+  box-shadow:none!important;border-radius:0!important;
+  padding:0!important;font-size:16px!important;font-weight:400!important;
+  color:var(--muted)!important;text-align:right!important;text-align-last:right;
+  flex:1;min-width:0;width:100%!important}
+#card-general #f-gs{-webkit-text-fill-color:#8A8E99}
+#card-general .ngay-wrap{flex:1;min-width:0}
+#card-general #f-ngay{-webkit-text-fill-color:transparent}
+/* icon lịch mặc định của trình duyệt trùng chỗ chữ ngày → phủ trong suốt cả ô */
+#card-general #f-ngay::-webkit-calendar-picker-indicator{
+  opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer}
+#card-general #f-ngay::-webkit-date-and-time-value{text-align:right}
+#f-ngay-txt{left:auto!important;right:0!important;color:var(--muted)!important;
+  font-size:16px!important;font-weight:400!important}
+
+/* ── Nút export trong section header (tab Hình ảnh) ─────── */
+.excel-export-btn{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  color:var(--blue)!important;border-radius:10px!important;
+  font-size:13px!important;font-weight:600!important;letter-spacing:0!important;
+  padding:8px 12px!important;min-height:36px!important;text-transform:none!important}
+#btn-export-hinh-anh{color:var(--green)!important}
+.excel-export-btn:active{background:var(--ios-fill)!important;transform:none!important}
+
+/* ── Card-body chứa danh sách do JS sinh → để trong suốt ── */
+#mode-qs > .card:nth-of-type(1) > .card-body,
+#mode-bc > .card:nth-of-type(1) > .card-body,
+#mode-cd > .card:nth-of-type(1) > .card-body,
+#mode-qa > .card:nth-of-type(1) > .card-body,
+#mode-result > .card:nth-of-type(1) > .card-body{
+  background:transparent!important;border:none!important;padding:0!important;overflow:visible}
+#cn-task-list ~ div[style*="padding"]{padding:0!important}
+/* Header mở/đóng của tab Kết quả đứng riêng (thân card trong suốt) */
+#mode-result > .card > .card-hdr.card-toggle-hdr{
+  border-radius:var(--ios-rad)!important;border:1px solid rgba(0,0,0,.04)!important;
+  margin-bottom:16px!important}
+#mode-result > .card > .card-hdr.card-toggle-hdr + .card-body{border-top:none!important}
+/* Tab Hình ảnh: 2 nút Ảnh/Excel xuống dòng riêng, chia đều như mockup */
+#mode-bc > .card:nth-of-type(1) > .card-hdr{flex-wrap:wrap!important;padding-bottom:10px!important}
+#mode-bc > .card:nth-of-type(1) > .card-hdr > span{flex:1 1 100%}
+#mode-bc > .card:nth-of-type(1) > .card-hdr > div{flex:1 1 100%;gap:10px!important;margin-top:2px}
+#mode-bc > .card:nth-of-type(1) > .card-hdr .excel-export-btn{
+  flex:1;margin-left:0!important;min-height:44px!important;font-size:15px!important}
+.panel-empty{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;color:var(--muted)!important;
+  font-size:15px!important;text-align:center!important;padding:22px 16px!important;line-height:1.45}
+/* Section header do JS sinh trong các panel */
+.panel-sec-hdr,.panel-sec-hdr.ntc-hdr,.panel-sec-hdr.cn-hdr{
+  background:transparent!important;color:var(--ios-hdrtxt)!important;
+  font-size:13px!important;font-weight:600!important;text-transform:uppercase;letter-spacing:.4px;
+  padding:10px 4px 6px!important;margin-bottom:6px!important;border-radius:0!important}
+.panel-sec-title{color:var(--ios-hdrtxt)!important;font-size:13px!important;
+  font-weight:600!important;letter-spacing:.4px}
+.cn-header-bar{background:transparent!important;border:none!important;padding:8px 4px 6px!important}
+.cn-header-bar .lb{color:var(--ios-hdrtxt)!important;font-size:13px!important;
+  font-weight:600!important;text-transform:uppercase;letter-spacing:.4px}
+
+/* ── Thẻ item (nhà thầu / công nhật / ảnh / sản lượng / QA) ── */
+.qs-card,.cn-task-card,.photo-item,.result-item,.qa-item,.result-row{
+  background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;box-shadow:none!important;
+  margin-bottom:12px!important;overflow:hidden}
+.qs-card:nth-child(2n) .qs-card-body,.cn-task-card:nth-child(2n) .cnt-body{background:#fff}
+.cn-task-card.collapsed{border-color:rgba(0,122,255,.3)!important;border-width:1px!important}
+.qs-card-hdr,.cnt-hdr{background:#fff!important;padding:10px 14px!important;
+  min-height:62px!important;gap:10px!important;border-left:none!important}
+.cn-task-card.collapsed .cnt-hdr{background:#fff!important}
+.qs-card-hdr:active,.cnt-hdr:active{background:rgba(120,120,128,.06)!important;opacity:1!important}
+.qs-num{background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  width:30px!important;height:30px!important;border-radius:9px!important;
+  font-size:13px!important;font-weight:600!important}
+/* Dùng background-COLOR, không dùng shorthand `background` — shorthand xoá luôn
+   background-image làm mất icon người trong ô. */
+.qs-card.qs-pending{border:1px solid rgba(255,149,0,.45)!important}
+.qs-card.qs-pending>.qs-card-hdr .qs-num{background-color:rgba(255,149,0,.16)!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0' stroke='%23FF9500' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")!important}
+.qs-card.qs-vuong{border:1px solid rgba(255,59,48,.45)!important}
+.qs-card.qs-vuong>.qs-card-hdr .qs-num{background-color:rgba(255,59,48,.14)!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0' stroke='%23FF3B30' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")!important}
+.qs-card-body,.cnt-body{border-top:.5px solid var(--ios-sep)!important;background:#fff!important}
+.cnt-title{font-size:16px!important;font-weight:500!important;color:var(--text)!important;letter-spacing:0!important}
+.cnt-summary,.qs-sum-line{font-size:13px!important;color:var(--muted)!important;
+  font-weight:400!important;margin-top:3px!important;line-height:1.35!important}
+/* phụ đề có thêm mô tả đầu mục → cho xuống tối đa 2 dòng rồi mới cắt.
+   Phải thắng .qs-card.qs-col .qs-sum-line{display:block} ở CSS gốc. */
+.qs-card .qs-sum-line,.qs-card.qs-col .qs-sum-line,
+.cn-task-card .cnt-summary,.cn-task-card.collapsed .cnt-summary{
+  white-space:normal!important;display:-webkit-box!important;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden!important}
+.qs-hdr-ntc-wrap select{border:1px solid var(--ios-sep)!important;border-radius:10px!important;
+  font-size:15px!important;font-weight:500!important;color:var(--text)!important;
+  padding:8px 30px 8px 10px!important;background-color:#fff!important;
+  background-image:var(--ic-chev-down)!important;background-position:right 10px center!important;
+  background-repeat:no-repeat!important}
+
+/* ── Nút tròn nhỏ trên thẻ ──────────────────────────────── */
+.toggle-btn{width:34px!important;height:34px!important;border:none!important;
+  background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  border-radius:10px!important;box-shadow:none!important;font-size:15px!important;font-weight:500!important}
+.toggle-btn.rotated,.cn-task-card.collapsed .cnt-chev-ref{
+  background:rgba(0,122,255,.12)!important;color:var(--blue)!important;transform:none!important}
+/* Thẻ nhà thầu thu gọn = 1 dòng list như mockup */
+.qs-ntc-name{display:none;font-size:16px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qs-card.qs-col .qs-ntc-name{display:block}
+.qs-card.qs-col .qs-hdr-ntc-wrap{display:none}
+.qs-cn-badge{display:none;flex:none;font-size:17px;font-weight:600;color:var(--text);
+  font-variant-numeric:tabular-nums;min-width:20px;text-align:right}
+.qs-card.qs-col .qs-cn-badge{display:block}
+.qs-card.qs-col .qs-chev-ref{background:transparent!important;color:var(--ios-chev)!important;
+  width:22px!important;min-width:22px;transform:rotate(-90deg)!important}
+.qs-card.qs-col .qs-card-hdr{min-height:56px!important}
+.qs-del,.cnt-del{width:34px!important;height:34px!important;background:transparent!important;
+  color:var(--ios-chev)!important;font-size:17px!important;font-weight:400!important;
+  border-radius:10px!important;box-shadow:none!important}
+.qs-del:active,.cnt-del:active{background:rgba(255,59,48,.10)!important;color:var(--red)!important}
+.toggle-btn-sm{background:var(--ios-fill)!important;color:var(--muted)!important;
+  border-radius:8px!important;box-shadow:none!important;font-weight:400!important}
+.cn-group-section.open .cn-grp-chev-ref{background:rgba(0,122,255,.12)!important;color:var(--blue)!important}
+
+/* ── Input / select / textarea → iOS ────────────────────── */
+input[type=text],input[type=number],input[type=date],select,
+.cnt-area-inp,.qs-cn-inp,.qs-grid input,.qs-grid select{
+  border:1px solid var(--ios-sep)!important;border-radius:10px!important;
+  background-color:#fff!important;font-size:16px!important;color:var(--text)!important;
+  box-shadow:none!important;padding:11px 12px!important}
+select,.qs-grid select{background-image:var(--ic-chev-down)!important;
+  background-position:right 10px center!important;background-repeat:no-repeat!important;
+  padding-right:32px!important}
+textarea,.vuong-inp,.qs-note-inp,.cnt-content{
+  border:none!important;background:var(--ios-bg)!important;border-radius:10px!important;
+  font-size:15px!important;color:var(--text)!important;padding:11px 12px!important;
+  min-height:64px!important;line-height:1.5;box-shadow:none!important}
+input:focus,select:focus,textarea:focus,.cnt-area-inp:focus,.vuong-inp:focus{
+  outline:none!important;border-color:var(--blue)!important;
+  box-shadow:0 0 0 3px rgba(0,122,255,.14)!important}
+textarea:focus,.qs-note-inp:focus,.cnt-content:focus{background:#fff!important;
+  border:1px solid var(--blue)!important}
+label,.qs-sf-label,.area-filter-label,.qs-sub,.qs-cn-title,.area-filter-title,.vuong-lbl{
+  color:var(--ios-hdrtxt)!important;font-weight:600!important;font-size:12px!important;
+  letter-spacing:.3px!important;text-transform:uppercase}
+.area-filter-title::before{content:none!important}
+.qs-cn-row .qs-sub{text-transform:uppercase;font-size:12px!important}
+
+/* ── Chips ──────────────────────────────────────────────── */
+.area-chip,.w-chip{background:#fff!important;border:1px solid var(--ios-sep)!important;
+  border-radius:16px!important;font-size:13px!important;font-weight:500!important;
+  color:var(--text)!important;padding:6px 12px!important;box-shadow:none!important}
+.area-chip.sel,.area-chip.sel-tang,.area-chip.sel-work,.area-chip.khu-sel,.w-chip.active{
+  background:var(--blue)!important;border-color:var(--blue)!important;color:#fff!important;
+  font-weight:600!important;box-shadow:none!important}
+.w-chip:hover{border-color:var(--blue)!important;background:rgba(0,122,255,.06)!important}
+.sow-chip{background:rgba(0,122,255,.10)!important;border:none!important;color:var(--blue)!important;
+  border-radius:10px!important;font-size:11px!important;font-weight:600!important}
+
+/* ── Khối chọn phạm vi / nhóm công nhân ─────────────────── */
+.qs-scope-filter,.qs-cn-block,.area-filter-block{
+  background:var(--ios-bg)!important;border:none!important;
+  border-radius:var(--ios-rad)!important;box-shadow:none!important;padding:12px!important}
+.qs-sf-section{border-bottom:.5px solid rgba(0,0,0,.08)!important}
+.qs-sf-section:last-child{border-bottom:none!important}
+.qs-cn-btn{width:34px!important;height:34px!important;border:none!important;
+  background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  border-radius:9px!important;font-size:19px!important;font-weight:500!important}
+.qs-cn-btn:active{background:var(--blue)!important;color:#fff!important}
+.qs-cn-inp{font-size:17px!important;font-weight:600!important;color:var(--text)!important;
+  font-variant-numeric:tabular-nums;padding:6px 4px!important}
+.qs-total-bar{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;padding:14px 16px!important}
+.qs-total-bar .lb{font-size:15px!important;font-weight:400!important;color:var(--text)!important}
+.qs-total-bar .num{font-size:22px!important;font-weight:700!important;color:var(--text)!important;
+  font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+.cn-group-section{border:1px solid rgba(0,0,0,.06)!important;border-radius:var(--ios-rad)!important;
+  box-shadow:none!important}
+.cn-group-section.open{border-color:rgba(0,122,255,.32)!important;box-shadow:none!important}
+.cn-group-hdr,.cn-group-section.open .cn-group-hdr{background:#fff!important;
+  border-bottom:.5px solid var(--ios-sep)!important;padding:12px 14px!important}
+.cn-group-hdr.has-sel{background:rgba(0,122,255,.06)!important}
+.cn-grp-name{font-size:15px!important;font-weight:500!important;color:var(--text)!important;letter-spacing:0!important}
+.cn-grp-count{background:var(--ios-fill)!important;border:none!important;color:var(--muted)!important;
+  font-size:13px!important;font-weight:600!important;border-radius:11px!important;padding:3px 10px!important}
+.cn-group-hdr.has-sel .cn-grp-count{background:rgba(0,122,255,.12)!important;color:var(--blue)!important}
+.cn-grp-count.empty{background:rgba(255,59,48,.12)!important;color:var(--red)!important}
+.cn-group-body,.cn-group-section.open .cn-group-body{background:var(--ios-bg)!important;border-top:none!important}
+.cn-empty{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;color:var(--muted)!important;font-weight:400!important}
+.kv-result{background:rgba(0,122,255,.08)!important;border:none!important;
+  border-radius:10px!important;color:var(--blue)!important;
+  font-size:13px!important;font-weight:600!important;padding:8px 12px!important}
+.qs-card-actions{border-top:.5px solid var(--ios-sep)!important}
+.save-action-btn{background:var(--blue)!important;border-radius:10px!important;
+  font-size:15px!important;font-weight:600!important;letter-spacing:0!important;
+  box-shadow:none!important;padding:10px 18px!important}
+
+/* ── Dòng "thêm..." → list row trong nhóm trắng ─────────── */
+.add-row-btn,.add-task-btn,.bs-btn{
+  display:flex!important;width:100%!important;align-items:center;gap:10px;
+  min-height:52px!important;padding:12px 16px!important;margin:0!important;
+  background:#fff!important;color:var(--blue)!important;
+  border:1px solid rgba(0,0,0,.04)!important;border-top:none!important;
+  border-radius:0!important;box-shadow:none!important;
+  font-size:16px!important;font-weight:500!important;letter-spacing:0!important;text-align:left!important}
+#qs-body + .add-row-btn{border-top:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad) var(--ios-rad) 0 0!important;margin-top:2px!important}
+/* Các thẻ đã thu gọn nối liền nhau và nối luôn với nhóm "Thêm…" thành một
+   khối trắng duy nhất, đúng như mockup. Thẻ đang mở vẫn là card riêng. */
+#qs-body>.qs-card.qs-col{margin-bottom:0!important;border-radius:0!important;
+  border-top:.5px solid var(--ios-sep)!important}
+#qs-body>.qs-card.qs-col:first-child{border-radius:var(--ios-rad) var(--ios-rad) 0 0!important;
+  border-top:1px solid rgba(0,0,0,.04)!important}
+#qs-body>.qs-card:not(.qs-col){margin:10px 0!important}
+#qs-body:has(>.qs-card.qs-col:last-child)+.add-row-btn{
+  margin-top:0!important;border-radius:0!important;border-top:.5px solid var(--ios-sep)!important}
+#bs-open-btn{background:#fff!important;border-top:.5px solid var(--ios-sep)!important}
+#df-open-btn{background:#fff!important;border-top:.5px solid var(--ios-sep)!important;
+  border-color:rgba(0,0,0,.04)!important;border-radius:0 0 var(--ios-rad) var(--ios-rad)!important}
+
+/* ── Dòng list kiểu iOS: icon ⊕ + tiêu đề + phụ đề + chevron ── */
+.row-ic{width:22px;height:22px;flex:none;background-repeat:no-repeat;
+  background-position:center;background-size:22px 22px}
+.row-ic-blue{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23007AFF'/%3E%3Cpath d='M12 8v8M8 12h8' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+.row-ic-orange{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23FF9500'/%3E%3Cpath d='M12 8v8M8 12h8' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+.row-ic-maroon{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='%23AF2955'/%3E%3Cpath d='M12 8v8M8 12h8' stroke='%23fff' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E")}
+.row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left}
+.row-tt{font-size:16px;font-weight:500;color:var(--text);line-height:1.3}
+.row-tt-blue{color:var(--blue)!important;font-weight:400}
+.row-sub{font-size:13px;font-weight:400;color:var(--muted);line-height:1.3}
+.row-chev{width:8px;height:14px;flex:none;background:var(--ic-chev) center/8px 14px no-repeat}
+
+/* Tiêu đề mục có số đếm bên phải (mockup: "28 người") */
+.card-hdr .sec-count{margin-left:auto;font-size:13px;font-weight:400;
+  color:var(--muted);text-transform:none;letter-spacing:0;white-space:nowrap}
+
+/* Ô đầu dòng: icon người (thầu phụ) / icon nhà (công nhật) thay cho số */
+.qs-num{font-size:0!important;background-repeat:no-repeat!important;background-position:center!important;
+  background-size:18px 18px!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0' stroke='%23007AFF' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E")!important}
+.cnt-hdr .qs-num{background-color:rgba(52,199,89,.14)!important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M4 20h16M6 20V9l6-4 6 4v11' stroke='%2334C759' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important}
+.qs-card.qs-pending>.qs-card-hdr .qs-num,.qs-card.qs-vuong>.qs-card-hdr .qs-num{
+  background-size:16px 16px!important}
+.add-task-btn{border-top:1px solid rgba(0,0,0,.04)!important;
+  border-radius:var(--ios-rad)!important;margin-top:2px!important}
+.add-row-btn:active,.add-task-btn:active,.bs-btn:active{
+  background:rgba(120,120,128,.08)!important;transform:none!important;opacity:1!important}
+
+/* ── Nút primary ────────────────────────────────────────── */
+.submit-btn{height:50px!important;min-height:50px!important;padding:0 16px!important;
+  border-radius:14px!important;font-size:17px!important;font-weight:600!important;
+  letter-spacing:0!important;margin-top:6px!important;
+  background:var(--blue)!important;box-shadow:0 6px 16px -4px rgba(0,122,255,.5)!important}
+.submit-btn.blue,#btn-submit-qs{background:var(--blue)!important}
+#mode-qa .submit-btn{background:var(--green)!important;
+  box-shadow:0 6px 16px -4px rgba(52,199,89,.5)!important}
+/* position:sticky chỉ dính trong phạm vi thẻ cha (#mode-qs) → cuộn hết thẻ cha
+   là nút Gửi trôi theo. Dùng fixed để nó luôn nằm ngay trên thanh tab.
+   Trong khung iPhone (body có transform) fixed = neo theo máy, vẫn đúng chỗ. */
+.work-sticky-footer{position:fixed!important;left:0;right:0;
+  bottom:calc(84px + var(--sb))!important;z-index:80;
+  background:rgba(242,242,247,.92)!important;
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border:none!important;border-radius:0!important;box-shadow:none!important;
+  padding:8px 16px 10px!important;margin:0!important}
+/* chừa chỗ để thẻ cuối không bị nút Gửi che */
+#mode-qs{padding-bottom:82px}
+.work-sticky-footer .submit-btn{height:50px!important;min-height:50px!important;
+  padding:0 16px!important;font-size:17px!important;border-radius:14px!important;margin:0!important}
+
+/* ── Ảnh & ô ảnh ────────────────────────────────────────── */
+.result-item,.qa-item{padding:14px 16px!important}
+.pi-name{font-size:16px!important;font-weight:600!important;color:var(--text)!important;line-height:1.35}
+.pi-detail{font-size:13px!important;font-weight:400!important;color:var(--muted)!important;margin-top:2px!important}
+.photo-item-shots{gap:8px!important;margin-top:12px!important}
+
+/* ── Tab Hình ảnh: thẻ mỗi công việc + lưới ảnh 3 cột (mockup) ── */
+.photo-item{padding:0!important}
+.photo-item .photo-item-main{align-items:flex-start!important;justify-content:space-between;
+  gap:10px!important;padding:12px 16px 10px}
+.pi-badge{flex:none;font-size:13px;color:var(--blue);background:rgba(0,122,255,.1);
+  padding:4px 9px;border-radius:20px;white-space:nowrap}
+.pi-badge.pi-badge-0{color:var(--muted);background:var(--ios-fill)}
+/* ô ảnh cùng cỡ với tab Sản lượng (60px) — cuộn ngang nếu nhiều ảnh */
+.photo-item-shots.pi-grid{display:flex!important;flex-wrap:wrap;
+  gap:8px!important;padding:0 16px 12px!important;margin-top:0!important}
+.pi-grid .ph-slot-sm.taken{background:#fff!important}
+.pi-cam-row{display:flex;align-items:center;gap:9px;padding:12px 16px;cursor:pointer;
+  border-top:.5px solid var(--ios-sep);color:var(--blue);
+  font-size:15px;font-weight:500;-webkit-tap-highlight-color:transparent}
+.pi-cam-row:active{background:rgba(120,120,128,.08)}
+#ph-count{font-weight:600}
+/* ô ảnh trống: sọc chéo nhạt như mockup */
+.ph-slot-sm{width:60px!important;height:60px!important;min-width:60px!important;
+  border:1.5px dashed var(--ios-chev)!important;border-radius:10px!important;
+  background:repeating-linear-gradient(135deg,#E9E9ED 0 7px,#F2F2F5 7px 14px)!important}
+.ph-slot-sm .ph-ic{opacity:.55}
+.ph-slot-sm:active{border-color:var(--blue)!important;background:rgba(0,122,255,.06)!important}
+.ph-slot-sm .ph-ic{font-size:22px!important}
+.ph-slot-sm .ph-lb{font-size:9px!important;color:var(--muted)!important;font-weight:500!important}
+.ph-slot-sm.taken{border-style:solid!important;border-color:var(--green)!important;background:#fff!important}
+.ph-sm-prev{border-radius:8px!important}
+.ph-sm-ov{background:rgba(52,199,89,.9)!important;font-weight:600!important}
+
+/* ── Sản lượng: nút Xong/Chưa xong + thanh kéo % ───────── */
+.kq-mini-row{gap:8px!important;margin:10px 0 4px!important}
+.kq-mini{min-height:38px!important;border-radius:10px!important;
+  border:1.5px solid var(--ios-sep)!important;background:#fff!important;
+  font-size:15px!important;font-weight:600!important;color:var(--muted)!important}
+.kq-mini.xong{color:var(--green)!important;border-color:rgba(52,199,89,.35)!important}
+.kq-mini.chua{color:var(--red)!important;border-color:rgba(255,59,48,.35)!important}
+.kq-mini.xong.sel{background:var(--green)!important;border-color:var(--green)!important;
+  color:#fff!important;box-shadow:none!important}
+.kq-mini.chua.sel{background:var(--red)!important;border-color:var(--red)!important;
+  color:#fff!important;box-shadow:none!important}
+.kq-mini.dang.sel{background:var(--orange)!important;border-color:var(--orange)!important;color:#fff!important}
+/* thanh kéo hiện sẵn (mockup) — vẫn ẩn khi đã chọn XONG vì lúc đó % là 100 */
+.pct-row-sm{display:flex!important;background:transparent!important;border:none!important;
+  padding:0!important;margin:9px 0 12px!important;gap:10px!important}
+.result-item.is-xong .pct-row-sm{display:none!important}
+/* % lớn nằm bên phải tên hạng mục */
+.ri-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pct-val-sm{flex:none;background:transparent!important;color:var(--text);
+  font-size:17px!important;font-weight:700!important;padding:0!important;
+  min-width:52px!important;text-align:right!important;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+/* 2 thẻ tổng đầu tab Sản lượng */
+.cd-sum-row{display:flex;gap:12px;margin:0 0 20px}
+.cd-sum-card{flex:1;background:#fff;border:1px solid rgba(0,0,0,.04);border-radius:14px;padding:14px}
+.cd-sum-lb{font-size:13px;color:var(--muted);margin-bottom:5px}
+.cd-sum-num{font-size:28px;font-weight:700;letter-spacing:-.5px;color:var(--text);
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.cd-sum-of{font-size:16px;color:var(--muted);font-weight:700}
+input[type=range]{flex:1;height:26px!important;background:transparent!important;
+  -webkit-appearance:none;appearance:none;accent-color:var(--blue);padding:0!important;border:none!important}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;
+  background:linear-gradient(to right,var(--pctc,#007AFF) 0 var(--pctf,0%),var(--ios-sep) var(--pctf,0%) 100%)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;
+  margin-top:-11px;background:#fff;border-radius:50%;
+  box-shadow:0 2px 6px rgba(0,0,0,.18),0 0 0 .5px rgba(0,0,0,.05)}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--ios-sep)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;background:#fff;
+  border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+
+/* ── Nghiệm thu ─────────────────────────────────────────── */
+.qa-pass-row{background:#fff!important;border:1.5px solid rgba(52,199,89,.35)!important;
+  border-radius:10px!important;min-height:44px!important;padding:10px 14px!important;margin-top:10px!important}
+.qa-pass-row span{font-size:15px!important;font-weight:600!important;color:var(--green)!important}
+.qa-pass-row input{width:22px;height:22px;accent-color:var(--green)}
+.qa-error-strip{gap:8px!important}
+/* dải ảnh cuộn ngang: ẩn thanh cuộn như iOS */
+.qa-error-strip,.result-photo-strip,.photo-item-shots{scrollbar-width:none;-ms-overflow-style:none}
+.qa-error-strip::-webkit-scrollbar,.result-photo-strip::-webkit-scrollbar,
+.photo-item-shots::-webkit-scrollbar{width:0;height:0;display:none}
+/* ô checkbox gốc vẫn ở trong DOM (submitQA đọc nó) — chỉ ẩn khỏi mắt */
+.qa-pass-row.qa-pass-hidden{position:absolute!important;width:1px!important;height:1px!important;
+  min-height:0!important;padding:0!important;margin:0!important;border:none!important;
+  overflow:hidden!important;clip-path:inset(50%);white-space:nowrap}
+/* dòng chính: dấu tròn trạng thái + tên + nhãn trạng thái */
+.qa-main-row{display:flex;align-items:flex-start;gap:12px}
+.qa-dot{width:26px;height:26px;border-radius:50%;flex:none;margin-top:1px;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid var(--ios-chev);background:#fff;transition:background .2s,border-color .2s}
+.qa-item[data-qa-state="pass"] .qa-dot{border-color:var(--green);background:var(--green)}
+.qa-item[data-qa-state="fail"] .qa-dot{border-color:var(--red);background:var(--red)}
+.qa-status-lb{flex:none;font-size:14px;font-weight:600;color:var(--ios-chev)}
+.qa-item[data-qa-state="pass"] .qa-status-lb{color:var(--green)}
+.qa-item[data-qa-state="fail"] .qa-status-lb{color:var(--red)}
+/* 2 nút phân đoạn Đạt / Không đạt */
+.qa-seg{display:flex;gap:8px;margin:11px 0}
+.qa-seg-btn{flex:1;height:38px;border-radius:10px;background:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:15px;font-weight:600;-webkit-tap-highlight-color:transparent;
+  font-family:inherit;transition:background .15s,color .15s,border-color .15s}
+.qa-seg-pass{border:1.5px solid rgba(52,199,89,.35);color:var(--green)}
+.qa-seg-fail{border:1.5px solid rgba(255,59,48,.35);color:var(--red)}
+.qa-item[data-qa-state="pass"] .qa-seg-pass{background:var(--green);border-color:var(--green);color:#fff}
+.qa-item[data-qa-state="fail"] .qa-seg-fail{background:var(--red);border-color:var(--red);color:#fff}
+.qa-seg-btn:active{opacity:.85}
+.qa-photo-lb{font-size:12px;font-weight:600;margin-bottom:8px;letter-spacing:.2px}
+
+/* ── Kết quả ────────────────────────────────────────────── */
+.kq-hero{background:linear-gradient(135deg,#007AFF,#0057d8);border-radius:16px;
+  padding:18px;margin:0 0 20px;color:#fff}
+.kq-hero-date{font-size:14px;opacity:.85}
+.kq-hero-title{font-size:22px;font-weight:700;margin:2px 0 14px;letter-spacing:-.4px}
+.kq-hero-stats{display:flex;gap:18px}
+.kq-hero-num{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+.kq-hero-lb{font-size:12px;opacity:.85;margin-top:1px}
+.result-stat-grid{gap:10px!important;margin-bottom:16px!important}
+.result-stat-card{background:#fff!important;border:1px solid rgba(0,0,0,.04)!important;
+  border-radius:14px!important;padding:14px!important;text-align:left!important}
+.result-stat-card .num{font-size:26px!important;font-weight:700!important;letter-spacing:-.5px}
+.result-stat-card .lbl{font-size:12px!important;font-weight:500!important;
+  text-transform:none!important;color:var(--muted)!important;margin-top:2px!important}
+.result-stat-card.pass{color:var(--green)!important}
+.result-stat-card.fail{color:var(--red)!important}
+.result-stat-card.total{color:var(--text)!important}
+.result-list-title{border-bottom:none!important;padding:10px 4px 6px!important;
+  margin:6px 0 6px!important;font-size:13px!important;font-weight:600!important;letter-spacing:.4px!important}
+.result-list-title.pass{color:var(--green)!important}
+.result-list-title.fail{color:var(--red)!important}
+.result-row{padding:14px 16px!important;margin-bottom:10px!important}
+.result-photo-strip{gap:8px!important}
+
+/* ── Trạng thái lỗi / badge ─────────────────────────────── */
+.err-msg{background:rgba(255,59,48,.10)!important;border:none!important;border-left:none!important;
+  border-radius:8px!important;color:var(--red)!important;
+  font-size:12px!important;font-weight:500!important;padding:7px 10px!important}
+.pending-badge{background:rgba(255,149,0,.14)!important;border:none!important;
+  color:var(--orange)!important;border-radius:8px!important;
+  font-size:11px!important;font-weight:600!important}
+.vuong-wrap{background:rgba(255,149,0,.10)!important;border:none!important;border-radius:var(--ios-rad)!important}
+.vuong-wrap.has-val{background:rgba(255,59,48,.10)!important;border:none!important}
+.vuong-inp{background:#fff!important}
+.field.err-state input,.field.err-state select,.field.err-state textarea,
+.area-filter-row.err-state .area-chips,.cn-groups-wrap.err-state{
+  border-color:var(--red)!important;background:rgba(255,59,48,.04)!important}
+
+/* ── Tab bar iOS ────────────────────────────────────────── */
+.bot-nav{background:rgba(249,249,251,.86)!important;
+  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+  border-top:.5px solid rgba(0,0,0,.1)!important;box-shadow:none!important;
+  padding-top:8px!important;padding-bottom:env(safe-area-inset-bottom,0px)!important}
+.nav-btn{min-height:52px!important;gap:4px!important;padding:2px 3px 4px!important;
+  color:#8A8E99;opacity:1!important}
+.nav-btn::before{display:none!important}
+.nav-btn.active,.nav-btn:not(.active):not(.locked){background:transparent!important;opacity:1!important}
+.nav-btn.active{color:var(--blue)}
+.nav-btn .n-ic{font-size:0!important;line-height:0;color:inherit;
+  display:flex;align-items:center;justify-content:center;
+  transform:none!important;filter:none!important}
+.nav-btn .n-ic svg{display:block;width:26px;height:26px}
+.nav-btn .n-lb{font-size:11px!important;font-weight:600!important;
+  color:#8A8E99!important;line-height:1.2}
+.nav-btn.active .n-lb{color:var(--blue)!important;font-weight:600!important}
+.nav-btn.locked{opacity:.35!important}
+.nav-btn.locked.active{opacity:1!important}
+.site-footer{background:transparent!important;color:#B0B0B5!important;
+  font-size:11px!important;font-weight:400!important;padding:2px 12px 8px!important}
+
+/* ═══════════════════════════════════════════════════════
+   KHUNG iPHONE — chỉ bật trên màn rộng (máy tính / máy bảng ngang).
+   Điện thoại thật (< 820px) không bị ảnh hưởng, vẫn tràn viền.
+   `transform` trên body biến body thành gốc toạ độ cho mọi phần tử
+   position:fixed bên trong → header, tab bar, toast, bottom sheet
+   đều nằm gọn trong khung máy thay vì dính vào cửa sổ trình duyệt.
+   ═══════════════════════════════════════════════════════ */
+@media (min-width:820px){
+  /* overflow phải khai báo trên html: nếu html để `visible`, trình duyệt đem
+     overflow của body áp lên viewport và body thôi không cắt nội dung nữa
+     → nút Gửi và các thẻ tràn ra ngoài khung máy. */
+  html{background:#c9ccd2;display:flex;justify-content:center;align-items:flex-start;
+    height:100vh;overflow:hidden;padding:28px 16px}
+  /* Body = màn hình máy: KHÔNG tự cuộn (nếu body cuộn thì transform làm
+     header/tab bar trôi theo nội dung). Cho <main> cuộn, body chỉ để cắt. */
+  body{position:relative;flex:none;width:393px;
+    min-height:0!important;height:852px!important;max-height:calc(100vh - 56px);
+    display:flex;flex-direction:column;overflow:hidden;transform:translateZ(0);
+    border-radius:44px;box-shadow:0 0 0 12px #000,0 0 0 14px #2a2a2e,
+      0 40px 90px -20px rgba(20,24,40,.55);
+    padding-bottom:0!important}
+  .hdr,.mode-banner,.reporter-strip{flex:none}
+  main.content{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;
+    padding-bottom:calc(96px + var(--sb))!important;scrollbar-width:none}
+  main.content::-webkit-scrollbar{width:0;height:0;display:none}
+  /* dynamic island */
+  body::before{content:'';position:fixed;top:10px;left:50%;transform:translateX(-50%);
+    width:126px;height:35px;background:#000;border-radius:20px;z-index:200;pointer-events:none}
+  .hdr{padding-top:52px!important}
+  .bot-nav{border-radius:0 0 44px 44px}
+  .toast{top:96px}
+}
+
+/* ── Toast / màn thành công / bottom sheet ──────────────── */
+.toast{background:rgba(28,28,30,.92)!important;border-radius:14px!important;
+  font-size:14px!important;font-weight:500!important;
+  backdrop-filter:blur(20px);box-shadow:0 8px 24px rgba(0,0,0,.18)!important}
+.toast.ok{background:rgba(52,199,89,.95)!important}
+.toast.err{background:rgba(255,59,48,.95)!important}
+.success{background:var(--ios-bg)!important}
+.success h2{color:var(--text)!important;letter-spacing:-.4px}
+.success p{color:var(--muted)!important}
+.success-detail{background:#fff!important;border-radius:14px!important;color:var(--text)!important}
+.btn-new{background:var(--blue)!important;border-radius:14px!important;
+  height:50px;padding:0 16px!important;font-size:17px!important;font-weight:600!important}
+.bs-sheet{border-radius:20px 20px 0 0!important;
+  padding:20px 18px calc(24px + var(--sb))!important;box-shadow:0 -8px 28px rgba(0,0,0,.18)!important}
+.bs-num-b{border:none!important;background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  border-radius:12px!important;font-weight:500!important}
+.bs-send{background:var(--blue)!important;border-radius:14px!important;
+  font-weight:600!important;font-size:17px!important;padding:15px!important}
+
+/* ═══════════════════════════════════════════════════════
+   iOS SKIN — khối CSS do JS chèn sau (prefix sw- / bs- / td-)
+   Style gốc nằm trong <style> append vào head lúc chạy nên
+   phải dùng !important mới thắng được.
+   ═══════════════════════════════════════════════════════ */
+/* Bước chọn đầu mục (SOW wizard) */
+.sw-step{background:var(--ios-bg)!important;border:none!important;
+  border-radius:var(--ios-rad)!important;padding:12px!important;margin:0 0 12px!important}
+.sw-step-title,.sw-notelb,.sw-cnm-lb{color:var(--ios-hdrtxt)!important;font-size:12px!important;
+  font-weight:600!important;letter-spacing:.3px!important;text-transform:uppercase}
+.sw-note,.sw-cats{color:var(--muted)!important;font-size:13px!important}
+.sw-work-chip,.sw-floor-chip,.blk-chip{background:#fff!important;
+  border:1px solid var(--ios-sep)!important;border-radius:16px!important;
+  color:var(--blue)!important;font-size:13px!important;font-weight:500!important;
+  padding:7px 13px!important;box-shadow:none!important}
+.sw-work-chip.act,.sw-floor-chip.act,.blk-chip.act{background:var(--blue)!important;
+  border-color:var(--blue)!important;color:#fff!important;font-weight:600!important;box-shadow:none!important}
+/* Nhóm tầng / nhóm công việc → card trắng iOS */
+.sw-tang{border:1px solid rgba(0,0,0,.05)!important;border-radius:var(--ios-rad)!important;
+  box-shadow:none!important;margin-bottom:10px!important}
+.sw-thdr,.sw-tang.open .sw-thdr{background:#fff!important;padding:12px 14px!important}
+.sw-tname{color:var(--text)!important;font-size:15px!important;font-weight:600!important;letter-spacing:0!important}
+.sw-tbody{background:var(--ios-bg)!important;border-top:.5px solid var(--ios-sep)!important;padding:10px!important}
+.sw-nhom{border:1px solid rgba(0,0,0,.05)!important;border-left:1px solid rgba(0,0,0,.05)!important;
+  border-radius:10px!important;background:#fff!important;margin-bottom:8px!important}
+.sw-nhdr,.sw-nhom.open .sw-nhdr{background:#fff!important;padding:11px 12px!important}
+.sw-ntitle{color:var(--ios-hdrtxt)!important;font-size:12px!important;font-weight:600!important}
+.sw-nbody{background:#fff!important;border-top:.5px solid var(--ios-sep)!important}
+.sw-chev,.sw-nhdr .sw-chev{background:var(--ios-fill)!important;color:var(--muted)!important;
+  border-radius:8px!important;width:24px!important;height:24px!important}
+.sw-tang.open>.sw-thdr .sw-chev,.sw-nhom.open>.sw-nhdr .sw-chev{
+  background:rgba(0,122,255,.12)!important;color:var(--blue)!important}
+.sw-all{border:none!important;background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  border-radius:8px!important;font-size:11px!important;font-weight:600!important;padding:5px 10px!important}
+.sw-cnt{background:var(--ios-fill)!important;border:none!important;color:var(--muted)!important;
+  border-radius:11px!important;font-size:12px!important;font-weight:600!important;padding:3px 10px!important}
+.sw-cnt.has{background:rgba(0,122,255,.12)!important;color:var(--blue)!important}
+.sw-pct{border-radius:11px!important;font-size:12px!important;font-weight:600!important;padding:3px 9px!important}
+.sw-p0{background:var(--ios-fill)!important;color:var(--muted)!important}
+.sw-pmid{background:rgba(255,149,0,.14)!important;color:var(--orange)!important}
+.sw-p100{background:rgba(52,199,89,.14)!important;color:var(--green)!important}
+/* Dòng đầu mục có checkbox */
+.sw-item{background:#fff!important;border:1px solid var(--ios-sep)!important;
+  border-radius:10px!important;padding:11px 12px!important;margin-bottom:6px!important}
+.sw-item.sel{border-color:var(--green)!important;background:rgba(52,199,89,.08)!important}
+.sw-item.lock{background:var(--ios-bg)!important;border-style:dashed!important;opacity:.55!important}
+.sw-cb{width:22px!important;height:22px!important;border:1.5px solid var(--ios-chev)!important;
+  border-radius:50%!important;font-weight:600!important;font-size:13px!important}
+.sw-item.sel .sw-cb{background:var(--green)!important;border-color:var(--green)!important}
+.sw-item.lock .sw-cb{background:var(--ios-chev)!important;border-color:var(--ios-chev)!important}
+.sw-iname{font-size:15px!important;font-weight:500!important;color:var(--text)!important}
+.sw-imeta{font-size:13px!important;color:var(--muted)!important}
+.sw-nt{background:var(--green)!important;border-radius:8px!important;
+  font-size:10px!important;font-weight:600!important}
+.sw-cnm-b{width:32px!important;height:32px!important;border:none!important;
+  background:rgba(0,122,255,.12)!important;color:var(--blue)!important;
+  border-radius:9px!important;font-size:18px!important;font-weight:500!important}
+.sw-cnm-v{font-size:17px!important;font-weight:600!important;color:var(--text)!important;
+  font-variant-numeric:tabular-nums}
+.sw-note-inp{border:none!important;background:var(--ios-bg)!important;border-radius:10px!important;
+  font-size:15px!important;color:var(--text)!important;padding:11px 12px!important}
+.sw-note-inp:focus{background:#fff!important;border:1px solid var(--blue)!important;
+  box-shadow:0 0 0 3px rgba(0,122,255,.14)!important}
+
+/* Bottom sheet: bổ sung nhân công / defect */
+.bs-mask{background:rgba(0,0,0,.4)!important;backdrop-filter:blur(2px)}
+.bs-h h3{color:var(--text)!important;font-size:17px!important;font-weight:600!important;letter-spacing:-.2px}
+.bs-x{background:var(--ios-fill)!important;color:var(--muted)!important;border-radius:50%!important;
+  width:32px!important;height:32px!important;font-size:17px!important}
+.bs-sub{color:var(--muted)!important;font-size:13px!important}
+.bs-lb{color:var(--ios-hdrtxt)!important;font-size:12px!important;font-weight:600!important;letter-spacing:.3px!important}
+.bs-sel,.bs-ta{border:1px solid var(--ios-sep)!important;border-radius:10px!important;
+  font-size:16px!important;color:var(--text)!important;padding:11px 12px!important;background:#fff!important}
+.bs-ta{border:none!important;background:var(--ios-bg)!important}
+.bs-num-v{border:none!important;background:var(--ios-bg)!important;border-radius:12px!important;
+  font-size:26px!important;font-weight:700!important;color:var(--text)!important;
+  font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.bs-info{background:var(--ios-bg)!important;border-radius:10px!important;
+  color:var(--text)!important;font-size:13px!important}
+.bs-info b{color:var(--text)!important}
+
+/* Tồn đọng: gộp theo nhà thầu, bấm tiêu đề để bung/thu */
+/* nằm sẵn trong thẻ trắng của mục 3 → chỉ cần gạch phân cách, không lồng thẻ */
+.td-grp{background:transparent;border:none;border-radius:0;margin:0;
+  border-top:.5px solid var(--ios-sep)}
+.td-grp:first-child{border-top:none}
+.td-ghdr{display:flex;align-items:center;gap:8px;padding:13px 0;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;user-select:none}
+.td-ghdr:active{background:rgba(120,120,128,.06)}
+.td-gname{font-size:16px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-gcount{margin-left:auto;flex:none;font-size:13px;font-weight:600;color:var(--muted);
+  background:var(--ios-fill);border-radius:11px;padding:3px 9px;font-variant-numeric:tabular-nums}
+.td-gchev{width:8px;height:14px;flex:none;background:var(--ic-chev) center/8px 14px no-repeat;
+  transition:transform .25s}
+.td-grp.open .td-gchev{transform:rotate(90deg)}
+.td-gbody{display:none;padding:0 0 12px}
+.td-grp.open .td-gbody{display:block}
+
+/* Danh sách đầu mục defect trong sheet */
+.td-ntc{color:var(--ios-hdrtxt)!important;font-size:12px!important;font-weight:600!important;letter-spacing:.3px!important}
+.td-ghdr>span[style]{background:rgba(255,149,0,.14)!important;color:var(--orange)!important;
+  border:none!important;border-radius:999px!important;flex:none;
+  font-size:11px!important;font-weight:600!important;padding:3px 9px!important;margin-left:0!important}
+.td-row{background:#fff!important;border:1px solid var(--ios-sep)!important;
+  border-radius:10px!important;padding:11px 12px!important}
+/* tên đầu mục xuống dòng riêng cho đỡ bị bóp trên màn hẹp */
+.td-can{color:var(--text)!important;font-size:15px!important;font-weight:600!important;order:1}
+.td-pct{order:2}
+.td-add{order:3;margin-left:auto!important}
+.td-name{color:var(--text)!important;font-size:14px!important;order:4;flex:1 1 100%!important;line-height:1.4}
+.td-add{background:var(--blue)!important;border:none!important;border-radius:9px!important;
+  font-size:13px!important;font-weight:600!important;padding:8px 14px!important}
+.td-add.added{background:var(--green)!important;border-color:var(--green)!important}
+.td-pct{border-radius:11px!important;font-size:12px!important;font-weight:600!important}
+.td-pct.td-zero{background:rgba(255,59,48,.12)!important;color:var(--red)!important}
+.td-pct.td-mid{background:rgba(255,149,0,.14)!important;color:var(--orange)!important}
+
+/* Badge "GS: …" (inline style trong .td-ntc) + số đếm tồn đọng → pill iOS */
+.td-ntc > span[style]{background:rgba(255,149,0,.14)!important;color:var(--orange)!important;
+  border:none!important;border-radius:999px!important;
+  font-size:11px!important;font-weight:600!important;padding:3px 9px!important}
+#td-count{background:var(--ios-fill)!important;color:var(--muted)!important;
+  border-radius:11px!important;font-size:12px!important;font-weight:600!important;
+  min-width:22px;text-align:center;padding:3px 8px!important}
+
+/* Trạng thái rỗng "không có công việc tồn đọng" (mockup) */
+.td-none{display:flex;align-items:center;gap:12px;padding:4px 0;
+  font-size:15px;color:var(--ios-hdrtxt);line-height:1.4}
+.td-none-ic{width:30px;height:30px;flex:none;border-radius:50%;
+  background:rgba(52,199,89,.14) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7' stroke='%2334C759' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px 16px no-repeat}
+
+/* Ô kết quả rỗng thì không hiện nền xanh */
+.kv-result:empty{background:transparent!important;padding:0!important}
 </style>
   <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script></head>
@@ -633,18 +1369,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
     <div class="hdr-left">
      <div class="badge-alliance canva-tag" data-template-id="badge-alliance" style="color: rgb(31, 56, 100); font-weight: 900; font-size: 8px;">ALLIANCE</div>
      <div style="min-width:0;overflow:hidden">
-      <h1 data-template-id="hdr-title" class="canva-text" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">Báo Cáo Thi Công</h1>
       <div class="hdr-sub canva-text" data-template-id="hdr-projcode" id="hdr-projcode" style="color: rgba(255, 255, 255, 0.55); font-size: 9px;">Sailing Hạ Long · DA25.328</div>
      </div>
     </div>
-    <button class="reload-btn idle" id="reload-btn" onclick="reloadFromServer()" title="Tải lại dữ liệu từ server">↻</button>
     <div class="hdr-clock">
      <div class="hdr-time" id="hdr-time"></div>
      <div class="hdr-date" id="hdr-date"></div>
     </div>
+    <div class="hdr-person canva-text" id="hdr-person-el" data-template-id="hdr-person-prefix" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 11px;">Người lập: Mai Văn Minh</div>
    </div>
    <div class="hdr-bottom">
-    <div class="hdr-person canva-text" id="hdr-person-el" data-template-id="hdr-person-prefix" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 11px;">Người lập: Mai Văn Minh</div>
+    <h1 data-template-id="hdr-title" class="canva-text" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">Báo Cáo Thi Công</h1>
+    <button class="reload-btn idle" id="reload-btn" onclick="reloadFromServer()" title="Tải lại dữ liệu từ server">↻</button>
    </div>
   </header>
   <div class="mode-banner" id="mode-desc"></div>
@@ -665,20 +1401,20 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
    </div>
    <div id="mode-qs" class="">
     <div class="card">
-     <div class="card-hdr canva-card" data-template-id="card-hdr-ntc" style="display: flex; align-items: center; justify-content: space-between; background: rgb(0, 102, 204); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">1/ Báo cáo Nhân công thầu phụ</div>
+     <div class="card-hdr canva-card" data-template-id="card-hdr-ntc" style="display: flex; align-items: center; justify-content: space-between; background: rgb(0, 102, 204); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">1 · Báo cáo nhân công thầu phụ<span class="sec-count"><span id="qs-total-badge">0</span> người</span></div>
      <div class="card-body">
-      <div id="qs-body"></div><button class="add-row-btn canva-button" data-template-id="add-ntc-btn" onclick="addQSRow()">＋ Thêm nhà thầu / tổ đội</button>
+      <div id="qs-body"></div><button class="add-row-btn canva-button" data-template-id="add-ntc-btn" onclick="addQSRow()"><span class="row-ic row-ic-blue"></span><span class="row-main"><span class="row-tt row-tt-blue">Thêm nhà thầu / tổ đội</span></span></button>
      </div>
     </div>
     <div class="card">
-     <div class="card-hdr canva-card" style="background: rgb(0, 102, 204); display: flex; align-items: center; justify-content: space-between; color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;" data-template-id="card-hdr-cn">2/ Báo cáo Công nhật ALLIANCE</div>
+     <div class="card-hdr canva-card" style="background: rgb(0, 102, 204); display: flex; align-items: center; justify-content: space-between; color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;" data-template-id="card-hdr-cn">2 · Báo cáo công nhật ALLIANCE<span class="sec-count"><span id="cn-total-badge">0</span> người</span></div>
      <div id="cn-task-list"></div>
      <div style="padding:10px 14px 14px">
-      <button class="add-task-btn canva-button" data-template-id="add-task-btn" onclick="addCNTask()">＋ Thêm nội dung công việc Công nhật</button>
+      <button class="add-task-btn canva-button" data-template-id="add-task-btn" onclick="addCNTask()"><span class="row-ic row-ic-blue"></span><span class="row-main"><span class="row-tt row-tt-blue">Thêm nội dung công nhật</span></span></button>
      </div>
     </div>
     <div class="card">
-     <div class="card-hdr orange canva-card" data-template-id="card-hdr-vang" onclick="toggleCard('card-vang')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; height: 50px; background: rgb(217, 119, 6); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">Vắng / xin phép</div>
+     <div class="card-hdr orange canva-card" data-template-id="card-hdr-vang" onclick="toggleCard('card-vang')" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; height: 50px; background: rgb(217, 119, 6); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;"><span class="row-ic row-ic-blue"></span><span class="row-tt row-tt-blue">Các công nhật nghỉ phép</span></div>
      <div class="card-body" id="body-card-vang" style="display:none">
       <div class="field">
        <textarea id="f-vang" placeholder="VD: Lê Viết Tài — nghỉ phép"></textarea>
@@ -686,12 +1422,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
      </div>
     </div>
     <div class="work-sticky-footer">
-     <button class="submit-btn blue canva-button" id="btn-submit-qs" data-template-id="submit-qs-btn" onclick="submitQS()" style="color: rgb(255, 255, 255); font-weight: 700;">GỬI BÁO CÁO SÁNG</button>
+     <button class="submit-btn blue canva-button" id="btn-submit-qs" data-template-id="submit-qs-btn" onclick="submitQS()" style="color: rgb(255, 255, 255); font-weight: 700;">Gửi báo cáo sáng</button>
     </div>
    </div>
    <div id="mode-bc" class="hide">
     <div class="card">
-     <div class="card-hdr purple canva-card" data-template-id="card-hdr-photo" style="background: rgb(124, 58, 237); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px; justify-content:space-between;"><span>Hình ảnh theo công việc</span><div style="display:flex;gap:7px"><button type="button" id="btn-download-hinh-anh" class="excel-export-btn" onclick="downloadHinhAnhFiles(event)">⬇ Ảnh</button><button type="button" id="btn-export-hinh-anh" class="excel-export-btn" onclick="downloadAttendanceExcel(event)">⬇ Excel</button></div></div>
+     <div class="card-hdr purple canva-card" data-template-id="card-hdr-photo" style="background: rgb(124, 58, 237); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px; justify-content:space-between;"><span>Ảnh theo công việc<span id="ph-count"></span></span><div style="display:flex;gap:7px"><button type="button" id="btn-download-hinh-anh" class="excel-export-btn" onclick="downloadHinhAnhFiles(event)">⬇ Ảnh</button><button type="button" id="btn-export-hinh-anh" class="excel-export-btn" onclick="downloadAttendanceExcel(event)">⬇ Excel</button></div></div>
      <div class="card-body">
       <div id="photo-panel">
        <div class="panel-empty">
@@ -706,7 +1442,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
       <div class="field"><textarea id="f-vm" placeholder="Để trống nếu không có"></textarea>
       </div>
      </div>
-    </div><button class="submit-btn canva-button" data-template-id="submit-bc-btn" onclick="submitBC()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">GỬI ẢNH ĐẦU NGÀY</button>
+    </div><button class="submit-btn canva-button" data-template-id="submit-bc-btn" onclick="submitBC()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">Gửi ảnh đầu ngày</button>
    </div>
    <div id="mode-cd" class="hide">
     <div class="card">
@@ -727,7 +1463,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
       <div class="field"><label data-template-id="label-vm-alc" class="canva-text" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 11px;">Vướng mắc nội bộ ALLIANCE</label><textarea id="f-vm-alc2" placeholder="Thiếu vật tư..."></textarea>
       </div>
      </div>
-    </div><button class="submit-btn canva-button" data-template-id="submit-cd-btn" onclick="submitCD()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">GỬI SẢN LƯỢNG CUỐI NGÀY</button>
+    </div><button class="submit-btn canva-button" data-template-id="submit-cd-btn" onclick="submitCD()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">Gửi sản lượng cuối ngày</button>
    </div>
    <div id="mode-qa" class="hide">
     <div class="card">
@@ -746,7 +1482,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
       <div class="field"><label class="canva-text">Ghi chú lỗi (nếu có)</label><textarea id="f-qa-note" placeholder="Mô tả lỗi phát hiện..."></textarea>
       </div>
      </div>
-    </div><button class="submit-btn canva-button" data-template-id="submit-qa-btn" onclick="submitQA()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">📤 GỬI NGHIỆM THU</button>
+    </div><button class="submit-btn canva-button" data-template-id="submit-qa-btn" onclick="submitQA()" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 16px;">Gửi nghiệm thu</button>
    </div>
    <div id="mode-result" class="hide">
     <div class="card">
@@ -762,15 +1498,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;heigh
    </div>
   </main>
   <nav class="bot-nav" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
-   <div class="nav-btn active" id="tab0" onclick="setMode(0)"><span class="n-ic">👷</span><span class="n-lb canva-text" data-template-id="nav-lbl-0" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 10px;">Công việc</span>
+   <div class="nav-btn active" id="tab0" onclick="setMode(0)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-0" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 10px;">Công việc</span>
    </div>
-   <div class="nav-btn" id="tab1" onclick="setMode(1)"><span class="n-ic">📸</span><span class="n-lb canva-text" data-template-id="nav-lbl-1" style="font-size: 10px;">Hình ảnh</span>
+   <div class="nav-btn" id="tab1" onclick="setMode(1)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M8 6l1.2-2h5.6L16 6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-1" style="font-size: 10px;">Hình ảnh</span>
    </div>
-   <div class="nav-btn" id="tab2" onclick="setMode(2)"><span class="n-ic">📊</span><span class="n-lb canva-text" data-template-id="nav-lbl-2" style="font-size: 10px;">Sản lượng</span>
+   <div class="nav-btn" id="tab2" onclick="setMode(2)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-7M4 20h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-2" style="font-size: 10px;">Sản lượng</span>
    </div>
-   <div class="nav-btn" id="tab3" onclick="setMode(3)"><span class="n-ic">✅</span><span class="n-lb canva-text" data-template-id="nav-lbl-3" style="font-size: 10px;">Nghiệm thu</span>
+   <div class="nav-btn" id="tab3" onclick="setMode(3)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.3 1.7 2.8-.2 1 2.7 2.4 1.6-.7 2.8.7 2.8-2.4 1.6-1 2.7-2.8-.2L12 21l-2.3-1.7-2.8.2-1-2.7L3.5 15.2l.7-2.8-.7-2.8 2.4-1.6 1-2.7 2.8.2L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.8 12l2.2 2.2 4.2-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-3" style="font-size: 10px;">Nghiệm thu</span>
    </div>
-   <div class="nav-btn" id="tab4" onclick="setMode(4)"><span class="n-ic">📋</span><span class="n-lb canva-text" data-template-id="nav-lbl-4" style="font-size: 10px;">Kết quả</span>
+   <div class="nav-btn" id="tab4" onclick="setMode(4)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-4" style="font-size: 10px;">Kết quả</span>
    </div>
    <footer class="site-footer">© 2026 Mai Văn Minh. All rights reserved.</footer>
   </nav>
@@ -1427,7 +2163,12 @@ function deleteSubmittedReport(reporter=selectedReporter()) {
   });
 }
 
-function storeSubmittedReport(reporter, payload) {
+// boQuaDongBoServer = chỉ lưu vào máy, KHÔNG đẩy lên server. Dùng cho trạng thái
+// trung gian (mở báo cáo ra sửa): lúc đó phiếu vừa bị gỡ các dòng thường, đẩy
+// bản thiếu đó lên server là máy khác kéo về thấy mất công việc, và nếu GS bỏ
+// dở không gửi lại thì server giữ luôn bản thiếu. Server chỉ được cập nhật khi
+// GS thật sự bấm Gửi.
+function storeSubmittedReport(reporter, payload, boQuaDongBoServer) {
   reporter = String(reporter || selectedReporter()).trim();
   if (!reporter) return;
   const all = loadSubmittedReports();
@@ -1446,7 +2187,7 @@ function storeSubmittedReport(reporter, payload) {
   submittedReportsCache[key] = merged;
   saveSubmittedReports(all);
   serverDeleteConfirmed.delete(key); // vừa lưu mới → xóa khỏi danh sách "đã xác nhận xóa"
-  queueServerStateSync(reporter,merged);
+  if (!boQuaDongBoServer) queueServerStateSync(reporter,merged);
 }
 
 function splitList(text) {
@@ -1695,7 +2436,10 @@ function saveReporterState(reporter) {
       qaData: {...(submitted.qaData || {}), ...(window._qaData || {})},
       qaResultData: window._qaResultData || submitted.qaResultData || null,
       updatedAt: new Date().toISOString(),
-    });
+    // Đang sửa dở: phiếu lúc này đã bị gỡ các dòng thường (nằm ở nháp). Autosave
+    // mà đẩy lên server là server giữ bản THIẾU — máy khác kéo về mất công việc.
+    // Chỉ đồng bộ lại khi GS bấm Gửi.
+    }, !!(reporterStates[reporterStateKey(reporter)] || {})._nhapSuaLai);
     return;
   }
   const key = reporterStateKey(reporter);
@@ -1909,7 +2653,7 @@ function moKhoaBaoCaoGiuTienDo(reporter) {
     locked: false,
     workSubmittedAt: null,      // quay về trạng thái "chưa gửi báo cáo Công việc"
     updatedAt: new Date().toISOString(),
-  });
+  }, true);   // KHÔNG đẩy bản thiếu dòng này lên server — xem chú thích ở storeSubmittedReport
 }
 
 function unlockReportForEdit(reporter, focusType, focusIdx) {
@@ -2066,8 +2810,10 @@ function _nutThaoTacDong(reporter, type, idx, isLocked, chiXoa) {
                 <button type="button" onclick="unlockReportForEdit('${rep}','${type}',${idx})" style="border:1px solid #f59e0b;background:#fffbeb;color:#b45309;border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Sửa lại</button>
               </div>`;
   }
-  const nutSua = chiXoa ? '' :
-    `<button type="button" onclick="showSubmittedEditModeFor('${rep}','${type}',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Chỉnh sửa</button>`;
+  // Dòng defect/bổ sung dùng ô sửa riêng (mô tả + số CN), không đi qua form Công việc
+  const nutSua = chiXoa
+    ? `<button type="button" onclick="suaDongDefect('${rep}',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Chỉnh sửa</button>`
+    : `<button type="button" onclick="showSubmittedEditModeFor('${rep}','${type}',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">✏️ Chỉnh sửa</button>`;
   return `<div style="display:flex;gap:8px;flex-wrap:wrap">
                 ${nutSua}
                 <button type="button" onclick="deleteSubmittedItemFor('${rep}','${type}',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">🗑 Xóa</button>
@@ -2310,7 +3056,9 @@ function renderSubmittedWorkSummary(report) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
           <span style="display:inline-flex;align-items:center;gap:6px;background:var(--lgreen);color:var(--green);border:1px solid rgba(22,163,74,.25);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:900;text-transform:uppercase">✓ Đã gửi báo cáo</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            ${(r.defect||r.boSung)?'':`<button type="button" onclick="showSubmittedEditMode('ntc',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>`}
+            ${(r.defect||r.boSung)
+              ? `<button type="button" onclick="suaDongDefect('${String(report.reporter||currentReporter||selectedReporter()||'').replace(/'/g,"\\'")}',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>`
+              : `<button type="button" onclick="showSubmittedEditMode('ntc',${idx})" style="border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Chỉnh sửa</button>`}
             <button type="button" onclick="deleteSubmittedItem('ntc',${idx})" style="border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer">Xóa</button>
           </div>
         </div>
@@ -2373,6 +3121,7 @@ function renderDongDaGhiTruoc(reporter) {
         <span style="flex-shrink:0;background:${mau};color:#fff;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:900">${nhan}</span>
         <div style="flex:1;min-width:0;font-size:13px;font-weight:800;color:var(--navy);overflow-wrap:anywhere">${r.ntc || ''}</div>
         <span style="flex-shrink:0;font-size:11px;color:var(--muted);font-weight:700">${r.cn || 0} CN</span>
+        <button type="button" onclick="suaDongDefect('${String(reporter).replace(/'/g, "\\'")}',${idx})" style="flex-shrink:0;border:1px solid var(--blue);background:var(--lblue);color:var(--blue);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer">✏️ Sửa</button>
         <button type="button" onclick="deleteSubmittedItemFor('${String(reporter).replace(/'/g, "\\'")}','ntc',${idx})" style="flex-shrink:0;border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer">🗑 Xóa</button>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere">${[r.can || r.kv, r.tang, r.works].filter(Boolean).join(' · ')}</div>
@@ -2798,14 +3547,25 @@ function setReportSession(s) {
     banner.textContent='';
   }
   const submitBtn=document.getElementById('btn-submit-qs');
-  if (submitBtn) submitBtn.textContent=reportSession==='sang'?'📤 GỬI BÁO CÁO SÁNG':'📤 GỬI BÁO CÁO TỐI';
+  if (submitBtn) submitBtn.textContent=reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối';
 }
 
 async function init() {
   initCardToggles();
   const now=new Date();
   document.getElementById('f-ngay').value=now.toISOString().split('T')[0];
-  function _updateNgayTxt(){const v=document.getElementById('f-ngay').value;const p=v?v.split('-'):[];document.getElementById('f-ngay-txt').textContent=p.length===3?p[2]+'/'+p[1]+'/'+p[0]:'';}
+  function _updateNgayTxt(){const v=document.getElementById('f-ngay').value;const p=v?v.split('-'):[];document.getElementById('f-ngay-txt').textContent=p.length===3?p[2]+'/'+p[1]+'/'+p[0]:'';_updateHdrTitle();}
+  // Large title trên header = ngày báo cáo (theo mockup): "Thứ X, DD/MM/YYYY"
+  function _updateHdrTitle(){
+    const h1=document.querySelector('.hdr h1'); if(!h1) return;
+    const val=document.getElementById('f-ngay')?.value||'';
+    const p=val.split('-');
+    if(p.length!==3){h1.textContent='Báo Cáo Thi Công';return;}
+    const d=new Date(+p[0],+p[1]-1,+p[2]);
+    if(isNaN(d.getTime())){h1.textContent='Báo Cáo Thi Công';return;}
+    const thu=d.getDay()===0?'Chủ nhật':'Thứ '+(d.getDay()+1);
+    h1.textContent=thu+', '+p[2]+'/'+p[1]+'/'+p[0];
+  }
   _updateNgayTxt();
   document.getElementById('f-ngay').addEventListener('change',()=>{
     _updateNgayTxt();
@@ -3487,7 +4247,9 @@ function updateAllGroupCounts(){
 function updateCNTotalBadge(){
   const assigned=getAssignedWorkers();
   const cnBadge=document.getElementById('cn-total-badge');
-  if(cnBadge) cnBadge.textContent=`${assigned.size}/${ALC_WORKERS.length}`;
+  // Badge ở tiêu đề mục 2 hiển thị "N người" → chỉ ghi số, không ghi "N/tổng".
+  // (calcTotal cũng ghi vào ô này; hai hàm phải cùng một định dạng.)
+  if(cnBadge) cnBadge.textContent=String(assigned.size);
 }
 
 let cnTaskIdx=0;
@@ -3929,10 +4691,28 @@ function buildPhotoPanel(){
     if(item.type!==lastType){lastType=item.type;const typeLabel=item.type==='ntc'?'Nhân công thầu phụ':'Công nhật ALLIANCE';wrap.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr ${item.type==='ntc'?'ntc-hdr':'cn-hdr'}">${item.type==='ntc'?'📋 NHÂN CÔNG THẦU PHỤ':'👷 CÔNG NHẬT ALLIANCE'}</div>`);if(item.type==='ntc')ntcNum=0;else cnNum=0;}
     const num=item.type==='ntc'?++ntcNum:++cnNum;
     const itemTypeLabel=item.type==='ntc'?'NTC':'ALLIANCE';
-    wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-main"><div style="flex-shrink:0;background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div class="photo-item-label"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div></div><div class="photo-item-shots">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div></div>`);
+    const idJs=String(item.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-main"><div class="photo-item-label"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><span class="pi-badge pi-badge-0" id="pi-badge-${item.id}">0 ảnh</span></div><div class="photo-item-shots pi-grid">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div><div class="pi-cam-row" onclick="piPick('${idJs}')">${PI_CAM_ICON}<span>Chụp / tải ảnh cho công việc này</span></div></div>`);
     restorePhotoSlot('pi1-'+item.id, item.savedPhoto1 || window._photoData?.['pi1-'+item.id]);
     restorePhotoSlot('pi2-'+item.id, item.savedPhoto2 || window._photoData?.['pi2-'+item.id]);
+    piSyncBadge(item.id);
   });
+  const cnt=document.getElementById('ph-count');
+  if(cnt)cnt.textContent=' · '+items.length;
+}
+// ── Hình ảnh: badge "N ảnh" + dòng "Chụp / tải ảnh cho công việc này" ──
+const PI_CAM_ICON='<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/><path d="M8 6l1.2-2h5.6L16 6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+function piSyncBadge(itemId){
+  const el=document.getElementById('pi-badge-'+itemId); if(!el)return;
+  let n=0;
+  ['pi1-','pi2-'].forEach(p=>{if(document.getElementById(p+itemId)?.classList.contains('taken'))n++;});
+  el.textContent=n+' ảnh';
+  el.classList.toggle('pi-badge-0',n===0);
+}
+function piPick(itemId){
+  const s1=document.getElementById('pi1-'+itemId), s2=document.getElementById('pi2-'+itemId);
+  const target=(s1&&!s1.classList.contains('taken'))?s1:((s2&&!s2.classList.contains('taken'))?s2:s1);
+  target?.querySelector('input[type=file]')?.click();
 }
 if(!window._photoData) window._photoData={};
 
@@ -3940,6 +4720,35 @@ if(!window._qaData) window._qaData={};
 if(!window._qaResultData) window._qaResultData=null;
 
 function qaSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" onchange="prevPhSm(this,'${id}','qa${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="qa${id}"><div class="ph-sm-ov">✓</div></div>`;}
+// ── Nghiệm thu: 2 nút phân đoạn Đạt / Không đạt (giao diện iOS) ──
+// Ô checkbox #qa-pass-<qid> VẪN GIỮ NGUYÊN (ẩn đi) vì submitQA đọc .checked của nó.
+// 2 nút chỉ tick/bỏ tick chính ô đó rồi gọi onQAPassChange như cũ → luồng gửi không đổi.
+const QA_MARK_PASS='<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const QA_MARK_FAIL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
+const QA_MARK_PASS_SM='<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const QA_MARK_FAIL_SM='<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg>';
+function qaSetPass(qid,pass){
+  const cb=document.getElementById('qa-pass-'+qid); if(!cb) return;
+  const item=document.querySelector(`.qa-item[data-qa-id="${qid}"]`);
+  if(pass){
+    cb.checked=!cb.checked;                 // bấm lại nút đang chọn thì bỏ chọn
+    if(item) item.dataset.qaFail='0';
+  }else{
+    cb.checked=false;
+    if(item) item.dataset.qaFail = item.dataset.qaFail==='1' ? '0' : '1';
+  }
+  onQAPassChange(qid, cb.checked);
+}
+function qaSyncUI(qid){
+  const item=document.querySelector(`.qa-item[data-qa-id="${qid}"]`); if(!item) return;
+  const passed=document.getElementById('qa-pass-'+qid)?.checked||false;
+  const failed=!passed && item.dataset.qaFail==='1';
+  item.dataset.qaState = passed?'pass':(failed?'fail':'none');
+  const dot=document.getElementById('qa-dot-'+qid);
+  if(dot) dot.innerHTML = passed?QA_MARK_PASS:(failed?QA_MARK_FAIL:'');
+  const lb=document.getElementById('qa-stlb-'+qid);
+  if(lb) lb.textContent = passed?'Đạt':(failed?'Không đạt':'Chưa nghiệm thu');
+}
 function qaTaskNameForItem(item) {
   const meta=item?.meta||{};
   return 'Nghiệm thu: '+(item?.name||'')
@@ -3998,7 +4807,7 @@ function buildQAPanel(){
     const taskName=qaTaskNameForItem(item);
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
     const im_qa=item.meta||{};
-    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div style="display:flex;align-items:flex-start;gap:10px"><div style="flex-shrink:0;background:${item.pendingQA?'var(--red)':'var(--navy)'};color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}<label class="qa-pass-row" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div></div></div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" style="font-size:11px;font-weight:700;color:${isChecked?'var(--green)':'var(--orange)'};margin-bottom:8px">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-qa-state="${isChecked?'pass':'none'}" data-qa-fail="0" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div class="qa-main-row"><div class="qa-dot" id="qa-dot-${qid}">${isChecked?QA_MARK_PASS:''}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><span class="qa-status-lb" id="qa-stlb-${qid}">${isChecked?'Đạt':'Chưa nghiệm thu'}</span></div><div class="qa-seg"><button type="button" class="qa-seg-btn qa-seg-pass" onclick="qaSetPass('${qid}',true)">${QA_MARK_PASS_SM}Đạt</button><button type="button" class="qa-seg-btn qa-seg-fail" onclick="qaSetPass('${qid}',false)">${QA_MARK_FAIL_SM}Không đạt</button></div><label class="qa-pass-row qa-pass-hidden" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" class="qa-photo-lb" style="color:${isChecked?'var(--green)':'var(--orange)'}">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
     // Ưu tiên base64 cục bộ; máy chưa có ảnh thì dùng URL Drive do server ghi.
     const qaDrive=qaDriveForCurrentView();
     for(let i=1;i<=5;i++){
@@ -4017,6 +4826,7 @@ function onQAPassChange(qid,isPassed){
     lbl.textContent=isPassed?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ghi nhận lỗi (cuộn ngang nếu nhiều ảnh)';
     lbl.style.color=isPassed?'var(--green)':'var(--orange)';
   }
+  qaSyncUI(qid);
   scheduleReporterAutosave();
 }
 
@@ -4036,11 +4846,29 @@ function buildResultDetailPanel(){
   const total=data.length;
   const passedCnt=passedItems.length;
   const failedCnt=failedItems.length;
+  // Thẻ tổng kết gradient (mockup) — chỉ tổng hợp lại số đã có, không gọi server
+  let hc=0, avgPct='—';
+  try{
+    document.querySelectorAll('.qs-cn-inp').forEach(inp=>hc+=parseInt(inp.value)||0);
+    Object.values(cnTasks).forEach(t=>hc+=(t.selected?.size||0));
+    const rows=submittedWorkEntriesForCurrentView()
+      .flatMap(e=>(e.report?.resultItems)||[])
+      .map(r=>Number(r.pct||0));
+    if(rows.length) avgPct=Math.round(rows.reduce((a,b)=>a+b,0)/rows.length)+'%';
+  }catch(e){ console.warn('Không tính được số tổng kết:',e); }
+  const sentSteps=Math.min(4,(typeof workflowMaxMode==='function'?workflowMaxMode():0));
+  const ngayTxt=document.getElementById('f-ngay-txt')?.textContent||v('f-ngay')||'';
   wrap.insertAdjacentHTML('beforeend',`
-    <div style="margin-bottom:12px">
-      <div style="font-size:13px;font-weight:900;color:var(--navy);text-transform:uppercase">Tổng trạng thái nghiệm thu</div>
-      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:3px">Tổng hợp độc lập theo tất cả giám sát đã gửi báo cáo trong ngày</div>
+    <div class="kq-hero">
+      <div class="kq-hero-date">Báo cáo ngày ${ngayTxt}</div>
+      <div class="kq-hero-title">Đã gửi ${sentSteps}/4 mục</div>
+      <div class="kq-hero-stats">
+        <div><div class="kq-hero-num">${hc}</div><div class="kq-hero-lb">Tổng quân số</div></div>
+        <div><div class="kq-hero-num">${avgPct}</div><div class="kq-hero-lb">Sản lượng</div></div>
+        <div><div class="kq-hero-num">${passedCnt}</div><div class="kq-hero-lb">Nghiệm thu</div></div>
+      </div>
     </div>
+    <div class="panel-sec-hdr">Tổng trạng thái nghiệm thu</div>
   `);
   wrap.insertAdjacentHTML('beforeend',`
     <div class="result-stat-grid">
@@ -4134,16 +4962,54 @@ function prevPhSm(inp,slotId,prevId){
       document.getElementById(slotId).classList.add('taken');
       window._photoData[slotId]=dataUrl.split(',')[1];
       if(slotId.startsWith('qa')) window._qaData[slotId]=dataUrl.split(',')[1];
+      if(/^pi[12]-/.test(slotId)) piSyncBadge(slotId.replace(/^pi[12]-/,''));
       scheduleReporterAutosave();
     };
     img.src=e.target.result;
   };
   reader.readAsDataURL(file);
 }
+// ── Sản lượng: màu % theo mức + 2 thẻ tổng đầu tab (chỉ trình bày) ──
+function pctColorOf(p){return p>=100?'#34C759':(p>=70?'#007AFF':'#FF9500');}
+function itemPctOf(el){
+  if(el.classList.contains('is-xong'))return 100;
+  const rid=el.dataset.itemId;
+  return Number(document.getElementById('pctr-'+rid)?.value||0);
+}
+function syncPctColor(rid){
+  const lbl=document.getElementById('pctv-'+rid);
+  const rng=document.getElementById('pctr-'+rid);
+  const item=document.querySelector(`.result-item[data-item-id="${rid}"]`);
+  const p=item?itemPctOf(item):Number(rng?.value||0);
+  const c=pctColorOf(p);
+  if(lbl)lbl.style.color=c;
+  if(rng){
+    rng.style.accentColor=c;
+    // tô phần thanh đã kéo đúng màu theo mức % (mockup)
+    const span=Math.max(1,100-Number(rng.min||0));
+    rng.style.setProperty('--pctc',c);
+    rng.style.setProperty('--pctf',Math.round((p-Number(rng.min||0))/span*100)+'%');
+  }
+}
+function updateCDSummary(){
+  const items=[...document.querySelectorAll('#result-panel .result-item')];
+  const box=document.getElementById('cd-summary');
+  if(!box)return;
+  if(!items.length){box.style.display='none';return;}
+  box.style.display='';
+  const pcts=items.map(itemPctOf);
+  const avg=Math.round(pcts.reduce((a,b)=>a+b,0)/pcts.length);
+  const done=pcts.filter(p=>p>=100).length;
+  const avgEl=document.getElementById('cd-sum-avg');
+  if(avgEl){avgEl.textContent=avg+'%';avgEl.style.color=pctColorOf(avg);}
+  const doneEl=document.getElementById('cd-sum-done');
+  if(doneEl)doneEl.innerHTML=done+'<span class="cd-sum-of">/'+pcts.length+'</span>';
+}
 function buildResultPanel(){
   restoreCurrentViewMediaCache();
   const items=getWorkItems();const wrap=document.getElementById('result-panel');wrap.innerHTML='';
   if(!items.length){wrap.innerHTML='<div class="panel-empty">Hãy điền báo cáo Công việc trước</div>';return;}
+  wrap.insertAdjacentHTML('beforeend',`<div class="cd-sum-row" id="cd-summary"><div class="cd-sum-card"><div class="cd-sum-lb">Hoàn thành TB</div><div class="cd-sum-num" id="cd-sum-avg">0%</div></div><div class="cd-sum-card"><div class="cd-sum-lb">Đạt 100%</div><div class="cd-sum-num" id="cd-sum-done">0<span class="cd-sum-of">/0</span></div></div></div>`);
   const aggregateEntries = submittedWorkEntriesForCurrentView();
   const isAllView = !selectedReporter();
   const snapshot = getSubmittedReport(currentReporter) || getReporterState(currentReporter) || {};
@@ -4161,10 +5027,12 @@ function buildResultPanel(){
     const livePct=(item.type==='ntc'&&im.can&&liveKey)?getItemStatus(im.can,liveKey).pct:0;
     if(item.type==='ntc'&&livePct>=100)return;
     const num=item.type==='ntc'?++ntcNum:++cnNum;
-    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}"><div class="photo-item-main"><div style="flex-shrink:0;background:var(--navy);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${num}</div><div style="flex:1"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail" style="margin-bottom:8px">${item.detail}</div>`:''}</div></div><div class="kq-mini-row"><div class="kq-mini xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}"><div class="pct-row-sm"><div class="pct-val-sm" id="pctv-${rid}">${livePct}%</div><input type="range" id="pctr-${rid}" min="${livePct}" max="100" step="5" value="${livePct}" data-base-pct="${livePct}" oninput="if(+this.value<+this.dataset.basePct)this.value=this.dataset.basePct;document.getElementById('pctv-${rid}').textContent=this.value+'%'"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}"><div class="ri-head"><div style="flex:1;min-width:0"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><div class="pct-val-sm" id="pctv-${rid}">${livePct}%</div></div><div class="kq-mini-row"><div class="kq-mini xong" data-kq="Xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" data-kq="Chưa xong" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}"><div class="pct-row-sm"><input type="range" id="pctr-${rid}" min="${livePct}" max="100" step="5" value="${livePct}" data-base-pct="${livePct}" oninput="if(+this.value<+this.dataset.basePct)this.value=this.dataset.basePct;document.getElementById('pctv-${rid}').textContent=this.value+'%';syncPctColor('${rid}');updateCDSummary()"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
     restoreResultItem(rid, saved);
   });
-  if(!wrap.querySelector('.result-item'))wrap.innerHTML='<div class="panel-empty">Tất cả đầu mục đã đạt 100% và đã được khóa.</div>';
+  if(!wrap.querySelector('.result-item')){wrap.innerHTML='<div class="panel-empty">Tất cả đầu mục đã đạt 100% và đã được khóa.</div>';return;}
+  wrap.querySelectorAll('.result-item').forEach(el=>syncPctColor(el.dataset.itemId));
+  updateCDSummary();
 }
 // Ảnh Drive URL → link thumbnail hiển thị được trong <img> (file đã share ANYONE VIEW)
 // ── ẢNH LƯU TRÊN DRIVE ─────────────────────────────────────────
@@ -4258,7 +5126,8 @@ function restoreResultItem(rid, saved) {
   if(saved.kq){
     const hidden=document.getElementById('kqi-'+rid);
     if(hidden)hidden.value=saved.kq;
-    const btn=[...document.querySelectorAll(`[data-item-id="${rid}"] .kq-mini`)].find(b=>b.textContent.includes(saved.kq==='Xong'?'XONG':'CHƯA'));
+    const btn=document.querySelector(`[data-item-id="${rid}"] .kq-mini[data-kq="${saved.kq}"]`)
+      ||[...document.querySelectorAll(`[data-item-id="${rid}"] .kq-mini`)].find(b=>b.textContent.includes(saved.kq==='Xong'?'XONG':'CHƯA'));
     if(btn)btn.classList.add('sel');
     if(itemEl){
       itemEl.classList.toggle('is-xong', saved.kq==='Xong');
@@ -4288,6 +5157,8 @@ function selKQI(rid,el,val){
   const lbl=document.getElementById('pctv-'+rid);
   if(rng)rng.value=pct;
   if(lbl)lbl.textContent=pct+'%';
+  syncPctColor(rid);
+  updateCDSummary();
   scheduleReporterAutosave();
 }
 
@@ -5598,6 +6469,38 @@ init();
   // ===== OVERRIDE: addQSRow =====
   window.addQSRow=function(data){
     data=data||{};
+    // Bản gốc có 2 chốt chặn, bản ghi đè này làm rơi mất cả hai:
+    //  (1) phải chọn Người báo cáo trước → thẻ tạo ra không thuộc về ai
+    //  (2) phải điền xong thẻ trước rồi mới thêm thẻ mới → tránh đẻ ra thẻ rỗng
+    if(!data.pending && !isRestoring){
+      if(!currentReporter){
+        toast('⚠️ Vui lòng chọn Người báo cáo trước','err');
+        document.getElementById('f-gs')?.focus();
+        return;
+      }
+      var lastCard=document.querySelector('#qs-body .qs-card[data-editable="1"]:last-child');
+      if(lastCard){
+        var lastIdx=parseInt(lastCard.id.replace('qsc-',''),10);
+        var lastNTC=(lastCard.querySelector('.qs-ntc-sel')||{}).value||'';
+        if(!lastNTC){
+          toast('⚠️ Vui lòng chọn Nhà thầu hoặc xóa thẻ trước','err');
+          if(typeof openQSCard==='function')openQSCard(lastIdx);
+          return;
+        }
+        var lastErr=(typeof validateQSCard==='function')?validateQSCard(lastIdx):null;
+        if(lastErr){
+          toast('⚠️ '+lastErr,'err');
+          if(typeof openQSCard==='function')openQSCard(lastIdx);
+          return;
+        }
+        if(!lastCard.classList.contains('qs-col')){
+          lastCard.classList.add('qs-col');
+          var lastChev=document.getElementById('qschev-'+lastIdx);
+          if(lastChev)lastChev.classList.add('rotated');
+          updateQSSumLine(lastIdx);
+        }
+      }
+    }
     if(data.ntc)data.ntc=canonicalNtcName(data.ntc);
     data.selectedCans=(data.selectedCans||[]).filter(isVisibleCan);
     var restoredItem=(data.items||[]).map(function(gi){return SOW_ITEMS[gi];}).find(function(r){return !!r;});
@@ -5620,7 +6523,9 @@ init();
       +'<div class="qs-num">'+i+'</div>'
       +'<div class="qs-hdr-info"><div class="qs-hdr-ntc-wrap">'
       +'<select class="qs-ntc-sel" onclick="event.stopPropagation()" onchange="onQSNTCChange('+i+')"><option value="">— Nhà thầu —</option>'+ntcOpts+'</select>'
-      +'</div><div class="qs-sum-line" id="qs-sum-'+i+'">—</div></div>'
+      +'</div><div class="qs-ntc-name" id="qs-ntcname-'+i+'"></div>'
+      +'<div class="qs-sum-line" id="qs-sum-'+i+'">—</div></div>'
+      +'<div class="qs-cn-badge" id="qs-cnbadge-'+i+'"></div>'
       +'<div class="toggle-btn qs-chev-ref" id="qschev-'+i+'" title="Thu gọn">▾</div>'
       +'<button class="qs-del" onclick="delCard('+i+');event.stopPropagation()">✕</button></div>'
       +'<div class="qs-card-body"><div id="qs-fields-'+i+'">'
@@ -5810,13 +6715,34 @@ init();
   };
   window.updateQSSumLine=function(i){
     var qs=qsCards[i];var el=document.getElementById('qs-sum-'+i);if(!el)return;
-    if(qs&&qs.vuongMac){el.textContent='⚠️ Vướng mắc: '+(qs.vuongMac.length>30?qs.vuongMac.slice(0,30)+'…':qs.vuongMac);return;}
-    if(!qs){el.textContent='—';return;}
+    // Khi thu gọn, thẻ hiển thị như 1 dòng list iOS: tên nhà thầu + phụ đề + quân số
+    var nameEl=document.getElementById('qs-ntcname-'+i);
+    var badgeEl=document.getElementById('qs-cnbadge-'+i);
+    var selEl=document.querySelector('#qsc-'+i+' .qs-ntc-sel');
+    var ntcName=String((qs&&qs.ntc)||(selEl&&selEl.value)||'').trim();
+    if(nameEl)nameEl.textContent=ntcName||'Chưa chọn nhà thầu';
+    if(qs&&qs.vuongMac){
+      if(badgeEl)badgeEl.textContent='';
+      // Không cắt bằng số ký tự cố định nữa (sai trên máy màn rộng/hẹp khác nhau)
+      // — để CSS -webkit-line-clamp:2 tự cắt và tự thêm dấu ba chấm.
+      el.textContent='⚠️ Vướng mắc: '+qs.vuongMac;return;}
+    if(!qs){el.textContent='—';if(badgeEl)badgeEl.textContent='';return;}
     var tot=qs.ntcCN>0?qs.ntcCN:0;
     if(!tot){qs.items.forEach(function(gi){tot+=(qs.cnMap[gi]||1);});}
+    if(badgeEl)badgeEl.textContent=tot||0;
     var cans=[...qs.selectedCans].join(', ');
     var flow=[];if(qs.selectedWorkKey)flow.push(workKeyLabel(qs.selectedWorkKey));if(cans)flow.push(cans);
-    el.textContent=(qs.items.size?qs.items.size+' đầu mục · '+tot+' CN':'Chưa chọn đầu mục')+(flow.length?' · '+flow.join(' · '):'');
+    // Mô tả công việc thực hiện: lấy tên đầu mục đã tích (cột 6 của SOW_ITEMS)
+    var names=[];
+    qs.items.forEach(function(gi){var r=SOW_ITEMS[gi];if(r&&r[6])names.push(String(r[6]).trim());});
+    var moTa=names.length===1?names[0]
+      :(names.length>1?names[0]+' +'+(names.length-1):'');
+    // Mô tả công việc đứng TRƯỚC: phụ đề chỉ cho 2 dòng, phần bị cắt sẽ là
+    // khu/căn (ít quan trọng hơn) chứ không phải nội dung công việc.
+    el.textContent=(moTa||'Chưa chọn đầu mục')
+      +(flow.length?' · '+flow.join(' · '):'');
+    // badge "N người" ở tiêu đề mục 1 phải chạy lại mỗi lần thẻ đổi
+    try{calcTotal();}catch(e){}
     try{if(window.renderTonDong)renderTonDong();}catch(e){}
   };
 
@@ -6346,7 +7272,7 @@ init();
   function ensureTonDongCard(){
     if(document.getElementById('card-tondong'))return document.getElementById('card-tondong');
     var card=document.createElement('div');card.className='card';card.id='card-tondong';
-    card.innerHTML='<div class="card-hdr canva-card" style="background:rgb(0,102,204);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">3/ Các công việc tồn đọng <span id="td-count" style="background:rgba(255,255,255,.25);padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700">0</span></div>'
+    card.innerHTML='<div class="card-hdr canva-card" style="background:rgb(0,102,204);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:space-between">3 · Các công việc tồn đọng <span id="td-count" style="background:rgba(255,255,255,.25);padding:2px 9px;border-radius:10px;font-size:12px;font-weight:700">0</span></div>'
       +'<div class="card-body" id="td-body" style="padding:10px 14px 14px"></div>';
     // Đặt ngay TRƯỚC nút Gửi (vị trí ô đỏ); nếu không thấy thì chèn sau Section 2.
     var footer=document.querySelector('.work-sticky-footer');
@@ -6358,6 +7284,12 @@ init();
     if(qb){var c2=qb.closest?qb.closest('.card'):null;if(c2&&c2.parentNode){c2.parentNode.appendChild(card);return card;}}
     return card;
   }
+  window.__tdOpen=window.__tdOpen||{};
+  window.tdToggleGrp=function(el){
+    var g=el.closest?el.closest('.td-grp'):null; if(!g)return;
+    var k=g.getAttribute('data-ntc')||'';
+    if(g.classList.toggle('open'))window.__tdOpen[k]=1; else delete window.__tdOpen[k];
+  };
   window.renderTonDong=function(){
     var card=ensureTonDongCard();if(!card)return;
     card.style.display='';
@@ -6372,7 +7304,7 @@ init();
     });
     var cEl=document.getElementById('td-count');if(cEl)cEl.textContent=shown.length;
     if(!shown.length){
-      document.getElementById('td-body').innerHTML='<div style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.</div>';
+      document.getElementById('td-body').innerHTML='<div class="td-none"><span class="td-none-ic"></span><span>Không có công việc tồn đọng từ ngày trước</span></div><div hidden style="font-size:13px;color:#15803d;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px;line-height:1.45">✓ Hiện không có công việc tồn đọng từ ngày trước.</div>';
       return;
     }
     var g={},order=[];shown.forEach(function(o){var n=o.e.ntc;if(!g[n]){g[n]=[];order.push(n);}g[n].push(o);});
@@ -6386,7 +7318,14 @@ init();
           +'<div class="td-pct '+(e.pct>0?'td-mid':'td-zero')+'">'+e.pct+'%</div>'
           +'<button type="button" class="td-add" onclick="importTonDongOne('+o.idx+')">⤴ Đưa lại</button></div>';
       }).join('');
-      return '<div class="td-grp"><div class="td-ntc">'+ntc+gsBadge+'</div>'+rows+'</div>';
+      // Gộp theo nhà thầu, mặc định THU GỌN cho đỡ phải kéo dài
+      var opened=window.__tdOpen&&window.__tdOpen[ntc]?' open':'';
+      return '<div class="td-grp'+opened+'" data-ntc="'+String(ntc).replace(/"/g,'&quot;')+'">'
+        +'<div class="td-ghdr" onclick="tdToggleGrp(this)">'
+        +'<span class="td-gname">'+ntc+'</span>'+gsBadge
+        +'<span class="td-gcount">'+g[ntc].length+'</span>'
+        +'<span class="td-gchev"></span></div>'
+        +'<div class="td-gbody">'+rows+'</div></div>';
     }).join('');
     document.getElementById('td-body').innerHTML=html;
   };
@@ -6629,6 +7568,68 @@ init();
     box.innerHTML=html;
   }
   window.closeDefect=function(){var m=document.getElementById('df-mask');if(m)m.classList.remove('show');};
+
+  // ── SỬA DÒNG DEFECT / BỔ SUNG ────────────────────────────────────
+  // Form Công việc không dựng lại được các dòng này (chúng không có đầu mục),
+  // nên phải có ô sửa riêng. Sửa được MÔ TẢ và SỐ CÔNG NHÂN — đổi nhà thầu /
+  // căn / hạng mục thì phải Xóa rồi thêm lại vì đó là khóa của dòng.
+  var _dfeRep='',_dfeIdx=-1;
+  window.dongSuaDongDefect=function(){var m=document.getElementById('dfe-mask');if(m)m.classList.remove('show');};
+  window.suaDongDefect=function(reporter,index){
+    var rpt=(typeof getSubmittedReport==='function')?getSubmittedReport(reporter):null;
+    var row=rpt&&(rpt.ntcRows||[])[index];
+    if(!row||!(row.defect||row.boSung)){toast('Không tìm thấy dòng cần sửa','err');return;}
+    _dfeRep=reporter;_dfeIdx=index;
+    var laDefect=!!row.defect;
+    var m=document.getElementById('dfe-mask');
+    if(!m){
+      m=document.createElement('div');m.className='bs-mask';m.id='dfe-mask';
+      m.innerHTML='<div class="bs-sheet" onclick="event.stopPropagation()">'
+        +'<div class="bs-h"><h3 id="dfe-title">Sửa công việc defect</h3><button class="bs-x" onclick="dongSuaDongDefect()">✕</button></div>'
+        +'<div id="dfe-info" style="font-size:12px;color:var(--muted);line-height:1.6;background:#f8fafc;border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:10px"></div>'
+        +'<label class="bs-lb" id="dfe-lb">Mô tả defect</label>'
+        +'<textarea class="bs-ta" id="dfe-mota" rows="2" placeholder="VD: nứt ron đá bậc 3, ố keo mép tường…"></textarea>'
+        +'<label class="bs-lb">Số công nhân</label>'
+        +'<div class="bs-num-row">'
+        +'<button class="bs-num-b" type="button" onclick="dfNum(\'dfe-cn\',-1,1)">−</button>'
+        +'<div class="bs-num-v" id="dfe-cn">1</div>'
+        +'<button class="bs-num-b" type="button" onclick="dfNum(\'dfe-cn\',1,1)">＋</button></div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">Đổi nhà thầu / căn / hạng mục thì bấm Xóa rồi thêm lại.</div>'
+        +'<button class="bs-send" id="dfe-send" onclick="luuSuaDongDefect()">Lưu thay đổi</button>'
+        +'</div>';
+      m.addEventListener('click',function(){dongSuaDongDefect();});
+      document.body.appendChild(m);
+    }
+    document.getElementById('dfe-title').textContent=laDefect?'Sửa công việc defect':'Sửa dòng bổ sung';
+    document.getElementById('dfe-lb').textContent=laDefect?'Mô tả defect':'Ghi chú bổ sung';
+    document.getElementById('dfe-info').innerHTML=
+      '<b style="color:var(--navy)">'+(row.ntc||'')+'</b><br>'
+      +[row.can||row.kv,row.tang,row.works].filter(Boolean).join(' · ');
+    // Bỏ tiền tố khi đưa vào ô nhập, lúc lưu sẽ gắn lại — tránh nhân đôi "DEFECT:"
+    var note=String(row.note||'');
+    var moTa=laDefect?note.replace(/^DEFECT:\s*/,'')
+                     :note.replace(/^➕\s*Bổ sung đến trễ\s*(—\s*)?/,'');
+    document.getElementById('dfe-mota').value=moTa;
+    document.getElementById('dfe-cn').textContent=String(row.cn||1);
+    m.classList.add('show');
+  };
+  window.luuSuaDongDefect=function(){
+    var rpt=getSubmittedReport(_dfeRep);
+    var rows=(rpt&&rpt.ntcRows||[]).slice();
+    var row=rows[_dfeIdx];
+    if(!row){toast('Không tìm thấy dòng cần sửa','err');return;}
+    var moTa=((document.getElementById('dfe-mota')||{}).value||'').trim();
+    var cn=parseInt((document.getElementById('dfe-cn')||{}).textContent,10)||0;
+    if(!moTa){toast(row.defect?'Vui lòng mô tả defect':'Vui lòng nhập ghi chú','err');return;}
+    if(cn<=0){toast('Số công nhân phải ≥ 1','err');return;}
+    rows[_dfeIdx]={...row,cn:cn,
+      note:(row.defect?'DEFECT: ':'➕ Bổ sung đến trễ — ')+moTa};
+    storeSubmittedReport(_dfeRep,{ntcRows:rows,
+      workItems:reportToSubmittedWorkItems({...rpt,ntcRows:rows})});
+    dongSuaDongDefect();
+    toast('Đã cập nhật dòng '+(row.defect?'defect':'bổ sung'),'ok');
+    try{updateWorkflowTabs();rebuildActiveReporterTab();}catch(e){}
+  };
   window.submitDefect=function(){
     var ntc=(document.getElementById('df-ntc')||{}).value||'';
     var moTa=((document.getElementById('df-mota')||{}).value||'').trim();
@@ -6689,19 +7690,22 @@ init();
     if(document.getElementById('bs-open-btn'))return;
     var anchor=document.querySelector('#qs-body ~ .add-row-btn')||document.querySelector('.add-row-btn[data-template-id="add-ntc-btn"]')||document.querySelector('.add-row-btn');
     if(!anchor||!anchor.parentNode)return;
+    // Dòng list kiểu iOS: icon ⊕ đặc màu + tiêu đề + phụ đề + chevron (theo bản thiết kế)
+    var rowHtml=function(icCls,title,sub){
+      return '<span class="row-ic '+icCls+'"></span>'
+        +'<span class="row-main"><span class="row-tt">'+title+'</span>'
+        +'<span class="row-sub">'+sub+'</span></span>'
+        +'<span class="row-chev"></span>';
+    };
     var b=document.createElement('button');
     b.id='bs-open-btn';b.className='bs-btn';b.type='button';
-    b.textContent='➕ Bổ sung nhân công (đến trễ)';
+    b.innerHTML=rowHtml('row-ic-orange','Bổ sung nhân công','Nhân công đến trễ, cập nhật sau báo cáo');
     b.onclick=function(){openBoSung();};
     anchor.parentNode.insertBefore(b,anchor.nextSibling);
     // Nút Công việc defect nằm NGAY DƯỚI nút bổ sung nhân công
     var d=document.createElement('button');
     d.id='df-open-btn';d.className='bs-btn';d.type='button';
-    // Nền đậm nên phải đặt lại màu chữ/viền, không thì thừa hưởng chữ cam của .bs-btn
-    d.style.background='#9d174d';
-    d.style.color='#fff';
-    d.style.borderColor='#9d174d';
-    d.textContent='➕ Công việc defect (hạng mục đã hoàn thành 100%)';
+    d.innerHTML=rowHtml('row-ic-maroon','Công việc defect','Hạng mục đã hoàn thành 100%');
     d.onclick=function(){openDefect();};
     b.parentNode.insertBefore(d,b.nextSibling);
   }
