@@ -1653,23 +1653,139 @@ function loadSubmittedReports() {
   catch(e) { return {}; }
 }
 
-// Lưu vào bộ nhớ máy, CÓ BÁO khi đầy. Trước đây ba chỗ lưu đều nuốt lỗi im
-// lặng: điện thoại đầy bộ nhớ (thường vì ảnh base64) là mất dữ liệu mà GS không
-// hề biết. Nay: thử bỏ ảnh để cứu phần chữ, và luôn báo cho người dùng.
+// Ảnh base64 không được lưu trong localStorage: 90 ảnh nén đã làm vượt quota và
+// mất sạch sau reload khi stress test. IndexedDB lưu từng slot bất đồng bộ, còn
+// localStorage chỉ giữ dữ liệu chữ để thao tác autosave không chặn giao diện.
+const MEDIA_DB_NAME='sailing-media-v1',MEDIA_DB_STORE='media';
+let mediaDbPromise=null;
+const mediaSaveTimers={},mediaPending={},mediaLastSig={},mediaHydratedScopes=new Set();
+function mediaScopeKey(reporter,date){return String(date||v('f-ngay')||'')+'::'+normalizeReporterName(reporter);}
+function openMediaDb(){
+  if(!window.indexedDB)return Promise.reject(new Error('Thiết bị không hỗ trợ IndexedDB'));
+  if(mediaDbPromise)return mediaDbPromise;
+  mediaDbPromise=new Promise((resolve,reject)=>{
+    const req=indexedDB.open(MEDIA_DB_NAME,1);
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      const store=db.objectStoreNames.contains(MEDIA_DB_STORE)?req.transaction.objectStore(MEDIA_DB_STORE):db.createObjectStore(MEDIA_DB_STORE,{keyPath:'id'});
+      if(!store.indexNames.contains('scope'))store.createIndex('scope','scope',{unique:false});
+    };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error('Không mở được bộ nhớ ảnh'));
+  });
+  return mediaDbPromise;
+}
+function mediaValueSig(value){
+  if(typeof value==='string')return value.length+':'+value.slice(0,24)+':'+value.slice(-24);
+  try{return JSON.stringify(value);}catch(e){return String(value);}
+}
+function queueMediaCacheSave(reporter,photoData,qaData,date){
+  reporter=String(reporter||'').trim();if(!reporter)return;
+  const scope=mediaScopeKey(reporter,date);
+  // canPrune ghi lại trạng thái NGAY LÚC autosave được xếp hàng. Khi vừa chọn
+  // người báo cáo sau reload, UI có thể còn rỗng trong lúc IndexedDB đang đọc;
+  // snapshot rỗng đó tuyệt đối không được hiểu là người dùng đã xóa toàn bộ ảnh.
+  mediaPending[scope]={photoData:{...(photoData||{})},qaData:{...(qaData||{})},canPrune:mediaHydratedScopes.has(scope)};
+  clearTimeout(mediaSaveTimers[scope]);
+  mediaSaveTimers[scope]=setTimeout(()=>flushMediaCache(scope),180);
+}
+async function flushMediaCache(scope){
+  const pending=mediaPending[scope];if(!pending)return false;
+  delete mediaPending[scope];clearTimeout(mediaSaveTimers[scope]);delete mediaSaveTimers[scope];
+  try{
+    const db=await openMediaDb();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(MEDIA_DB_STORE,'readwrite'),store=tx.objectStore(MEDIA_DB_STORE);
+      // Đồng bộ cả thao tác xóa ảnh: bản ghi không còn trong snapshot hiện tại
+      // phải bị xóa khỏi IndexedDB, nếu không ảnh cũ sẽ sống lại sau reload.
+      if(pending.canPrune){
+        const keep={photo:new Set(Object.keys(pending.photoData||{})),qa:new Set(Object.keys(pending.qaData||{}))};
+        const cursorReq=store.index('scope').openCursor(IDBKeyRange.only(scope));
+        cursorReq.onsuccess=()=>{
+          const cursor=cursorReq.result;if(!cursor)return;
+          const row=cursor.value||{};
+          if((row.kind==='photo'||row.kind==='qa')&&!keep[row.kind].has(row.slot)){
+            delete mediaLastSig[row.id];cursor.delete();
+          }
+          cursor.continue();
+        };
+      }
+      [['photo',pending.photoData],['qa',pending.qaData]].forEach(pair=>{
+        Object.keys(pair[1]||{}).forEach(slot=>{
+          const value=pair[1][slot];if(value==null)return;
+          const id=scope+'::'+pair[0]+'::'+slot,sig=mediaValueSig(value);
+          if(mediaLastSig[id]===sig)return;
+          mediaLastSig[id]=sig;store.put({id,scope,kind:pair[0],slot,value,updatedAt:Date.now()});
+        });
+      });
+      tx.oncomplete=()=>resolve(true);tx.onerror=()=>reject(tx.error||new Error('Không lưu được ảnh'));tx.onabort=()=>reject(tx.error||new Error('Lưu ảnh bị hủy'));
+    });
+    return true;
+  }catch(e){
+    console.error('IndexedDB ảnh:',e);
+    if(typeof toast==='function')toast('⚠️ Không lưu được ảnh nháp trên máy. Hãy gửi ảnh trước khi tải lại trang.','err');
+    return false;
+  }
+}
+async function loadMediaCache(reporter,date){
+  reporter=String(reporter||'').trim();if(!reporter)return null;
+  const scope=mediaScopeKey(reporter,date);
+  try{
+    const db=await openMediaDb();
+    const rows=await new Promise((resolve,reject)=>{
+      const req=db.transaction(MEDIA_DB_STORE,'readonly').objectStore(MEDIA_DB_STORE).index('scope').getAll(scope);
+      req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error||new Error('Không đọc được ảnh'));
+    });
+    const out={photoData:{},qaData:{}};
+    rows.forEach(row=>{if(row.kind==='photo')out.photoData[row.slot]=row.value;else if(row.kind==='qa')out.qaData[row.slot]=row.value;mediaLastSig[row.id]=mediaValueSig(row.value);});
+    mediaHydratedScopes.add(scope);
+    return out;
+  }catch(e){console.warn('Không khôi phục được ảnh nháp:',e);return null;}
+}
+async function deleteMediaCache(reporter,date){
+  reporter=String(reporter||'').trim();if(!reporter)return false;
+  const scope=mediaScopeKey(reporter,date);
+  clearTimeout(mediaSaveTimers[scope]);delete mediaSaveTimers[scope];delete mediaPending[scope];
+  try{
+    const db=await openMediaDb();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction(MEDIA_DB_STORE,'readwrite');
+      const req=tx.objectStore(MEDIA_DB_STORE).index('scope').openCursor(IDBKeyRange.only(scope));
+      req.onsuccess=()=>{const cursor=req.result;if(!cursor)return;delete mediaLastSig[cursor.value.id];cursor.delete();cursor.continue();};
+      tx.oncomplete=()=>resolve(true);tx.onerror=()=>reject(tx.error||new Error('Không xóa được ảnh'));
+    });
+    return true;
+  }catch(e){console.warn('Không xóa được bộ nhớ ảnh:',e);return false;}
+}
+async function restoreMediaCacheForReporter(reporter){
+  reporter=String(reporter||'').trim();if(!reporter)return false;
+  const date=v('f-ngay')||new Date().toISOString().split('T')[0],key=mediaScopeKey(reporter,date);
+  const media=await loadMediaCache(reporter,date);
+  if(!media||(!Object.keys(media.photoData).length&&!Object.keys(media.qaData).length))return false;
+  const all=loadSubmittedReports();
+  if(all[key]){
+    all[key].photoData={...(all[key].photoData||{}),...media.photoData};
+    all[key].qaData={...(all[key].qaData||{}),...media.qaData};
+    submittedReportsCache[key]=all[key];
+  }
+  if(reporterStates[key]){
+    reporterStates[key].photoData={...(reporterStates[key].photoData||{}),...media.photoData};
+    reporterStates[key].qaData={...(reporterStates[key].qaData||{}),...media.qaData};
+  }
+  window._photoData={...(window._photoData||{}),...media.photoData};
+  window._qaData={...(window._qaData||{}),...media.qaData};
+  if(normalizeReporterName(selectedReporter())===normalizeReporterName(reporter))showReporterView(reporter);
+  return true;
+}
+
+// Chỉ lưu dữ liệu chữ vào localStorage; ảnh đã được xếp hàng sang IndexedDB.
 function _luuVaoMay(key, obj, moTa) {
-  try { localStorage.setItem(key, JSON.stringify(obj)); return true; }
-  catch(e) {
-    try {
-      const khongAnh = JSON.stringify(obj, (k, v) =>
-        (k === 'photoData' || k === 'qaData' || /_data$/i.test(k)) ? undefined : v);
-      localStorage.setItem(key, khongAnh);
-      if (typeof toast === 'function') toast('⚠️ Bộ nhớ máy đã đầy — đã tạm bỏ ảnh lưu trên máy để giữ phần dữ liệu. Hãy GỬI báo cáo ngay.', 'err');
-      return true;
-    } catch(e2) {
-      if (typeof toast === 'function') toast('⚠️ Bộ nhớ máy đã đầy, KHÔNG lưu được ' + (moTa || 'dữ liệu') + '. Hãy gửi báo cáo ngay rồi tải lại trang.', 'err');
-      console.error('localStorage đầy:', key, e2);
-      return false;
-    }
+  try {
+    const khongAnh=JSON.stringify(obj,(k,val)=>(k==='photoData'||k==='qaData'||/_data$/i.test(k))?undefined:val);
+    localStorage.setItem(key,khongAnh);return true;
+  } catch(e) {
+    if(typeof toast==='function')toast('⚠️ Bộ nhớ máy đã đầy, KHÔNG lưu được '+(moTa||'dữ liệu')+'. Hãy gửi báo cáo ngay rồi tải lại trang.','err');
+    console.error('localStorage đầy:',key,e);return false;
   }
 }
 
@@ -1827,7 +1943,10 @@ async function hydrateAllReportStatesFromServer(){
     });
   }catch(e){}
   if(!reporters.length)return;
-  await Promise.allSettled(reporters.map(r=>hydrateReportStateFromServer(r)));
+  await Promise.allSettled(reporters.map(async r=>{
+    await hydrateReportStateFromServer(r);
+    await restoreMediaCacheForReporter(r);
+  }));
   updateWorkflowTabs();
   rebuildActiveReporterTab();
 }
@@ -1841,7 +1960,7 @@ async function reloadFromServer(scope){
   let ok=false;
   try{
     const only=(scope==='current')?selectedReporter():'';
-    if(only) await hydrateReportStateFromServer(only);
+    if(only){await hydrateReportStateFromServer(only);await restoreMediaCacheForReporter(only);}
     else await hydrateAllReportStatesFromServer();
     ok=true;
   }catch(e){console.warn('reload error',e);}
@@ -2161,6 +2280,7 @@ function deleteSubmittedReport(reporter=selectedReporter()) {
       if (changed) localStorage.setItem(storageKey, JSON.stringify(stored));
     } catch(e) {}
   });
+  deleteMediaCache(reporter,v('f-ngay')).catch(()=>{});
 }
 
 // boQuaDongBoServer = chỉ lưu vào máy, KHÔNG đẩy lên server. Dùng cho trạng thái
@@ -2185,6 +2305,7 @@ function storeSubmittedReport(reporter, payload, boQuaDongBoServer) {
   };
   all[key] = merged;
   submittedReportsCache[key] = merged;
+  queueMediaCacheSave(reporter,merged.photoData||{},merged.qaData||{},merged.date||v('f-ngay'));
   saveSubmittedReports(all);
   serverDeleteConfirmed.delete(key); // vừa lưu mới → xóa khỏi danh sách "đã xác nhận xóa"
   if (!boQuaDongBoServer) queueServerStateSync(reporter,merged);
@@ -2348,7 +2469,17 @@ function cnReportRowToEditable(row) {
 
 function loadStoredReporterStates() {
   try {
-    Object.assign(reporterStates, JSON.parse(localStorage.getItem(REPORTER_STATE_KEY) || '{}'));
+    const stored=JSON.parse(localStorage.getItem(REPORTER_STATE_KEY) || '{}');
+    Object.keys(stored).forEach(key=>{
+      const memory=reporterStates[key]||{},disk=stored[key]||{};
+      // localStorage cố ý không chứa ảnh. Không được để lần đọc dữ liệu chữ sau
+      // khi IndexedDB vừa khôi phục ghi đè object trong RAM và làm mất ảnh.
+      reporterStates[key]={
+        ...memory,...disk,
+        photoData:{...(disk.photoData||{}),...(memory.photoData||{})},
+        qaData:{...(disk.qaData||{}),...(memory.qaData||{})},
+      };
+    });
   } catch(e) {}
 }
 
@@ -2396,7 +2527,9 @@ function collectResultState() {
 
 let autosaveTimer = null;
 function scheduleReporterAutosave() {
-  if (!currentReporter || isRestoring) return;
+  // submitQS tự lưu trạng thái cuối. Không xếp thêm một lượt serialize ảnh và
+  // localStorage đúng lúc bấm Gửi vì thao tác đồng bộ này chặn giao diện.
+  if (!currentReporter || isRestoring || isQSSubmitting || window.__busySubmit) return;
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => saveReporterState(currentReporter), 50);
 }
@@ -2502,6 +2635,7 @@ function saveReporterState(reporter) {
     _resubOrigCa: existing._resubOrigCa || undefined,
     _resubOrigGs: existing._resubOrigGs || undefined,
   };
+  queueMediaCacheSave(reporter,reporterStates[key].photoData||{},reporterStates[key].qaData||{},v('f-ngay'));
   persistReporterStates();
 }
 
@@ -3574,7 +3708,11 @@ async function init() {
     // chưa chọn ai thì mọi tab đều trống dù server có dữ liệu.
     if (currentReporter) {
       showReporterView(currentReporter);
-      hydrateReportStateFromServer(currentReporter).then(()=>{
+      // Hiện ảnh cục bộ trước, không bắt GS chờ mạng; sau khi server hợp nhất
+      // xong thì áp lại cache một lần để state server không ghi đè ảnh trên máy.
+      restoreMediaCacheForReporter(currentReporter)
+        .then(()=>hydrateReportStateFromServer(currentReporter))
+        .then(()=>restoreMediaCacheForReporter(currentReporter)).then(()=>{
         updateWorkflowTabs(); rebuildActiveReporterTab();
       });
     } else {
@@ -3665,7 +3803,11 @@ async function onReporterChange() {
   if (currentReporter && normalizeReporterName(currentReporter)!==normalizeReporterName(newReporter)) saveReporterState(currentReporter);
   showReporterView(newReporter);
   try{if(window.renderTonDong)renderTonDong();}catch(e){} // lọc section 3 theo GS đang chọn
-  if(newReporter) await hydrateReportStateFromServer(newReporter);
+  if(newReporter){
+    await restoreMediaCacheForReporter(newReporter);
+    await hydrateReportStateFromServer(newReporter);
+    await restoreMediaCacheForReporter(newReporter);
+  }
   else hydrateAllReportStatesFromServer(); // chế độ tổng hợp — không block UI
 }
 function setMode(m) {
@@ -5250,12 +5392,16 @@ function toast(msg,type=''){
 }
 function valReq(id,msg){if(!document.getElementById(id)?.value){toast(msg,'err');return false;}return true;}
 function v(id){return document.getElementById(id)?.value||'';}
-function submitQS(){
+async function submitQS(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if (isQSSubmitting) {
     toast('Đang gửi báo cáo, vui lòng đợi...','');
     return;
   }
+  setQSSubmitting(true);
+  // Vẽ trạng thái khóa nút trước khi gom/serialize báo cáo lớn.
+  await new Promise(resolve=>requestAnimationFrame(resolve));
+  try {
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const reporter = selectedReporter();
@@ -5364,7 +5510,6 @@ function submitQS(){
     });
     ntcTotal+=_T;
   });
-  if(dauMucRows.length){try{postToGAS({type:'TIẾN ĐỘ SOW',ngay:v('f-ngay'),gs:v('f-gs'),rows:JSON.stringify(dauMucRows),ts:new Date().toISOString()});}catch(e){}}
   const cnTaskData=Object.keys(cnTasks).map(id=>({
     task:document.querySelector('#cnt-'+id+' .cnt-content')?.value||'',
     workers:[...cnTasks[id].selected].map(wid=>ALC_WORKERS.find(x=>x.id===wid)?.name||'').join(', '),
@@ -5388,9 +5533,8 @@ function submitQS(){
     const _bsSid = createSubmitId('bo-sung');
     const _bsPld = {type:'CÔNG NHẬT — BỔ SUNG',submitId:_bsSid,ca:reportSession,
       ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),
-      cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),ts:new Date().toISOString()};
-    setQSSubmitting(true);
-    if(dauMucRows.length){try{postToGAS({type:'TIẾN ĐỘ SOW',ngay:v('f-ngay'),gs:v('f-gs'),rows:JSON.stringify(dauMucRows),ts:new Date().toISOString()});}catch(e){}}
+      cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),
+      dauMucRows:JSON.stringify(dauMucRows),ts:new Date().toISOString()};
     const _mergedNtc=[...(_existingLockedReport.ntcRows||[]),...ntcRows];
     const _mergedCn=[...(_existingLockedReport.cnTasks||[]),...cnTaskData.filter(t=>t.task||t.workerCount)];
     storeSubmittedReport(reporter,{
@@ -5468,9 +5612,8 @@ function submitQS(){
     updateReporterStrip(reporter);   // tắt dải "Đang sửa dở"
   }
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
-  setQSSubmitting(true);
   updateWorkflowTabs();
-  const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),vang:v('f-vang'),ts:new Date().toISOString()};
+  const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
   // Nếu là gửi lại sau "Sửa lại" → báo GAS xóa dòng cũ trước khi ghi mới
   const _rsk=reporterStateKey(reporter);
   if(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay){
@@ -5487,6 +5630,10 @@ function submitQS(){
   setQSSubmitting(false);
   nextModeAfterSuccess = 1;
   showSuccess(applyEmailTestMode(_qsPld),`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
+  } finally {
+    // Các nhánh kiểm tra return sớm cũng phải trả nút về trạng thái dùng được.
+    setQSSubmitting(false);
+  }
 }
 function submitBC(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
