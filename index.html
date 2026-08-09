@@ -1641,7 +1641,7 @@ function normalizeReporterName(reporter) {
 }
 
 function reporterStateKey(reporter) {
-  return `${v('f-ngay') || new Date().toISOString().split('T')[0]}::${normalizeReporterName(reporter)}`;
+  return `${v('f-ngay') || todayISOInVietnam()}::${normalizeReporterName(reporter)}`;
 }
 
 function loadSubmittedReports() {
@@ -1691,7 +1691,8 @@ function queueMediaCacheSave(reporter,photoData,qaData,date){
 }
 async function flushMediaCache(scope){
   const pending=mediaPending[scope];if(!pending)return false;
-  delete mediaPending[scope];clearTimeout(mediaSaveTimers[scope]);delete mediaSaveTimers[scope];
+  clearTimeout(mediaSaveTimers[scope]);delete mediaSaveTimers[scope];
+  const previousSigs={};
   try{
     const db=await openMediaDb();
     await new Promise((resolve,reject)=>{
@@ -1715,13 +1716,26 @@ async function flushMediaCache(scope){
           const value=pair[1][slot];if(value==null)return;
           const id=scope+'::'+pair[0]+'::'+slot,sig=mediaValueSig(value);
           if(mediaLastSig[id]===sig)return;
+          previousSigs[id]=mediaLastSig[id];
           mediaLastSig[id]=sig;store.put({id,scope,kind:pair[0],slot,value,updatedAt:Date.now()});
         });
       });
       tx.oncomplete=()=>resolve(true);tx.onerror=()=>reject(tx.error||new Error('Không lưu được ảnh'));tx.onabort=()=>reject(tx.error||new Error('Lưu ảnh bị hủy'));
     });
+    // Nếu trong lúc transaction chạy có snapshot mới được xếp hàng thì giữ
+    // snapshot mới; chỉ gỡ đúng object vừa flush.
+    if(mediaPending[scope]===pending)delete mediaPending[scope];
     return true;
   }catch(e){
+    Object.keys(previousSigs).forEach(id=>{
+      if(previousSigs[id]===undefined)delete mediaLastSig[id];else mediaLastSig[id]=previousSigs[id];
+    });
+    // Transaction IndexedDB là atomic. Giữ snapshot và tự thử lại thay vì
+    // làm mất ảnh nháp vĩnh viễn sau một lần abort/quota tạm thời.
+    if(mediaPending[scope]===pending){
+      clearTimeout(mediaSaveTimers[scope]);
+      mediaSaveTimers[scope]=setTimeout(()=>flushMediaCache(scope),1200);
+    }
     console.error('IndexedDB ảnh:',e);
     if(typeof toast==='function')toast('⚠️ Không lưu được ảnh nháp trên máy. Hãy gửi ảnh trước khi tải lại trang.','err');
     return false;
@@ -1759,7 +1773,7 @@ async function deleteMediaCache(reporter,date){
 }
 async function restoreMediaCacheForReporter(reporter){
   reporter=String(reporter||'').trim();if(!reporter)return false;
-  const date=v('f-ngay')||new Date().toISOString().split('T')[0],key=mediaScopeKey(reporter,date);
+  const date=v('f-ngay')||todayISOInVietnam(),key=mediaScopeKey(reporter,date);
   const media=await loadMediaCache(reporter,date);
   if(!media||(!Object.keys(media.photoData).length&&!Object.keys(media.qaData).length))return false;
   const all=loadSubmittedReports();
@@ -1772,16 +1786,34 @@ async function restoreMediaCacheForReporter(reporter){
     reporterStates[key].photoData={...(reporterStates[key].photoData||{}),...media.photoData};
     reporterStates[key].qaData={...(reporterStates[key].qaData||{}),...media.qaData};
   }
+  // Người dùng có thể đổi GS/ngày trong lúc IndexedDB đang đọc. Chỉ merge vào
+  // các biến toàn cục của màn hình nếu scope lúc trả về vẫn là scope hiện tại.
+  if(mediaScopeKey(selectedReporter(),v('f-ngay')||todayISOInVietnam())!==key)return true;
   window._photoData={...(window._photoData||{}),...media.photoData};
   window._qaData={...(window._qaData||{}),...media.qaData};
   if(normalizeReporterName(selectedReporter())===normalizeReporterName(reporter))showReporterView(reporter);
   return true;
 }
 
+// Bắt đầu flush ngay khi app bị đưa xuống nền/đóng tab; debounce 180 ms không
+// còn làm mất ảnh vừa chụp khi giám sát tải lại trang quá nhanh.
+window.addEventListener('pagehide',()=>{
+  Object.keys(mediaPending).forEach(scope=>{flushMediaCache(scope);});
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')Object.keys(mediaPending).forEach(scope=>{flushMediaCache(scope);});
+});
+
 // Chỉ lưu dữ liệu chữ vào localStorage; ảnh đã được xếp hàng sang IndexedDB.
 function _luuVaoMay(key, obj, moTa) {
   try {
-    const khongAnh=JSON.stringify(obj,(k,val)=>(k==='photoData'||k==='qaData'||/_data$/i.test(k))?undefined:val);
+    const khongAnh=JSON.stringify(obj,(k,val)=>{
+      if(k==='photoData'||k==='qaData'||/_data$/i.test(k))return undefined;
+      // Ảnh QA nằm trong qaPhotos/errorPhotos với khóa ngắn là "data".
+      // Không để base64 lọt vào localStorage; IndexedDB đã giữ bản ảnh gốc.
+      if(k==='data'&&typeof val==='string'&&val.length>500)return undefined;
+      return val;
+    });
     localStorage.setItem(key,khongAnh);return true;
   } catch(e) {
     if(typeof toast==='function')toast('⚠️ Bộ nhớ máy đã đầy, KHÔNG lưu được '+(moTa||'dữ liệu')+'. Hãy gửi báo cáo ngay rồi tải lại trang.','err');
@@ -1852,7 +1884,7 @@ function draftHasContent(d){
 }
 async function hydrateReportStateFromServer(reporter){
   reporter=String(reporter||'').trim();if(!reporter)return false;
-  const date=v('f-ngay')||new Date().toISOString().split('T')[0];
+  const date=v('f-ngay')||todayISOInVietnam();
   const tokenKey=normalizeReporterName(reporter);
   const token=(serverStateHydrateTokens[tokenKey]||0)+1;
   serverStateHydrateTokens[tokenKey]=token;
@@ -1927,7 +1959,7 @@ async function hydrateAllReportStatesFromServer(){
   // Hợp nhất: danh sách người báo cáo chính thức + người chỉ còn trong cache
   // local của ngày này. Nhờ đó dữ liệu ma (đã xóa trên Google Sheet nhưng còn
   // trong localStorage của thiết bị) cũng được đối chiếu server và dọn sạch.
-  const date=v('f-ngay')||new Date().toISOString().split('T')[0];
+  const date=v('f-ngay')||todayISOInVietnam();
   const seen=new Set(), reporters=[];
   (PROJECT.reporters||[]).filter(Boolean).forEach(r=>{
     const k=normalizeReporterName(r); if(!seen.has(k)){seen.add(k);reporters.push(r);}
@@ -1982,7 +2014,7 @@ function setReloadBtnState(state){ // 'idle'|'loading'|'done'|'error'
 }
 
 function isSubmittedKeyForReporter(key, reporter) {
-  const date = v('f-ngay') || new Date().toISOString().split('T')[0];
+  const date = v('f-ngay') || todayISOInVietnam();
   const parts = String(key || '').split('::');
   const keyDate = parts.shift();
   return keyDate === date && normalizeReporterName(parts.join('::')) === normalizeReporterName(reporter);
@@ -1991,7 +2023,7 @@ function isSubmittedKeyForReporter(key, reporter) {
 function getSubmittedReport(reporter=selectedReporter()) {
   if (!reporter) return null;
   const all = loadSubmittedReports();
-  const date = v('f-ngay') || new Date().toISOString().split('T')[0];
+  const date = v('f-ngay') || todayISOInVietnam();
   const direct = all[reporterStateKey(reporter)] || all[`${date}::${String(reporter||'').trim()}`];
   if (direct) return direct;
   const wanted = normalizeReporterName(reporter);
@@ -2005,7 +2037,7 @@ function getSubmittedReport(reporter=selectedReporter()) {
 
 function submittedReportEntriesForDate() {
   const all = loadSubmittedReports();
-  const date = v('f-ngay') || new Date().toISOString().split('T')[0];
+  const date = v('f-ngay') || todayISOInVietnam();
   const seen = new Set();
   return Object.keys(all).filter(key => String(key).split('::')[0] === date).map(key => {
     const report = all[key] || {};
@@ -2492,7 +2524,7 @@ function getReporterState(reporter=currentReporter) {
   loadStoredReporterStates();
   const direct = reporterStates[reporterStateKey(reporter)];
   if (direct) return direct;
-  const date = v('f-ngay') || new Date().toISOString().split('T')[0];
+  const date = v('f-ngay') || todayISOInVietnam();
   const wanted = normalizeReporterName(reporter);
   const matchedKey = Object.keys(reporterStates).find(key => {
     const parts = key.split('::');
@@ -2517,9 +2549,11 @@ function collectResultState() {
       kq: document.getElementById('kqi-'+rid)?.value || '',
       pct: document.getElementById('pctr-'+rid)?.value || '0',
       ph1: document.getElementById('ri1-'+rid)?.classList.contains('taken') || false,
-      ph1_data: window._photoData?.['ri1-'+rid] || null,
+      // Không có base64 thì giữ link Drive: restorePhotoSlot nhận cả hai kiểu,
+      // nhờ đó tải lại trang vẫn thấy ảnh cũ thay vì ô trống.
+      ph1_data: window._photoData?.['ri1-'+rid] || photoUrlOfSlot('ri1-'+rid) || null,
       ph2: document.getElementById('ri2-'+rid)?.classList.contains('taken') || false,
-      ph2_data: window._photoData?.['ri2-'+rid] || null,
+      ph2_data: window._photoData?.['ri2-'+rid] || photoUrlOfSlot('ri2-'+rid) || null,
     });
   });
   return rows;
@@ -2531,7 +2565,7 @@ function scheduleReporterAutosave() {
   // localStorage đúng lúc bấm Gửi vì thao tác đồng bộ này chặn giao diện.
   if (!currentReporter || isRestoring || isQSSubmitting || window.__busySubmit) return;
   clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(() => saveReporterState(currentReporter), 50);
+  autosaveTimer = setTimeout(() => saveReporterState(currentReporter), 300);
 }
 function commitReporterState() {
   if (!currentReporter || isRestoring) return;
@@ -3543,7 +3577,8 @@ function gvizPayloadToRows(payload){
 
 function loadSowNtpViaJsonp(){
   return new Promise((resolve,reject)=>{
-    const callback='__sowNtp_'+Date.now()+'_'+Math.floor(Math.random()*10000);
+    const requestId=Date.now();
+    const callback='__sowNtp_'+requestId+'_'+Math.floor(Math.random()*10000);
     const script=document.createElement('script');
     const timer=setTimeout(()=>finish(new Error('SOW_NTP JSONP quá thời gian')),20000);
     function finish(error,payload){
@@ -3553,22 +3588,27 @@ function loadSowNtpViaJsonp(){
     }
     window[callback]=payload=>finish(null,payload);
     script.onerror=()=>finish(new Error('Không tải được SOW_NTP JSONP'));
-    script.src=`https://docs.google.com/spreadsheets/d/${SHEETS_ID}/gviz/tq?gid=${SOW_NTP_GID}&tqx=${encodeURIComponent('out:json;responseHandler:'+callback)}&_=${Date.now()}`;
+    // reqId là tham số chính thức của GViz. Mỗi lần tải có một reqId mới để
+    // Google không trả lại bản CSV cũ ngay sau khi người dùng vừa sửa Sheet.
+    const tqx=`out:json;responseHandler:${callback};reqId:${requestId}`;
+    script.src=`https://docs.google.com/spreadsheets/d/${SHEETS_ID}/gviz/tq?gid=${SOW_NTP_GID}&tqx=${encodeURIComponent(tqx)}&_=${requestId}`;
     document.head.appendChild(script);
   });
 }
 
 async function loadSowNtpFromSheet(base,silent) {
   const url=`https://docs.google.com/spreadsheets/d/${SHEETS_ID}/gviz/tq?tqx=out:csv&gid=${SOW_NTP_GID}&_=${Date.now()}`;
-  let rows;
+  let rows,source='GViz JSONP';
   try{
+    rows=gvizPayloadToRows(await loadSowNtpViaJsonp());
+  }catch(jsonpError){
+    source='GViz CSV dự phòng';
     const response=await fetch(url,{cache:'no-store'});
     if(!response.ok)throw new Error('HTTP '+response.status);
     rows=parseCSV(await response.text());
-  }catch(fetchError){
-    rows=gvizPayloadToRows(await loadSowNtpViaJsonp());
   }
   const stats=applySowNtpRows(rows);
+  stats.source=source;
   if(!silent)toast(`Đã tải SOW_NTP: ${stats.contractors} nhà thầu · ${stats.units} căn`,'ok');
   return stats;
 }
@@ -3671,6 +3711,12 @@ function parseCSV(text){
 function autoReportSessionByTime(now = new Date()) {
   return now.getHours() < 17 ? 'sang' : 'toi';
 }
+function todayISOInVietnam(now = new Date()) {
+  const parts=new Intl.DateTimeFormat('en-GB',{
+    timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(now).reduce((out,p)=>{out[p.type]=p.value;return out;},{});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 let reportSession = autoReportSessionByTime();
 let nextModeAfterSuccess = null;
 function setReportSession(s) {
@@ -3681,13 +3727,13 @@ function setReportSession(s) {
     banner.textContent='';
   }
   const submitBtn=document.getElementById('btn-submit-qs');
-  if (submitBtn) submitBtn.textContent=reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối';
+  if (submitBtn&&!isQSSubmitting) submitBtn.textContent=reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối';
 }
 
 async function init() {
   initCardToggles();
   const now=new Date();
-  document.getElementById('f-ngay').value=now.toISOString().split('T')[0];
+  document.getElementById('f-ngay').value=todayISOInVietnam(now);
   function _updateNgayTxt(){const v=document.getElementById('f-ngay').value;const p=v?v.split('-'):[];document.getElementById('f-ngay-txt').textContent=p.length===3?p[2]+'/'+p[1]+'/'+p[0]:'';_updateHdrTitle();}
   // Large title trên header = ngày báo cáo (theo mockup): "Thứ X, DD/MM/YYYY"
   function _updateHdrTitle(){
@@ -5057,7 +5103,8 @@ function buildResultDetailPanel(){
           <div style="font-size:11px;font-weight:700;color:var(--orange);text-transform:uppercase;margin-bottom:8px">📸 Ảnh ghi nhận lỗi (${errorPhotos.length})</div>
           <div class="result-photo-strip">
             ${errorPhotos.map((ep,pi)=>{
-              const src=ep.data?`data:image/jpeg;base64,${ep.data}`:'';
+              const photoData=ep.data||window._qaData?.[ep.id]||window._photoData?.[ep.id]||'';
+              const src=photoData?`data:image/jpeg;base64,${photoData}`:'';
               return src
                 ? `<button type="button" onclick="showResultPhoto('${src}')" style="width:72px;height:72px;padding:0;border:2px solid var(--orange);border-radius:9px;overflow:hidden;background:#fff;cursor:pointer"><img src="${src}" alt="Ảnh lỗi ${pi+1}" style="width:100%;height:100%;object-fit:cover;display:block"></button>`
                 : `<div style="width:72px;height:72px;background:var(--grey);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid var(--border)">📷</div>`;
@@ -5104,6 +5151,9 @@ function prevPhSm(inp,slotId,prevId){
       document.getElementById(slotId).classList.add('taken');
       window._photoData[slotId]=dataUrl.split(',')[1];
       if(slotId.startsWith('qa')) window._qaData[slotId]=dataUrl.split(',')[1];
+      // Ảnh mới thay ảnh cũ tải từ Drive: bỏ link cũ để không gửi kèm nhầm.
+      if(window._photoDriveUrl) delete window._photoDriveUrl[slotId];
+      if(window._qaDriveUrl) delete window._qaDriveUrl[slotId];
       if(/^pi[12]-/.test(slotId)) piSyncBadge(slotId.replace(/^pi[12]-/,''));
       scheduleReporterAutosave();
     };
@@ -5262,6 +5312,17 @@ function restoreQASlot(slotId, data) {
   window._qaData[slotId]=data;
   window._photoData[slotId]=data;
 }
+// Ô ảnh khôi phục từ Drive không có base64 trên máy này. Gửi kèm link để server
+// tự kéo lại file: nếu chỉ gửi ph*_data rỗng, Sheet ghi "⚠️ Ảnh lỗi" và email
+// nghiệm thu thiếu ảnh dù ảnh vẫn còn nguyên trên Drive.
+function photoUrlOfSlot(slotId){
+  const url=(window._photoDriveUrl&&window._photoDriveUrl[slotId])
+    ||(window._qaDriveUrl&&window._qaDriveUrl[slotId])||'';
+  // Chỉ gửi link khi máy KHÔNG còn base64; có base64 thì base64 luôn ưu tiên.
+  if(window._photoData&&window._photoData[slotId])return null;
+  if(window._qaData&&typeof window._qaData[slotId]==='string'&&window._qaData[slotId])return null;
+  return /^https?:\/\//i.test(String(url))?url:null;
+}
 function restoreResultItem(rid, saved) {
   if(!saved)return;
   const itemEl=document.querySelector(`[data-item-id="${rid}"]`);
@@ -5329,13 +5390,21 @@ function applyEmailTestMode(data) {
   };
 }
 
-function postToGAS(data) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({...applyEmailTestMode(data), secret: GAS_SECRET})
-  });
+async function postToGAS(data) {
+  const controller=typeof AbortController!=='undefined'?new AbortController():null;
+  const timer=setTimeout(()=>{if(controller)controller.abort();},20000);
+  try{
+    return await fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({...applyEmailTestMode(data), secret: GAS_SECRET}),
+      ...(controller?{signal:controller.signal}:{})
+    });
+  }catch(e){
+    if(e&&e.name==='AbortError')throw new Error('Quá thời gian kết nối Google Apps Script');
+    throw e;
+  }finally{clearTimeout(timer);}
 }
 
 // GỬI NỀN: giao diện phản hồi NGAY, request chạy phía sau. Người dùng không
@@ -5351,23 +5420,114 @@ function guiNen(payload, moTa) {
   });
 }
 
+async function waitSubmitAck(submitId, maxAttempts=70, totalTimeoutMs) {
+  let lastError=null;
+  const duration=totalTimeoutMs||Math.min(240000,Math.max(60000,maxAttempts*1500));
+  const deadline=Date.now()+duration;
+  for(let attempt=0;attempt<maxAttempts&&Date.now()<deadline;attempt++){
+    try{
+      const response=await gasJsonp({action:'submit_ack',submitId},'__submitAck',Math.min(5000,Math.max(1000,deadline-Date.now())));
+      const ack=response&&response.ack;
+      if(ack&&ack.status==='ok')return ack;
+      if(ack&&ack.status==='error')throw new Error(ack.message||'Máy chủ từ chối dữ liệu');
+      if(response&&response.ok===false)lastError=new Error(response.message||'Không đọc được xác nhận máy chủ');
+    }catch(e){
+      // Lỗi nghiệp vụ từ ACK phải dừng ngay; lỗi mạng JSONP thì tiếp tục poll.
+      if(e&&e.message&&e.message!=='Quá thời gian tải dữ liệu'&&!/Không tải được dữ liệu từ GAS/.test(e.message))throw e;
+      lastError=e;
+    }
+    const delay=Math.min(attempt<12?500:1500,Math.max(0,deadline-Date.now()));
+    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+  }
+  throw lastError||new Error('Quá thời gian chờ Google Sheets xác nhận');
+}
+
+async function postToGASConfirmed(data, maxAttempts=70) {
+  const payload={...data,submitId:data.submitId||createSubmitId('submit')};
+  if(GAS_URL.includes('YOUR_GAS_ID'))return {payload,ack:{status:'ok',result:null}};
+  let postError=null;
+  try{await postToGAS(payload);}catch(e){postError=e;}
+  let ack;
+  try{
+    // POST có thể đã tới Apps Script dù trình duyệt hết thời gian chờ. Vẫn đọc
+    // ACK một khoảng ngắn trước khi báo lỗi để không bắt GS gửi lại vô ích.
+    ack=await waitSubmitAck(payload.submitId,maxAttempts,postError?20000:undefined);
+  }catch(ackError){
+    if(postError)throw new Error((postError.message||'Không gửi được dữ liệu')+'; máy chủ chưa xác nhận');
+    throw ackError;
+  }
+  if(ack.result&&ack.result.ok===false){
+    const failures=Array.isArray(ack.result.failedItems)?ack.result.failedItems:[];
+    const detail=failures.slice(0,3).map(x=>`${x.item||'Hạng mục'}: ${x.message||'lỗi xử lý'}`).join(' · ');
+    throw new Error(detail||'Máy chủ xử lý chưa đủ dữ liệu');
+  }
+  return {payload,ack};
+}
+
 function createSubmitId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10)}`;
 }
 
+const TEXT_SUBMIT_OUTBOX_KEY='sailing_v11_text_submit_outbox';
+function textSubmitFingerprint(payload){
+  const s=JSON.stringify(payload,(key,value)=>(key==='submitId'||key==='ts')?undefined:value);
+  let h1=2166136261,h2=2246822507;
+  for(let i=0;i<s.length;i++){
+    const c=s.charCodeAt(i);
+    h1=Math.imul(h1^c,16777619)>>>0;
+    h2=Math.imul(h2^c,3266489917)>>>0;
+  }
+  return s.length.toString(36)+'-'+h1.toString(36)+'-'+h2.toString(36);
+}
+function prepareTextSubmit(scope,payload){
+  let box={};try{box=JSON.parse(localStorage.getItem(TEXT_SUBMIT_OUTBOX_KEY)||'{}');}catch(e){}
+  const key=[scope,payload.ngay||'',normalizeReporterName(payload.gs||''),payload.ca||''].join('::');
+  const fingerprint=textSubmitFingerprint(payload);
+  const old=box[key];
+  // Một báo cáo logic chỉ đổi ID sau khi ACK thành công. Nếu người dùng sửa nội
+  // dung sau lỗi rồi gửi lại, GAS vẫn dùng đúng ID cũ để dọn mọi hàng ghi dở và
+  // thay bằng payload mới; đổi ID theo fingerprint sẽ để sót phần ghi dở.
+  const submitId=(old&&old.submitId)||createSubmitId(scope);
+  box[key]={submitId,fingerprint,at:new Date().toISOString()};
+  _luuVaoMay(TEXT_SUBMIT_OUTBOX_KEY,box,'mã gửi lại báo cáo');
+  return {key,submitId};
+}
+function clearTextSubmit(ticket){
+  if(!ticket||!ticket.key)return;
+  try{
+    const box=JSON.parse(localStorage.getItem(TEXT_SUBMIT_OUTBOX_KEY)||'{}');
+    delete box[ticket.key];
+    _luuVaoMay(TEXT_SUBMIT_OUTBOX_KEY,box,'mã gửi lại báo cáo');
+  }catch(e){}
+}
+
 function setQSSubmitting(locked) {
   isQSSubmitting = locked;
+  // Khóa toàn bộ luồng gửi, không chỉ riêng nút Công việc. Nếu chỉ khóa một
+  // nút, người dùng vẫn có thể đổi GS/ngày hoặc bấm gửi tab khác trong lúc GAS
+  // đang ghi, khiến callback xác nhận cập nhật nhầm phiếu đang xem.
+  setSubmitBusy(locked);
   const btn = document.getElementById('btn-submit-qs');
   if (!btn) return;
   btn.disabled = locked;
   btn.style.opacity = locked ? '.65' : '';
   btn.style.pointerEvents = locked ? 'none' : '';
+  btn.textContent=locked?'Đang gửi lên Google Sheets…':(reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối');
 }
 function setSubmitBusy(b){
   window.__busySubmit = b;
   document.querySelectorAll('.submit-btn').forEach(function(x){
     x.disabled = b; x.style.opacity = b ? '.55' : ''; x.style.pointerEvents = b ? 'none' : '';
   });
+  ['f-ngay','f-gs'].forEach(function(id){
+    const x=document.getElementById(id);if(x)x.disabled=!!b;
+  });
+  const reload=document.getElementById('reload-btn');
+  if(reload){reload.disabled=!!b;reload.style.pointerEvents=b?'none':'';reload.style.opacity=b?'.55':'';}
+  const main=document.getElementById('main-content');
+  if(main){main.inert=!!b;main.setAttribute('aria-busy',b?'true':'false');}
+  const nav=document.querySelector('.bot-nav');
+  if(nav){nav.style.pointerEvents=b?'none':'';nav.style.opacity=b?'.72':'';}
 }
 
 function sendEmailNTCShortageCheck(ntcRows, ca) {
@@ -5479,7 +5639,7 @@ async function submitQS(){
       return;
     }
   }
-  const ntcRows=[];let ntcTotal=0;const dauMucRows=[];
+  const ntcRows=[];let ntcTotal=0;const dauMucRows=[];let invalidPairNTC='';
   document.querySelectorAll('.qs-card[data-editable="1"]').forEach(card=>{
     const idx=parseInt(card.id.replace('qsc-',''));const qs=qsCards[idx];if(!qs)return;
     const ntc=card.querySelector('.qs-ntc-sel')?.value||'';if(!ntc)return;
@@ -5497,8 +5657,10 @@ async function submitQS(){
     const _pairs=[];
     [...(qs.items||[])].forEach(gi=>{
       const r=SOW_ITEMS[gi];
+      if(!r){invalidPairNTC=ntc;return;}
       [...qs.selectedCans].filter(c=>c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r)).forEach(can=>_pairs.push({gi,r,can}));
     });
+    if(!_pairs.length){invalidPairNTC=ntc;return;}
     let _T=qs.ntcCN>0?qs.ntcCN:0;
     if(!_T){ _pairs.forEach(p=>{ _T+=((qs.cnMap&&qs.cnMap[p.gi])||1); }); } // bản nháp cũ
     _pairs.forEach((p,pi)=>{
@@ -5510,6 +5672,15 @@ async function submitQS(){
     });
     ntcTotal+=_T;
   });
+  if(invalidPairNTC){
+    toast('⚠️ ['+invalidPairNTC+'] Không có đầu mục hợp lệ để gửi. Vui lòng mở thẻ và chọn lại.','err');
+    return;
+  }
+  const serializedNtcTotal=ntcRows.reduce((sum,row)=>sum+((row.cn===''||row.cn==null)?0:(Number(row.cn)||0)),0);
+  if(serializedNtcTotal!==ntcTotal){
+    toast(`⚠️ Dữ liệu chưa đầy đủ: thẻ khai báo ${ntcTotal} CN nhưng payload chỉ có ${serializedNtcTotal} CN. Báo cáo chưa được gửi.`,'err');
+    return;
+  }
   const cnTaskData=Object.keys(cnTasks).map(id=>({
     task:document.querySelector('#cnt-'+id+' .cnt-content')?.value||'',
     workers:[...cnTasks[id].selected].map(wid=>ALC_WORKERS.find(x=>x.id===wid)?.name||'').join(', '),
@@ -5530,13 +5701,22 @@ async function submitQS(){
       return;
     }
     const _caLabelBs = reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
-    const _bsSid = createSubmitId('bo-sung');
-    const _bsPld = {type:'CÔNG NHẬT — BỔ SUNG',submitId:_bsSid,ca:reportSession,
+    const _bsPld = {type:'CÔNG NHẬT — BỔ SUNG',ca:reportSession,
       ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),
       cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),
       dauMucRows:JSON.stringify(dauMucRows),ts:new Date().toISOString()};
+    const _bsTicket=prepareTextSubmit('bo-sung',_bsPld);
+    _bsPld.submitId=_bsTicket.submitId;
     const _mergedNtc=[...(_existingLockedReport.ntcRows||[]),...ntcRows];
     const _mergedCn=[...(_existingLockedReport.cnTasks||[]),...cnTaskData.filter(t=>t.task||t.workerCount)];
+    try{
+      await postToGASConfirmed(applyEmailTestMode(_bsPld));
+    }catch(e){
+      console.error('Gửi báo cáo bổ sung:',e);
+      toast('⚠️ Chưa lưu được báo cáo bổ sung: '+e.message+'. Nội dung vẫn còn trên máy.','err');
+      return;
+    }
+    clearTextSubmit(_bsTicket);
     storeSubmittedReport(reporter,{
       ..._existingLockedReport,
       ntcRows:_mergedNtc, cnTasks:_mergedCn,
@@ -5544,8 +5724,6 @@ async function submitQS(){
       locked:true, workSubmittedAt:_existingLockedReport.workSubmittedAt||new Date().toISOString(),
       updatedAt:new Date().toISOString()
     });
-    guiNen(applyEmailTestMode(_bsPld),'báo cáo bổ sung');
-    setQSSubmitting(false);
     clearAllState();
     renderSubmittedWorkSummary(getSubmittedReport(reporter));
     updateWorkflowTabs();
@@ -5574,8 +5752,6 @@ async function submitQS(){
   saveReporterState(reporter);
   const stateKey = reporterStateKey(reporter);
   reporterStates[stateKey] = reporterStates[stateKey] || {};
-  reporterStates[stateKey].submittedWorkItems = submittedWorkItems;
-  persistReporterStates();
   // Các dòng KHÔNG do form Công việc sinh ra (defect, bổ sung nhân công đến trễ)
   // phải được giữ lại — form chỉ quản lý dòng của chính nó. Bỏ sót cờ boSung ở
   // đây từng làm mất trắng quân bổ sung khi GS bấm Gửi (đã dính lỗi 22/07/2026).
@@ -5585,7 +5761,7 @@ async function submitQS(){
   const _finalWorkItems = _keptRows.length
     ? reportToSubmittedWorkItems({ntcRows:_finalNtcRows, cnTasks:cnTaskData})
     : submittedWorkItems;
-  storeSubmittedReport(reporter, {
+  const _submittedReportPayload = {
     date: v('f-ngay'),
     reporter,
     reportSession,
@@ -5604,30 +5780,48 @@ async function submitQS(){
     qaData: (_prevRpt && _prevRpt.qaData) || {},
     locked: true,
     savedAt: new Date().toISOString()
-  });
-  // Đã gửi lại xong → nội dung nằm trong phiếu, nháp hết lý do sống qua session.
-  if (reporterStates[stateKey] && reporterStates[stateKey]._nhapSuaLai) {
-    delete reporterStates[stateKey]._nhapSuaLai;
-    persistReporterStates();
-    updateReporterStrip(reporter);   // tắt dải "Đang sửa dở"
-  }
+  };
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
-  updateWorkflowTabs();
-  const _qsPld={type:'CÔNG NHẬT — '+caLabel,submitId:createSubmitId('cong-nhat'),ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
+  const _qsPld={type:'CÔNG NHẬT — '+caLabel,ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
   // Nếu là gửi lại sau "Sửa lại" → báo GAS xóa dòng cũ trước khi ghi mới
   const _rsk=reporterStateKey(reporter);
-  if(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay){
+  const _hadResub=!!(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay);
+  if(_hadResub){
     _qsPld.isResub=true;
     _qsPld.origNgay=reporterStates[_rsk]._resubOrigNgay;
     _qsPld.origCa=reporterStates[_rsk]._resubOrigCa;
     _qsPld.origGs=reporterStates[_rsk]._resubOrigGs;
+  }
+  // Giữ nguyên submitId khi người dùng gửi lại đúng nội dung sau lỗi/timeout.
+  // GAS dùng ID này để xóa phần ghi dở rồi ghi lại trọn gói, không nhân đôi.
+  const _qsTicket=prepareTextSubmit(_hadResub?'cong-nhat-resub':'cong-nhat',_qsPld);
+  _qsPld.submitId=_qsTicket.submitId;
+  try{
+    await postToGASConfirmed(applyEmailTestMode(_qsPld));
+  }catch(e){
+    console.error('Gửi báo cáo công việc:',e);
+    reporterStates[stateKey].submittedWorkItems=[];
+    persistReporterStates();
+    toast('⚠️ Google Sheets chưa xác nhận lưu báo cáo: '+e.message+'. Toàn bộ nội dung vẫn còn trên máy để gửi lại.','err');
+    return;
+  }
+  clearTextSubmit(_qsTicket);
+
+  // Chỉ khóa phiếu và đẩy snapshot đa thiết bị SAU KHI server xác nhận đã ghi.
+  reporterStates[stateKey].submittedWorkItems=submittedWorkItems;
+  storeSubmittedReport(reporter,_submittedReportPayload);
+  if(_hadResub){
     delete reporterStates[_rsk]._resubOrigNgay;
     delete reporterStates[_rsk]._resubOrigCa;
     delete reporterStates[_rsk]._resubOrigGs;
-    persistReporterStates();
   }
-  guiNen(_qsPld,'báo cáo công việc');
-  setQSSubmitting(false);
+  // Đã gửi lại xong → nội dung nằm trong phiếu, nháp hết lý do sống qua session.
+  if(reporterStates[stateKey]&&reporterStates[stateKey]._nhapSuaLai){
+    delete reporterStates[stateKey]._nhapSuaLai;
+    updateReporterStrip(reporter);
+  }
+  persistReporterStates();
+  updateWorkflowTabs();
   nextModeAfterSuccess = 1;
   showSuccess(applyEmailTestMode(_qsPld),`[${caLabel}] NTC: ${ntcTotal} CN | ALLIANCE: ${assignedSet.size}/${ALC_WORKERS.length} CN`);
   } finally {
@@ -5635,7 +5829,7 @@ async function submitQS(){
     setQSSubmitting(false);
   }
 }
-function submitBC(){
+async function submitBC(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const photoItems=document.querySelectorAll('#photo-panel .photo-item');
@@ -5666,14 +5860,30 @@ function submitBC(){
       cn:Number(meta.cn||meta.workerCount||0),
       ph1:document.getElementById('pi1-'+rid)?.classList.contains('taken')||false,
       ph1_data:window._photoData?.['pi1-'+rid]||null,
+      ph1_url:photoUrlOfSlot('pi1-'+rid),
       ph2:document.getElementById('pi2-'+rid)?.classList.contains('taken')||false,
       ph2_data:window._photoData?.['pi2-'+rid]||null,
+      ph2_url:photoUrlOfSlot('pi2-'+rid),
     });
   });
-  markPhotoSubmitted(currentReporter || selectedReporter(), items);
-  updateWorkflowTabs();
-  nextModeAfterSuccess = 2;
-  send({type:'HÌNH ẢNH',ngay:v('f-ngay'),gs:v('f-gs'),items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},`${items.length} công việc chụp ảnh`);
+  try{
+    const photoTicket=prepareTextSubmit('hinh-anh',{
+      type:'HÌNH ẢNH',ngay:v('f-ngay'),gs:v('f-gs'),ca:reportSession,
+      items:JSON.stringify(items.map(x=>({sid:x.sid,name:x.name,ph1:x.ph1,ph2:x.ph2,
+        ph1Size:String(x.ph1_data||'').length,ph2Size:String(x.ph2_data||'').length})))
+    });
+    await send(
+      {type:'HÌNH ẢNH',submitId:photoTicket.submitId,ngay:v('f-ngay'),gs:v('f-gs'),ca:reportSession,items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},
+      `${items.length} công việc chụp ảnh`,
+      ()=>{
+        markPhotoSubmitted(currentReporter || selectedReporter(), items);
+        updateWorkflowTabs();
+        nextModeAfterSuccess = 2;
+      },
+      170
+    );
+    clearTextSubmit(photoTicket);
+  }catch(e){}
 }
 function reportDateVN(iso){
   const p=String(iso||'').split('-');
@@ -5749,11 +5959,11 @@ function driveFileIdFromUrl(url){
   const m=s.match(/\/d\/([a-zA-Z0-9_-]+)/)||s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   return m?m[1]:'';
 }
-function gasJsonp(params,prefix='__gasData'){
+function gasJsonp(params,prefix='__gasData',timeoutMs=30000){
   return new Promise((resolve,reject)=>{
     const callback=prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*100000);
     const script=document.createElement('script');
-    const timer=setTimeout(()=>finish(new Error('Quá thời gian tải dữ liệu')),30000);
+    const timer=setTimeout(()=>finish(new Error('Quá thời gian tải dữ liệu')),Math.max(1000,timeoutMs));
     function finish(error,payload){
       clearTimeout(timer);try{delete window[callback];}catch(e){window[callback]=undefined;}
       if(script.parentNode)script.parentNode.removeChild(script);
@@ -6048,7 +6258,7 @@ async function downloadAttendanceExcel(event){
     if(typeof ExcelJS==='undefined') throw new Error('Thiếu thư viện tạo Excel');
     if(!ATTENDANCE_REPORT_TEMPLATE_BASE64 || ATTENDANCE_REPORT_TEMPLATE_BASE64.startsWith('__')) throw new Error('Thiếu file Excel mẫu');
 
-    const selectedDate = v('f-ngay') || new Date().toISOString().split('T')[0];
+    const selectedDate = v('f-ngay') || todayISOInVietnam();
     const entries = submittedReportEntriesForDate();
     if(!entries.length) throw new Error('Chưa có báo cáo nào cho ngày '+selectedDate);
 
@@ -6079,7 +6289,7 @@ async function downloadAttendanceExcel(event){
     if(btn){btn.disabled=false;btn.textContent='⬇ Excel';}
   }
 }
-function submitCD(){
+async function submitCD(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const resultItems=document.querySelectorAll('#result-panel .result-item');
@@ -6138,35 +6348,49 @@ function submitCD(){
       pct:document.getElementById('pctr-'+rid)?.value||'0',
       ph1:document.getElementById('ri1-'+rid)?.classList.contains('taken')||false,
       ph1_data:window._photoData?.['ri1-'+rid]||null,
+      ph1_url:photoUrlOfSlot('ri1-'+rid),
       ph2:document.getElementById('ri2-'+rid)?.classList.contains('taken')||false,
       ph2_data:window._photoData?.['ri2-'+rid]||null,
+      ph2_url:photoUrlOfSlot('ri2-'+rid),
       meta
     });
   });
+  const reporterAtSubmit=currentReporter || selectedReporter() || v('f-gs');
+  const reportDateAtSubmit=v('f-ngay');
   const carryoverWork = buildPendingWorkFromProductionItems(items);
-  savePendingWorkForReporter(currentReporter || selectedReporter(), carryoverWork, v('f-ngay'));
   const carryCount = pendingWorkCount(carryoverWork);
-  if(currentReporter) saveReporterState(currentReporter);
-  markProductionSubmitted(currentReporter, items);
-
-  updateWorkflowTabs();
-  nextModeAfterSuccess = 3;
-  sendProductionResults(items, `${items.length} hạng mục cập nhật sản lượng${carryCount?`\n${carryCount} công việc chưa đạt 100% sẽ tự chuyển sang ngày hôm sau`:''}`);
+  const summary=`${items.length} hạng mục cập nhật sản lượng${carryCount?`\n${carryCount} công việc chưa đạt 100% sẽ tự chuyển sang ngày hôm sau`:''}`;
+  try{
+    await sendProductionResults(items, summary, function(){
+      // Chỉ khóa bước Sản lượng và tạo việc chuyển tiếp SAU KHI GAS xác nhận
+      // đã xử lý đủ batch. Nếu mạng/GAS lỗi, toàn bộ form và ảnh vẫn ở nguyên
+      // để giám sát gửi lại.
+      savePendingWorkForReporter(reporterAtSubmit, carryoverWork, reportDateAtSubmit);
+      markProductionSubmitted(reporterAtSubmit, items);
+      updateWorkflowTabs();
+      nextModeAfterSuccess = 3;
+    });
+  }catch(e){}
 }
 async function waitProductionAck(batchId){
   // Khi nhiều GS cùng gửi, Apps Script xếp hàng — đo thực tế có lượt chờ tới 60s.
   // Cửa sổ chờ ~2 phút (10 lần/1s rồi 35 lần/3s) để không báo động giả.
   let lastError=null;
-  for(let attempt=0;attempt<45;attempt++){
+  // Deadline tổng: không có nó, 45 lượt poll mà lượt nào cũng treo tới hạn
+  // JSONP sẽ khóa giao diện hàng chục phút. Hết 3 phút là báo lỗi để giám sát
+  // còn chủ động bấm gửi lại — dữ liệu và ảnh vẫn nguyên trên máy.
+  const deadline=Date.now()+180000;
+  for(let attempt=0;attempt<45&&Date.now()<deadline;attempt++){
     try{
-      const payload=await gasJsonp({action:'production_ack',batchId},'__productionAck');
+      const payload=await gasJsonp({action:'production_ack',batchId},'__productionAck',Math.min(8000,Math.max(1000,deadline-Date.now())));
       if(payload&&payload.ok&&payload.ack)return payload.ack;
     }catch(e){lastError=e;}
-    await new Promise(resolve=>setTimeout(resolve,attempt<10?1000:3000));
+    const delay=Math.min(attempt<10?1000:3000,Math.max(0,deadline-Date.now()));
+    if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
   }
   throw lastError||new Error('Không nhận được xác nhận ghi sản lượng từ máy chủ');
 }
-async function sendProductionResults(items, summary){
+async function sendProductionResults(items, summary, onConfirmed){
   const basePayload={
     type:'SẢN LƯỢNG',
     ngay:v('f-ngay'),
@@ -6177,39 +6401,50 @@ async function sendProductionResults(items, summary){
     productionBatchTotal:items.length,
     ts:new Date().toISOString()
   };
-  const aggregatePayload={...basePayload,items:JSON.stringify(items)};
-  if(GAS_URL.includes('YOUR_GAS_ID')){
-    setTimeout(()=>showSuccess(aggregatePayload,summary),800);
-    return;
-  }
+  const aggregatePayload={...basePayload,items:JSON.stringify(items),submitId:createSubmitId('san-luong-batch')};
   const _t0=(typeof performance!=='undefined'?performance.now():Date.now());
   const _ms=()=>Math.round((typeof performance!=='undefined'?performance.now():Date.now())-_t0);
-  // Hiển thị thành công NGAY, dữ liệu đẩy song song phía sau — giống hệt
-  // tab Công việc (submitQS): postToGAS không await.
-  showSuccess(aggregatePayload,summary);
-  // Gửi một gói duy nhất để Apps Script khóa và ghi tuần tự toàn bộ hạng mục.
-  postToGAS({...aggregatePayload,submitId:createSubmitId('san-luong-batch')}).then(()=>{
-    console.log(`[SẢN LƯỢNG] đã gửi trong ${_ms()}ms (batch ${basePayload.productionBatchId})`);
-    // Xác nhận liên kết bảng NTP chạy NGẦM — chỉ cảnh báo khi có vấn đề.
-    waitProductionAck(basePayload.productionBatchId).then(ack=>{
-      const confirmed=(ack.linked||0)+(ack.alreadyLinked||0),expected=ack.ntpTotal||0;
-      if((ack.errors||[]).length||confirmed<expected){
-        toast(`⚠️ Liên kết bảng NTP: ${confirmed}/${expected} hạng mục — kiểm tra lại Google Sheet`,'err');
-      }else{
-        console.log(`[SẢN LƯỢNG] xác nhận link ${confirmed}/${expected} hạng mục trong ${_ms()}ms`);
-      }
-    }).catch(ackError=>{
-      console.warn('Chưa nhận được xác nhận link NTP:',ackError);
-    });
-    // Server là nguồn dữ liệu duy nhất: sau khi gửi thành công, tải lại
-    // trạng thái chuẩn từ server thay vì chỉ tin bản cập nhật DOM cục bộ.
-    try{ hydrateReportStateFromServer(basePayload.gs); }catch(e){}
-  }).catch(e=>{
+  setSubmitBusy(true);
+  try{
+    let confirmed;
+    if(GAS_URL.includes('YOUR_GAS_ID')){
+      await new Promise(resolve=>setTimeout(resolve,300));
+      confirmed={payload:aggregatePayload,ack:{status:'ok',result:{total:items.length,processed:items.length,ntpTotal:0,linked:0,alreadyLinked:0,errors:[]}}};
+    }else{
+      // Gửi một gói duy nhất và chờ ACK thật từ ScriptProperties. Không hiện
+      // thành công khi fetch no-cors mới chỉ rời trình duyệt.
+      // 170 lần poll ≈ 4 phút: dài hơn waitLock(120s) của GAS và đủ phần xử
+      // lý ảnh sau đó, tránh timeout giả rồi giám sát bấm gửi trùng.
+      confirmed=await postToGASConfirmed(aggregatePayload,170);
+    }
+    let ack=(confirmed.ack&&confirmed.ack.result)||null;
+    // Bản GAS tương thích cũ có thể chưa đưa result vào submit_ack; khi đó dùng
+    // production_ack vốn đã được handler ghi sau SpreadsheetApp.flush().
+    if(!ack&&!GAS_URL.includes('YOUR_GAS_ID'))ack=await waitProductionAck(basePayload.productionBatchId);
+    if(!ack)throw new Error('Máy chủ không trả kết quả xử lý batch sản lượng');
+    const processed=Number(ack.processed||0),total=Number(ack.total||items.length);
+    const linked=Number(ack.linked||0)+Number(ack.alreadyLinked||0),expected=Number(ack.ntpTotal||0);
+    const errors=Array.isArray(ack.errors)?ack.errors:[];
+    if(errors.length||processed<total||linked<expected){
+      const detail=errors.slice(0,2).map(x=>`${x.item||'Hạng mục'}: ${x.message||'lỗi xử lý'}`).join(' · ');
+      throw new Error(detail||`Máy chủ chỉ xử lý ${processed}/${total} hạng mục, liên kết NTP ${linked}/${expected}`);
+    }
+    let localCommitError=null;
+    if(onConfirmed){
+      try{await onConfirmed(ack);}catch(e){localCommitError=e;console.error('Đã lưu Sheet nhưng lỗi cập nhật trạng thái trên máy:',e);}
+    }
+    console.log(`[SẢN LƯỢNG] xác nhận ${processed}/${total}, link NTP ${linked}/${expected} trong ${_ms()}ms`);
+    showSuccess(confirmed.payload||aggregatePayload,summary);
+    if(localCommitError)toast('✓ Google Sheets đã lưu sản lượng, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
+    return ack;
+  }catch(e){
+    setSubmitBusy(false);
     console.error('Gửi sản lượng:',e);
-    toast('⚠️ Không gửi được sản lượng: '+e.message+' — kiểm tra mạng rồi gửi lại','err');
-  });
+    toast('⚠️ Google Sheets chưa xác nhận đủ sản lượng: '+e.message+'. Dữ liệu và ảnh vẫn còn trên máy.','err');
+    throw e;
+  }
 }
-function submitQA(){
+async function submitQA(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   const qaItems=document.querySelectorAll('.qa-item');
   if(!qaItems.length){toast('⚠️ Chưa có công việc nào đạt 100%. Hãy báo cáo sản lượng 100% trước','err');return;}
@@ -6223,10 +6458,12 @@ function submitQA(){
     for(let i=1;i<=5;i++){
       const id='qa'+i+'-'+qid;
       if(document.getElementById(id)?.classList.contains('taken')){
-        slotPhotos.push({slot:i,id,data:window._qaData?.[id]||window._photoData?.[id]||null});
+        slotPhotos.push({slot:i,id,data:window._qaData?.[id]||window._photoData?.[id]||null,url:photoUrlOfSlot(id)});
       }
     }
-    const errorPhotos=passed?[]:slotPhotos;
+    // qaPhotos đã chứa base64 để gửi server. errorPhotos chỉ cần tham chiếu
+    // slot/id; giữ lại data lần hai làm payload và state phình gấp đôi.
+    const errorPhotos=passed?[]:slotPhotos.map(ph=>({slot:ph.slot,id:ph.id}));
     qaData.push({
       qid,
       taskName:item.dataset.taskName||'',
@@ -6255,7 +6492,16 @@ function submitQA(){
     }
   }
 
-  // Save QA result data for display in Results tab
+  try{
+    await sendQAResults(qaData, `${qaData.filter(q=>q.passed).length}/${qaData.length} công việc đã nghiệm thu`, function(){
+      commitQAResultsLocally(qaData);
+      nextModeAfterSuccess = 4;
+    });
+  }catch(e){}
+}
+function commitQAResultsLocally(qaData){
+  // Chỉ đánh dấu đã nghiệm thu sau ACK. Trước đây app chuyển sang Kết quả ngay
+  // cả khi GAS/Sheet chưa xử lý xong, làm người dùng tưởng dữ liệu đã được lưu.
   window._qaResultData = qaData;
   syncPendingQAItems(qaData);
   const byReporter = {};
@@ -6277,15 +6523,19 @@ function submitQA(){
       });
     }
   });
-  if(currentReporter) saveReporterState(currentReporter);
   updateWorkflowTabs();
-  nextModeAfterSuccess = 4;
-  sendQAResults(qaData, `${qaData.filter(q=>q.passed).length}/${qaData.length} công việc đã nghiệm thu`);
 }
-function sendQAResults(qaData, summary){
-  if (currentReporter) saveReporterState(currentReporter);
+async function sendQAResults(qaData, summary, onConfirmed){
   const note=document.getElementById('f-qa-note')?.value||'';
-  const batchId=createSubmitId('nghiem-thu');
+  const qaShape=qaData.map(q=>({
+    qid:q.qid,sourceId:q.sourceId,reporter:q.reporter,passed:q.passed,errorCount:q.errorCount,
+    photos:(q.qaPhotos||[]).map(ph=>({id:ph.id,slot:ph.slot,size:String(ph.data||'').length}))
+  }));
+  const ticket=prepareTextSubmit('nghiem-thu',{
+    type:'NGHIEM THU',ngay:v('f-ngay'),gs:v('f-gs')||'QAQC tổng hợp',ca:reportSession,
+    note,qaItems:JSON.stringify(qaShape)
+  });
+  const batchId=ticket.submitId;
   const basePayload={
     type:'NGHIEM THU',
     displayType:'NGHIỆM THU',
@@ -6293,6 +6543,7 @@ function sendQAResults(qaData, summary){
     note,
     qaBatchId:batchId,
     qaBatchTotal:qaData.length,
+    ca:reportSession,
     ts:new Date().toISOString()
   };
   const aggregatePayload={
@@ -6300,32 +6551,45 @@ function sendQAResults(qaData, summary){
     gs:v('f-gs') || 'QAQC tổng hợp',
     qaItems:JSON.stringify(qaData)
   };
-  if(GAS_URL.includes('YOUR_GAS_ID')){
-    setTimeout(()=>showSuccess(aggregatePayload, summary),800);
-    return;
-  }
-  qaData.forEach((q,i)=>{
-    postToGAS({
-      ...basePayload,
-      submitId:createSubmitId('nghiem-thu-item'),
-      qaBatchIndex:i+1,
-      gs:q.reporter || v('f-gs') || 'QAQC tổng hợp',
-      qaItems:JSON.stringify([q])
-    }).catch(e=>console.warn('Nghiệm thu item',i+1,e));
-  });
-  showSuccess(aggregatePayload, summary);
+  // GAS hỗ trợ mảng qaItems; gửi một batch duy nhất để tránh N request song
+  // song tranh lock, ghi đè state Drive và làm tab Nghiệm thu bị khựng.
+  const result=await send({...aggregatePayload,submitId:ticket.submitId},summary,onConfirmed,170);
+  clearTextSubmit(ticket);
+  return result;
 }
-function send(data,summary){
+async function send(data,summary,onConfirmed,maxAckAttempts=70){
   if (currentReporter) saveReporterState(currentReporter);
   const payload = applyEmailTestMode(data);
   if(GAS_URL.includes('YOUR_GAS_ID')){
-    setTimeout(()=>showSuccess(payload,summary),800);
-    return;
+    setSubmitBusy(true);
+    await new Promise(resolve=>setTimeout(resolve,300));
+    let localError=null;
+    if(onConfirmed){try{await onConfirmed({status:'ok',result:null});}catch(e){localError=e;console.error('Lỗi cập nhật trạng thái cục bộ:',e);}}
+    showSuccess(payload,summary);
+    if(localError)toast('✓ Dữ liệu đã gửi, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
+    return {status:'ok',result:null};
   }
-  postToGAS(payload).catch(()=>{});
-  showSuccess(payload,summary);
+  setSubmitBusy(true);
+  let confirmed;
+  try{
+    confirmed=await postToGASConfirmed(payload,maxAckAttempts);
+  }catch(e){
+    setSubmitBusy(false);
+    console.error('Gửi báo cáo:',e);
+    toast('⚠️ Máy chủ chưa xác nhận lưu dữ liệu: '+e.message+'. Dữ liệu vẫn còn trên máy, vui lòng kiểm tra mạng rồi gửi lại.','err');
+    throw e;
+  }
+  let localError=null;
+  if(onConfirmed){
+    try{await onConfirmed(confirmed.ack);}catch(e){localError=e;console.error('Google Sheets đã lưu nhưng lỗi cập nhật trạng thái trên máy:',e);}
+  }
+  showSuccess(confirmed.payload,summary);
+  const serverWarnings=confirmed.ack&&confirmed.ack.result&&Array.isArray(confirmed.ack.result.warnings)?confirmed.ack.result.warnings:[];
+  if(localError)toast('✓ Google Sheets đã lưu, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
+  else if(serverWarnings.length)toast('⚠️ Google Sheets đã lưu nhưng có cảnh báo: '+serverWarnings.slice(0,2).map(x=>x.message||x.item||'kiểm tra dữ liệu').join(' · '),'err');
+  return confirmed.ack;
 }
-function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${v('f-ngay')}<br>👤 ${v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
+function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${data.ngay||v('f-ngay')}<br>👤 ${data.gs||v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
 function closeSuccess(){
   document.getElementById('success').classList.remove('show');
   if (currentReporter) updateReporterStrip(currentReporter);
@@ -6441,7 +6705,7 @@ function savePendingWorkForReporter(reporter, carryoverWork, reportDate) {
   }
   store[key] = {
     reporter: String(reporter || '').trim(),
-    fromDate: reportDate || v('f-ngay') || new Date().toISOString().split('T')[0],
+    fromDate: reportDate || v('f-ngay') || todayISOInVietnam(),
     savedAt: new Date().toISOString(),
     ntcRows: carryoverWork.ntcRows || [],
     cnTasks: carryoverWork.cnTasks || [],
@@ -6452,7 +6716,7 @@ function savePendingWorkForReporter(reporter, carryoverWork, reportDate) {
 function pendingWorkForReporter(reporter) {
   const entry = loadPendingWorkStore()[normalizeReporterName(reporter)];
   if (!entry) return null;
-  const today = v('f-ngay') || new Date().toISOString().split('T')[0];
+  const today = v('f-ngay') || todayISOInVietnam();
   if (!entry.fromDate || entry.fromDate === today || entry.fromDate > today) return null;
   return entry;
 }
@@ -6611,7 +6875,7 @@ init();
   function itemLockNT(qs,r){var cs=relevantCans(qs,r);return cs.length>0&&cs.every(function(x){return getItemStatus(x,r[9]||r[5]).nt;});}
   // % nhóm/tầng = trung bình ĐƠN GIẢN của % các đầu mục (mỗi đầu mục tính ngang nhau).
   function wPct(qs,rows){if(!rows.length)return 0;var t=0;rows.forEach(function(pr){t+=itemPct(qs,pr[0]);});return Math.round(t/rows.length);}
-  function syncLegacy(qs){qs.selectedWorks=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][6];}));qs.selectedTangs=new Set([...qs.items].map(function(gi){return SOW_ITEMS[gi][2];}));}
+  function syncLegacy(qs){var rows=[...qs.items].map(function(gi){return SOW_ITEMS[gi];}).filter(Boolean);qs.selectedWorks=new Set(rows.map(function(r){return r[6];}));qs.selectedTangs=new Set(rows.map(function(r){return r[2];}));}
 
   // ===== OVERRIDE: addQSRow =====
   window.addQSRow=function(data){
@@ -6785,7 +7049,19 @@ init();
     var loaiSet=new Set([...qs.selectedCans].map(letterOf).filter(Boolean));
     if(!loaiSet.size){box.innerHTML='<div class="sw-note">Chọn căn để tiếp tục.</div>';syncLegacy(qs);return;}
     var rows=SOW_ITEMS.map(function(r,gi){return [r,gi];}).filter(function(pr){
-      var r=pr[0];return loaiSet.has(r[0])&&itemSowWorkKey(r)===qs.selectedWorkKey;
+      var r=pr[0];
+      // Chỉ hiện đầu mục thực sự được SOW_NTP phân cho nhà thầu tại ít nhất
+      // một căn đang chọn. Trước đây UI vẫn cho tích mục ngoài phạm vi, nhưng
+      // lúc tạo payload lại loại mục đó nên cả tổ đội có thể biến mất im lặng.
+      return loaiSet.has(r[0])&&itemSowWorkKey(r)===qs.selectedWorkKey&&relevantCans(qs,r).length>0;
+    });
+    // Draft cũ có thể còn giữ index đầu mục sau khi phạm vi SOW_NTP thay đổi.
+    // Bỏ index không còn hợp lệ để item không bị ẩn trên UI nhưng vẫn nằm trong
+    // state và bị loại âm thầm lúc serialize.
+    var allowedItemIds=new Set(rows.map(function(pr){return pr[1];}));
+    [...qs.items].forEach(function(gi){
+      if(allowedItemIds.has(gi))return;
+      qs.items.delete(gi);delete qs.cnMap[gi];
     });
     var _sfc=new Set(rows.map(function(pr){return pr[0][1];}));
     if(!rows.length){box.innerHTML='<div class="sw-note">SOW_NTP có phạm vi này nhưng sheet CĂN chưa có đầu mục chi tiết tương ứng.</div>';syncLegacy(qs);return;}
@@ -6832,7 +7108,7 @@ init();
 
   window.qsToggleT=function(i,k){var qs=qsCards[i];qs.openT.has(k)?qs.openT.delete(k):qs.openT.add(k);renderSOWItems(i);};
   window.qsToggleN=function(i,k){var qs=qsCards[i];qs.openN.has(k)?qs.openN.delete(k):qs.openN.add(k);renderSOWItems(i);};
-  window.qsToggleItem=function(i,gi){var qs=qsCards[i];var r=SOW_ITEMS[gi];if(!r||itemSowWorkKey(r)!==qs.selectedWorkKey||itemLock(qs,r))return;
+  window.qsToggleItem=function(i,gi){var qs=qsCards[i];var r=SOW_ITEMS[gi];if(!r||itemSowWorkKey(r)!==qs.selectedWorkKey||!relevantCans(qs,r).length||itemLock(qs,r))return;
     if(qs.items.has(gi)){qs.items.delete(gi);delete qs.cnMap[gi];}else{qs.items.add(gi);if(!qs.cnMap[gi])qs.cnMap[gi]=1;}
     renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
   window.qsItemCN=function(i,gi,d){var qs=qsCards[i];qs.cnMap[gi]=Math.max(1,(qs.cnMap[gi]||1)+d);renderSOWItems(i);updateQSSumLine(i);if(typeof commitReporterState==='function')commitReporterState();};
@@ -6902,6 +7178,18 @@ init();
     if(!(qs.selectedBlocks&&qs.selectedBlocks.size||qs.activeBlock))return'['+ntc+'] Chưa chọn Khu';
     if(!(qs.selectedCans&&qs.selectedCans.size>0))return'['+ntc+'] Chưa chọn Căn';
     if(!(qs.items&&qs.items.size>0))return'['+ntc+'] Chưa tích Đầu mục công việc';
+    var validPairCount=0,invalidSelectedItem=false;
+    qs.items.forEach(function(gi){
+      var r=SOW_ITEMS[gi];
+      if(!r||itemSowWorkKey(r)!==qs.selectedWorkKey){invalidSelectedItem=true;return;}
+      var pairCount=[...qs.selectedCans].filter(function(c){
+        return c.charAt(0)===r[0]&&sowNtpAllows(ntc,c,r);
+      }).length;
+      if(!pairCount)invalidSelectedItem=true;
+      validPairCount+=pairCount;
+    });
+    if(invalidSelectedItem)return'['+ntc+'] Có đầu mục không còn thuộc phạm vi SOW_NTP của các căn đã chọn. Vui lòng chọn lại.';
+    if(!validPairCount)return'['+ntc+'] Đầu mục đã chọn không còn thuộc phạm vi các căn đã chọn. Vui lòng chọn lại.';
     return null;
   };
 
@@ -7081,7 +7369,7 @@ init();
   // ── Ghi chú từng thẻ nhà thầu ──
   window.qsSetNote=function(i,val){
     var qs=qsCards[i];if(!qs)return;qs.note=val||'';
-    if(typeof commitReporterState==='function')try{commitReporterState();}catch(e){}
+    if(typeof scheduleReporterAutosave==='function')try{scheduleReporterAutosave();}catch(e){}
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -7232,7 +7520,7 @@ init();
   };
   window.closeBoSung=function(){var m=document.getElementById('bs-mask');if(m)m.classList.remove('show');};
 
-  window.submitBoSung=function(){
+  window.submitBoSung=async function(){
     var ntc=(document.getElementById('bs-ntc')||{}).value||'';
     var addCN=parseInt((document.getElementById('bs-num')||{}).textContent,10)||0;
     var note=(document.getElementById('bs-note')||{}).value||'';
@@ -7267,19 +7555,38 @@ init();
     });
     var mergedNtc=[...(report.ntcRows||[]),...newRows];
     var workItems=reportToSubmittedWorkItems({...report,ntcRows:mergedNtc});
-    storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});
     var payload={type:'BO SUNG NHAN CONG',ntc:ntc,addCN:addCN,note:note,
       items:JSON.stringify(items),
       ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
-      submitId:(typeof createSubmitId==='function'?createSubmitId('bosung'):('bosung-'+Date.now())),
       ts:new Date().toISOString()};
-    // Đã ghi vào phiếu ở trên → phản hồi NGAY, request chạy nền.
+    var ticket=prepareTextSubmit('bo-sung-nhan-cong',payload);
+    payload.submitId=ticket.submitId;
+    if(btn){btn.textContent='Đang lưu lên Google Sheets…';}
+    setSubmitBusy(true);
+    try{
+      await postToGASConfirmed(applyEmailTestMode(payload),170);
+    }catch(e){
+      console.error('Bổ sung nhân công:',e);
+      toast('⚠️ Chưa lưu được bổ sung nhân công: '+e.message+'. Nội dung vẫn còn để gửi lại.','err');
+      if(btn){btn.disabled=false;btn.textContent='Gửi bổ sung & cập nhật email';}
+      setSubmitBusy(false);
+      return;
+    }
+    // Chỉ đưa quân bổ sung vào phiếu trên máy sau ACK của Google Sheets.
+    var localBoSungError=null;
+    try{storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});}
+    catch(localErr){localBoSungError=localErr;console.error('Sheet đã lưu nhưng máy chưa cập nhật bổ sung:',localErr);}
     var cansBS=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
-    if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cansBS+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    if(btn){btn.disabled=false;btn.textContent='Gửi bổ sung & cập nhật email';}
+    setSubmitBusy(false);
+    if(localBoSungError){
+      toast('✓ Google Sheets đã lưu bổ sung, nhưng máy chưa cập nhật các tab. Bấm lại để đồng bộ trạng thái trên máy.','err');
+      return;
+    }
+    clearTextSubmit(ticket);
     closeBoSung();
-    if(btn){btn.disabled=false;}
-    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
-    guiNen(payload,'bổ sung nhân công');
+    if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cansBS+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localBoSungError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -7777,7 +8084,7 @@ init();
     toast('Đã cập nhật dòng '+(row.defect?'defect':'bổ sung'),'ok');
     try{updateWorkflowTabs();rebuildActiveReporterTab();}catch(e){}
   };
-  window.submitDefect=function(){
+  window.submitDefect=async function(){
     var ntc=(document.getElementById('df-ntc')||{}).value||'';
     var moTa=((document.getElementById('df-mota')||{}).value||'').trim();
     var cn=parseInt((document.getElementById('df-cn')||{}).textContent,10)||0;
@@ -7816,21 +8123,40 @@ init();
     });
     var mergedNtc=[...(report.ntcRows||[]),...newRows];
     var workItems=reportToSubmittedWorkItems({...report,ntcRows:mergedNtc});
-    storeSubmittedReport(gs,laPhieuMoi?{...report,ntcRows:mergedNtc,workItems:workItems}:{ntcRows:mergedNtc,workItems:workItems});
-    if(laPhieuMoi&&typeof currentReporter!=='undefined')currentReporter=gs;
     // Ghi nhận đăng ký defect lên sheet BC_Defect (0% — % cập nhật qua tab Sản lượng)
     var payload={type:'CÔNG VIỆC DEFECT',ngay:ngay,ca:(typeof reportSession!=='undefined'?reportSession:'sang'),gs:gs,
       items:JSON.stringify(sels.map(function(it){return {ntc:it.ntc,can:it.can,tang:it.tang,hangMuc:it.hangMuc,moTa:moTa,cn:cn,pct:0,note:'Ghi nhận mới'};})),
-      submitId:(typeof createSubmitId==='function'?createSubmitId('defect'):('defect-'+Date.now())),
       ts:new Date().toISOString()};
-    // Defect đã lưu vào máy ở trên → đóng modal và báo thành công NGAY,
-    // request lên server chạy nền. Người dùng không phải chờ Apps Script.
+    var ticket=prepareTextSubmit('cong-viec-defect',payload);
+    payload.submitId=ticket.submitId;
+    if(btn)btn.textContent='Đang lưu lên Google Sheets…';
+    setSubmitBusy(true);
+    try{
+      await postToGASConfirmed(applyEmailTestMode(payload),170);
+    }catch(e){
+      console.error('Công việc defect:',e);
+      toast('⚠️ Chưa lưu được công việc defect: '+e.message+'. Nội dung vẫn còn để gửi lại.','err');
+      if(btn){btn.disabled=false;btn.textContent='Thêm công việc defect vào báo cáo';}
+      setSubmitBusy(false);
+      return;
+    }
+    // Không đưa defect vào các tab tiếp theo cho tới khi Sheet xác nhận đã lưu.
+    var localDefectError=null;
+    try{
+      storeSubmittedReport(gs,laPhieuMoi?{...report,ntcRows:mergedNtc,workItems:workItems}:{ntcRows:mergedNtc,workItems:workItems});
+      if(laPhieuMoi&&typeof currentReporter!=='undefined')currentReporter=gs;
+    }catch(localErr){localDefectError=localErr;console.error('Sheet đã lưu nhưng máy chưa cập nhật defect:',localErr);}
     var cans=[...new Set(sels.map(function(it){return it.can;}))].join(', ');
-    toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    if(btn){btn.disabled=false;btn.textContent='Thêm công việc defect vào báo cáo';}
+    setSubmitBusy(false);
+    if(localDefectError){
+      toast('✓ Google Sheets đã lưu defect, nhưng máy chưa cập nhật các tab. Bấm lại để đồng bộ trạng thái trên máy.','err');
+      return;
+    }
+    clearTextSubmit(ticket);
     closeDefect();
-    if(btn)btn.disabled=false;
-    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){}
-    guiNen(payload,'công việc defect');
+    toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localDefectError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
   };
 
   function initBoSung(){
