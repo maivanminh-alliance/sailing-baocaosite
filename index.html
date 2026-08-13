@@ -5400,9 +5400,14 @@ function applyEmailTestMode(data) {
   };
 }
 
-async function postToGAS(data) {
+// mode:'no-cors' nên fetch CHỈ resolve khi Apps Script xử lý XONG, không phải khi
+// gửi xong. Báo cáo có ảnh (sản lượng, nghiệm thu, hình ảnh) làm GAS chạy 40-60s
+// vì còn insertImage + lưu Drive + đồng bộ tracking — abort ở 20s là cắt ngang khi
+// server vẫn đang ghi, khiến app báo lỗi oan dù dữ liệu ĐÃ vào sheet.
+// ACK (waitSubmitAck) mới là cơ chế xác nhận thật, nên để hạn rộng ở đây an toàn hơn.
+async function postToGAS(data, timeoutMs=120000) {
   const controller=typeof AbortController!=='undefined'?new AbortController():null;
-  const timer=setTimeout(()=>{if(controller)controller.abort();},20000);
+  const timer=setTimeout(()=>{if(controller)controller.abort();},timeoutMs);
   try{
     return await fetch(GAS_URL, {
       method: 'POST',
@@ -5460,8 +5465,11 @@ async function postToGASConfirmed(data, maxAttempts=70) {
   let ack;
   try{
     // POST có thể đã tới Apps Script dù trình duyệt hết thời gian chờ. Vẫn đọc
-    // ACK một khoảng ngắn trước khi báo lỗi để không bắt GS gửi lại vô ích.
-    ack=await waitSubmitAck(payload.submitId,maxAttempts,postError?20000:undefined);
+    // ACK trước khi báo lỗi để không bắt GS gửi lại vô ích.
+    // 20s cũ là QUÁ NGẮN: khi post timeout vì GAS chạy lâu (ảnh + tracking), server
+    // thường ghi xong ở giây 40-60, client bỏ cuộc trước rồi báo "chưa gửi được"
+    // trong khi sheet đã có dữ liệu — GS gửi lại vô ích và kẹt luôn ở tab đó.
+    ack=await waitSubmitAck(payload.submitId,maxAttempts,postError?120000:undefined);
   }catch(ackError){
     if(postError)throw new Error((postError.message||'Không gửi được dữ liệu')+'; máy chủ chưa xác nhận');
     throw ackError;
