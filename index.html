@@ -4990,7 +4990,9 @@ function buildQAPanel(){
     const num=item.type==='ntc'?++ntcNum:++cnNum;
     const qid=item.qid;
     const isChecked=window._qaData[qid]?.passed||window._qaData[item.sourceId]?.passed||false;
-    const reporterLabel=item.reporter?` <span style="font-size:11px;color:var(--muted);font-weight:400">— ${item.reporter}</span>`:'';
+    // white-space:nowrap để tên GS xuống dòng NGUYÊN CỤM, không bị cắt đôi kiểu
+    // "— VĂN / NĂM" khi cột nội dung bị nhãn trạng thái ép hẹp trên điện thoại.
+    const reporterLabel=item.reporter?` <span style="font-size:11px;color:var(--muted);font-weight:400;white-space:nowrap">— ${item.reporter}</span>`:'';
     const pendingBadge=item.pendingQA?`<span style="display:inline-flex;align-items:center;background:var(--lred);color:var(--red);border:1px solid rgba(220,38,38,.25);border-radius:999px;padding:3px 8px;font-size:10px;font-weight:900;text-transform:uppercase;margin-left:6px">Cần nghiệm thu lại${item.dueDate?` · ${item.dueDate}`:''}</span>`:'';
     const taskName=qaTaskNameForItem(item);
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
@@ -5037,8 +5039,16 @@ function buildResultDetailPanel(){
   // Thẻ tổng kết gradient (mockup) — chỉ tổng hợp lại số đã có, không gọi server
   let hc=0, avgPct='—';
   try{
-    document.querySelectorAll('.qs-cn-inp').forEach(inp=>hc+=parseInt(inp.value)||0);
-    Object.values(cnTasks).forEach(t=>hc+=(t.selected?.size||0));
+    // Quân số phải đọc từ PHIẾU ĐÃ GỬI, không đọc form đang mở: tới tab Kết quả
+    // thì form đã reset (cnTasks rỗng) và ô .qs-cn-inp không còn tồn tại sau khi
+    // reskin thay bằng stepper qs.ntcCN — cả hai nguồn cũ đều trả 0.
+    // Mỗi thẻ NTC chỉ ghi tổng CN ở dòng đầu, các dòng sau để trống nên cộng
+    // thẳng r.cn ra đúng tổng (giống serializedNtcTotal lúc gửi).
+    submittedWorkEntriesForCurrentView().forEach(e=>{
+      const rep=e.report||{};
+      (rep.ntcRows||[]).forEach(r=>{hc+=Number(r.cn)||0;});
+      (rep.cnTasks||[]).forEach(t=>{hc+=Number(t.workerCount)||0;});
+    });
     const rows=submittedWorkEntriesForCurrentView()
       .flatMap(e=>(e.report?.resultItems)||[])
       .map(r=>Number(r.pct||0));
@@ -5560,7 +5570,15 @@ async function submitQS(){
   }
   setQSSubmitting(true);
   // Vẽ trạng thái khóa nút trước khi gom/serialize báo cáo lớn.
-  await new Promise(resolve=>requestAnimationFrame(resolve));
+  // requestAnimationFrame KHÔNG chạy khi tab ở nền (GS bấm Gửi rồi khóa màn hình
+  // bỏ túi ngay là dính) — chờ trắng ở đây thì nút kẹt "Đang gửi..." và
+  // __busySubmit không bao giờ nhả. Đua với timeout để luôn đi tiếp.
+  await new Promise(resolve=>{
+    let done=false;
+    const go=()=>{if(done)return;done=true;resolve();};
+    requestAnimationFrame(go);
+    setTimeout(go,250);
+  });
   try {
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
