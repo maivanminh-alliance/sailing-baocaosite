@@ -2462,6 +2462,7 @@ function ntcReportRowToEditable(row) {
     hm: NTC_HM[row.ntc] || '',
     cn: row.cn || 0,
     ntcCN: row.ntcCN || row.cnTong || row.cn || 0,
+    cardGid: row.cardGid || '',   // dấu thẻ gốc, dùng để gộp lại khi "Sửa lại"
     note: row.note || '',
     vuongMac: row.vuongMac || '',
     pending: !!row.pending,
@@ -2704,16 +2705,61 @@ function _isReportLocked(report) { return !!(report && report.locked && reportWo
 function _dongCuaFormCongViec(report) {
   return (report && report.ntcRows || []).filter(r => r && !r.defect && !r.boSung);
 }
-// index trong ntcRows đầy đủ → số thứ tự thẻ nhập (đã bỏ defect/bổ sung).
+
+// ── GOM DÒNG ĐÃ GỬI VỀ LẠI ĐÚNG SỐ THẺ NHẬP ─────────────────────
+// Một thẻ nhập sinh ra (số đầu mục × số căn) DÒNG, và MỖI dòng đều mang
+// ntcCN = quân số của cả tổ đội. Khi "Sửa lại", nếu tách mỗi dòng thành một
+// thẻ riêng thì mỗi thẻ lại khai đủ quân số đó → gửi lại là nhân quân số lên
+// theo số dòng. Đo thật 16/08/2026: tổ 3 người × 3 căn, bấm "Sửa tất cả" rồi
+// gửi lại thành 9 người trong BC_NhàThầuPhụ và trong email thiếu hụt nhân lực.
+// Vì vậy phải gộp các dòng cùng một thẻ gốc lại trước khi dựng form.
+// cardGid do submitQS đóng dấu cho từng thẻ. Báo cáo cũ chưa có dấu này thì
+// gộp theo nhà thầu + công việc + khu + ghi chú + quân số (hai thẻ khác quân số
+// vẫn tách riêng nên không cộng nhầm).
+function _gopDongVeThe(items) {
+  const out = [], byKey = {};
+  (items || []).forEach(e => {
+    if (!e) return;
+    if (e.pending || String(e.vuongMac || '').trim()) { out.push(e); return; }
+    const key = e.cardGid
+      ? [e.ntc || '', e.cardGid].join('|')
+      : [e.ntc || '', e.selectedWorkKey || '', e.activeBlock || e.selectedKhu || '',
+         e.note || '', String(e.ntcCN || 0)].join('|');
+    const g = byKey[key];
+    if (!g) {
+      byKey[key] = {...e,
+        selectedCans:[...(e.selectedCans || [])], items:[...(e.items || [])],
+        cnMap:{...(e.cnMap || {})},
+        selectedTangs:[...(e.selectedTangs || [])], selectedWorks:[...(e.selectedWorks || [])]};
+      out.push(byKey[key]);
+      return;
+    }
+    (e.selectedCans  || []).forEach(c  => { if (g.selectedCans.indexOf(c)  < 0) g.selectedCans.push(c); });
+    (e.items         || []).forEach(gi => { if (g.items.indexOf(gi)        < 0) g.items.push(gi); });
+    (e.selectedTangs || []).forEach(t  => { if (g.selectedTangs.indexOf(t) < 0) g.selectedTangs.push(t); });
+    (e.selectedWorks || []).forEach(w  => { if (g.selectedWorks.indexOf(w) < 0) g.selectedWorks.push(w); });
+    Object.assign(g.cnMap, e.cnMap || {});
+  });
+  return out;
+}
+
+// index trong ntcRows đầy đủ → số thứ tự THẺ NHẬP sau khi đã gộp.
 // Trả -1 nếu dòng được bấm chính là defect/bổ sung (form không sửa được).
 function _stttheNhap(report, index) {
   const rows = (report && report.ntcRows) || [];
   index = Number(index);
   if (!(index >= 0) || index >= rows.length) return -1;
   if (rows[index].defect || rows[index].boSung) return -1;
-  let n = 0;
-  for (let i = 0; i < index; i++) if (rows[i] && !rows[i].defect && !rows[i].boSung) n++;
-  return n;
+  // Đếm theo thẻ đã gộp, không theo dòng: form dựng bao nhiêu thẻ thì ở đây
+  // phải trả đúng số thứ tự thẻ đó, nếu không "Sửa lại" bung nhầm thẻ khác.
+  const formRows = _dongCuaFormCongViec(report);
+  let pos = 0;
+  for (let i = 0; i < index; i++) if (rows[i] && !rows[i].defect && !rows[i].boSung) pos++;
+  const editable = formRows.map(ntcReportRowToEditable);
+  const grouped = _gopDongVeThe(editable);
+  const target = _gopDongVeThe(editable.slice(0, pos + 1));
+  const stt = target.length - 1;
+  return stt < grouped.length ? stt : -1;
 }
 
 function showSubmittedEditMode(type, index) {
@@ -2846,7 +2892,8 @@ function unlockReportForEdit(reporter, focusType, focusIdx) {
         vmbc: report.vmbc || '',
         vmcdt: report.vmcdt || '',
         vmalc: report.vmalc || '',
-        ntcRows: _dongCuaFormCongViec(report).map(ntcReportRowToEditable),
+        // Gộp lại đúng số thẻ gốc — xem chú thích ở _gopDongVeThe.
+        ntcRows: _gopDongVeThe(_dongCuaFormCongViec(report).map(ntcReportRowToEditable)),
         cnTasks: (report.cnTasks || []).map(cnReportRowToEditable),
         submittedWorkItems: [],
         resultItems: report.resultItems || [],
@@ -3719,6 +3766,18 @@ function todayISOInVietnam(now = new Date()) {
 }
 let reportSession = autoReportSessionByTime();
 let nextModeAfterSuccess = null;
+// Nhãn nút gửi mục 1 — MỘT nguồn duy nhất. Phiếu đã khóa thì lần bấm kế tiếp
+// gửi BỔ SUNG, nhãn phải nói đúng như vậy. Trước đây renderSubmittedWorkSummary
+// đặt '📤 GỬI BỔ SUNG' nhưng nhịp setReportSession chạy mỗi 60 giây (và mọi lần
+// setQSSubmitting) ghi đè lại thành 'Gửi báo cáo tối', nên GS nhìn nhãn tưởng
+// đang gửi báo cáo mới trong khi thực tế là gửi bổ sung.
+function nhanNutGuiCongViec() {
+  try {
+    const rpt=getSubmittedReport(currentReporter||selectedReporter());
+    if (rpt && _isReportLocked(rpt) && reportWorkSubmitted(rpt)) return '📤 GỬI BỔ SUNG';
+  } catch(e) {}
+  return reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối';
+}
 function setReportSession(s) {
   reportSession=s || autoReportSessionByTime();
   const banner=document.getElementById('mode-desc');
@@ -3727,7 +3786,7 @@ function setReportSession(s) {
     banner.textContent='';
   }
   const submitBtn=document.getElementById('btn-submit-qs');
-  if (submitBtn&&!isQSSubmitting) submitBtn.textContent=reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối';
+  if (submitBtn&&!isQSSubmitting) submitBtn.textContent=nhanNutGuiCongViec();
 }
 
 async function init() {
@@ -5530,7 +5589,7 @@ function setQSSubmitting(locked) {
   btn.disabled = locked;
   btn.style.opacity = locked ? '.65' : '';
   btn.style.pointerEvents = locked ? 'none' : '';
-  btn.textContent=locked?'Đang gửi lên Google Sheets…':(reportSession==='sang'?'Gửi báo cáo sáng':'Gửi báo cáo tối');
+  btn.textContent=locked?'Đang gửi lên Google Sheets…':nhanNutGuiCongViec();
 }
 function setSubmitBusy(b){
   window.__busySubmit = b;
@@ -5591,17 +5650,34 @@ async function submitQS(){
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const reporter = selectedReporter();
-  // Chặn gửi nếu còn card NTC chưa bấm Lưu ✓
+  // Thẻ đang mở nhưng nội dung đã ĐỦ thì tự lưu giúp, không bắt bấm Lưu ✓ lại.
+  // Sau "Sửa tất cả", mọi thẻ đều bung ra dù dữ liệu cũ vẫn hợp lệ; cách cũ chặn
+  // gửi và chỉ nói chung chung "bấm Lưu ✓ (Section 1)" nên báo cáo 10-20 nhà thầu
+  // phải bấm lại từng thẻ mới gửi được.
+  document.querySelectorAll('.qs-card[data-editable="1"]:not(.qs-col)').forEach(card=>{
+    const idx=parseInt(card.id.replace('qsc-',''));
+    const ntcSel=card.querySelector('.qs-ntc-sel')?.value||'';
+    if(ntcSel&&!validateQSCard(idx))saveAndCollapseQS(idx);
+  });
+  // Chặn gửi nếu còn card NTC thực sự chưa điền xong
   const _openCards=document.querySelectorAll('.qs-card[data-editable="1"]:not(.qs-col)');
   if(_openCards.length>0){
-    toast('⚠️ Vui lòng bấm Lưu ✓ (Section 1) trước khi gửi báo cáo','err');
+    const _idx0=parseInt(_openCards[0].id.replace('qsc-',''));
+    toast('⚠️ Thẻ nhà thầu số '+_idx0+': '+(validateQSCard(_idx0)||'chưa điền xong')+'. Hoàn tất hoặc xóa thẻ rồi gửi lại.','err');
+    openQSCard(_idx0);
     _openCards[0].scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
-  // Chặn gửi nếu còn card Công nhật ALLIANCE chưa bấm Lưu ✓
+  Object.keys(cnTasks).forEach(id=>{
+    const card=document.getElementById('cnt-'+id);
+    if(card&&card.dataset.editable==='1'&&!card.classList.contains('collapsed')&&!validateCNTask(id))saveAndCollapseCN(id);
+  });
+  // Chặn gửi nếu còn card Công nhật ALLIANCE thực sự chưa điền xong
   const _openCNCards=document.querySelectorAll('.cn-task-card[data-editable="1"]:not(.collapsed)');
   if(_openCNCards.length>0){
-    toast('⚠️ Vui lòng bấm Lưu ✓ (Section 2) trước khi gửi báo cáo','err');
+    const _cnId0=_openCNCards[0].id.replace('cnt-','');
+    toast('⚠️ '+(validateCNTask(_cnId0)||'Công việc '+_cnId0+' chưa điền xong')+'. Hoàn tất hoặc xóa rồi gửi lại.','err');
+    openCNCard(_cnId0);
     _openCNCards[0].scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
@@ -5666,6 +5742,10 @@ async function submitQS(){
     }
   }
   const ntcRows=[];let ntcTotal=0;const dauMucRows=[];let invalidPairNTC='';
+  // Dấu riêng cho mỗi lần gửi. Số thứ tự thẻ bắt đầu lại từ 1 sau mỗi lần gửi,
+  // nên nếu chỉ dùng 'c'+idx thì thẻ 1 của báo cáo chính và thẻ 1 của báo cáo
+  // bổ sung cùng một nhà thầu sẽ trùng dấu và bị gộp nhầm khi "Sửa lại".
+  const _gidBatch=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   document.querySelectorAll('.qs-card[data-editable="1"]').forEach(card=>{
     const idx=parseInt(card.id.replace('qsc-',''));const qs=qsCards[idx];if(!qs)return;
     const ntc=card.querySelector('.qs-ntc-sel')?.value||'';if(!ntc)return;
@@ -5692,7 +5772,10 @@ async function submitQS(){
     _pairs.forEach((p,pi)=>{
       const {gi,r,can}=p;
       const cnv=(pi===0)?_T:'';            // '' = ô trống, không phải 0
-      ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,cnTong:_T,vuongMac:'',pending:false,
+      // cardGid = dấu của THẺ đã sinh ra dòng này. Khi "Sửa lại", _gopDongVeThe
+      // dựa vào dấu này để gộp đúng các dòng về lại một thẻ, nhờ đó quân số tổ
+      // đội không bị khai lại trên từng dòng (xem chú thích ở _gopDongVeThe).
+      ntcRows.push({ntc,kv:can,can,wbs:r[5],tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],works:r[6],dvt:r[8]||'',khoiLuong:r[7],note,cn:cnv,cnTong:_T,vuongMac:'',pending:false,cardGid:'c'+idx+'-'+_gidBatch,
         selectedKhu:r[0],activeBlock:r[0],selectedWorkKey:itemSowWorkKey(r),selectedFloorCode:r[1],selectedCans:[can],selectedTangs:[r[2]],selectedWorks:[r[6]],items:[gi],cnMap:{[gi]:1},ntcCN:_T});
       dauMucRows.push({ntc,loai:r[0],can,tangCode:r[1],tang:r[2],nhomCode:r[3],nhom:r[4],wbs:r[5],dauMuc:r[6],m2:r[7],phanTram:getItemStatus(can,r[9]||r[5]).pct,soCN:cnv});
     });
@@ -5727,10 +5810,14 @@ async function submitQS(){
       return;
     }
     const _caLabelBs = reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
+    // vang PHẢI đi kèm bản bổ sung. Ô "Các công nhật nghỉ phép" vẫn mở sau khi
+    // phiếu bị khóa, nên GS thường điền/sửa danh sách nghỉ ở lần gửi bổ sung —
+    // payload cũ bỏ trường này nên nội dung đó biến mất mà app vẫn báo "✓ Đã gửi".
+    // GAS ghi đè danh sách nghỉ theo ngày+ca+GS nên gửi lại không tạo dòng trùng.
     const _bsPld = {type:'CÔNG NHẬT — BỔ SUNG',ca:reportSession,
       ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),
       cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),
-      dauMucRows:JSON.stringify(dauMucRows),ts:new Date().toISOString()};
+      dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
     const _bsTicket=prepareTextSubmit('bo-sung',_bsPld);
     _bsPld.submitId=_bsTicket.submitId;
     const _mergedNtc=[...(_existingLockedReport.ntcRows||[]),...ntcRows];
@@ -5746,6 +5833,9 @@ async function submitQS(){
     storeSubmittedReport(reporter,{
       ..._existingLockedReport,
       ntcRows:_mergedNtc, cnTasks:_mergedCn,
+      // Giữ đúng danh sách nghỉ vừa gửi: clearAllState() ngay bên dưới nạp lại ô
+      // f-vang từ phiếu, không lưu ở đây thì nội dung mới bị bật về bản cũ.
+      vang:v('f-vang'),
       workItems:reportToSubmittedWorkItems({ntcRows:_mergedNtc,cnTasks:_mergedCn}),
       locked:true, workSubmittedAt:_existingLockedReport.workSubmittedAt||new Date().toISOString(),
       updatedAt:new Date().toISOString()
@@ -7188,8 +7278,20 @@ init();
       :(names.length>1?names[0]+' +'+(names.length-1):'');
     // Mô tả công việc đứng TRƯỚC: phụ đề chỉ cho 2 dòng, phần bị cắt sẽ là
     // khu/căn (ít quan trọng hơn) chứ không phải nội dung công việc.
+    // Kèm SỐ DÒNG sẽ ghi = đầu mục × căn. Mỗi dòng là một hạng mục BẮT BUỘC có
+    // ảnh ở tab Hình ảnh và một dòng % ở tab Sản lượng, nên 3 đầu mục × 5 căn
+    // thành 15 việc phải chụp. Trước đây con số này chỉ tính ngầm trong
+    // qsSoDongSeGhi mà không hiện ra, GS chỉ phát hiện khi đã sang tab Hình ảnh.
+    // Đặt NGAY SAU mô tả, trước danh sách căn: phụ đề bị cắt còn 2 dòng nên để
+    // ở cuối chuỗi là bị cắt mất đúng con số cần nhìn.
+    var _soDong=qsSoDongSeGhi(qs);
     el.textContent=(moTa||'Chưa chọn đầu mục')
+      +(_soDong?' · '+_soDong+' dòng / '+_soDong+' ảnh':'')
       +(flow.length?' · '+flow.join(' · '):'');
+    // Nhắc ngay trên danh sách đầu mục — chỗ GS đang tích chọn.
+    var _lb=document.getElementById('sw-item-label-'+i);
+    if(_lb)_lb.textContent='4. Đầu mục công việc'
+      +(_soDong?' — sẽ ghi '+_soDong+' dòng, cần '+_soDong+' ảnh':'');
     // badge "N người" ở tiêu đề mục 1 phải chạy lại mỗi lần thẻ đổi
     try{calcTotal();}catch(e){}
     try{if(window.renderTonDong)renderTonDong();}catch(e){}
