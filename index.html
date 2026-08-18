@@ -1204,6 +1204,20 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
   backdrop-filter:blur(20px);box-shadow:0 8px 24px rgba(0,0,0,.18)!important}
 .toast.ok{background:rgba(52,199,89,.95)!important}
 .toast.err{background:rgba(255,59,48,.95)!important}
+
+/* ── Thanh trạng thái gửi nền (nằm ngay trên bot-nav) ───── */
+.sync-bar{position:fixed;left:10px;right:10px;bottom:calc(74px + var(--sb));z-index:150;
+  display:none;align-items:center;gap:10px;padding:11px 14px;border-radius:13px;
+  background:rgba(28,28,30,.94);color:#fff;font-size:13px;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);backdrop-filter:blur(20px)}
+.sync-bar.show{display:flex}
+.sync-bar.err{background:rgba(255,59,48,.97)}
+.sync-tx{flex:1;min-width:0;line-height:1.35}
+.sync-btn{flex-shrink:0;border:none;border-radius:9px;padding:8px 14px;
+  background:#fff;color:#dc2626;font-size:13px;font-weight:800;cursor:pointer}
+.sync-spin{flex-shrink:0;width:16px;height:16px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:syncspin .8s linear infinite}
+@keyframes syncspin{to{transform:rotate(360deg)}}
 .success{background:var(--ios-bg)!important}
 .success h2{color:var(--text)!important;letter-spacing:-.4px}
 .success p{color:var(--muted)!important}
@@ -3841,6 +3855,7 @@ async function init() {
   showEmptyPlaceholder();
   updateWorkflowTabs();
   hydrateAllReportStatesFromServer(); // tải dữ liệu mới nhất từ server khi khởi động
+  canhBaoVeGuiConSot();
 }
 function populateReporters() {
   const sel=document.getElementById('f-gs');
@@ -5494,6 +5509,152 @@ function guiNen(payload, moTa) {
   });
 }
 
+// ════════════════════════════════════════════════════════════════
+//  HÀNG ĐỢI GỬI NỀN — bấm Gửi là nhận ngay, dữ liệu đẩy song song
+// ════════════════════════════════════════════════════════════════
+// Trước đây mọi nút Gửi đều await postToGASConfirmed: POST xong còn phải hỏi
+// ACK (tới ~4 phút với tab ảnh vì GAS chèn ảnh + lưu Drive + đồng bộ tracking).
+// Suốt thời gian đó setSubmitBusy khóa cứng cả màn hình, giám sát đứng nhìn
+// "Đang gửi lên Google Sheets…" giữa công trường.
+// Nay: chốt trạng thái trên máy + hiện màn thành công NGAY, còn việc gửi và
+// chờ ACK chạy nền. Đổi lại phải giữ 3 cam kết, nếu không "nhanh" sẽ thành
+// "mất dữ liệu mà không ai biết":
+//   1. Còn job đang chạy thì thanh trạng thái dưới màn hình luôn hiện.
+//   2. Hỏng thì tự gửi lại 3 lần; vẫn hỏng thì banner ĐỎ bám màn hình, không
+//      tự tắt, kèm nút "Gửi lại" dùng ĐÚNG payload cũ (cùng submitId nên GAS
+//      dọn phần ghi dở rồi ghi lại, không nhân đôi).
+//   3. Đóng/tải lại trang lúc còn job → trình duyệt hỏi lại.
+const GUI_NEN_CHO = [0, 5000, 15000, 40000];   // lần đầu + 3 lần thử lại
+const _hangDoiGui = new Map();
+let _hangDoiSeq = 0;
+
+function _thanhDongBo(){
+  let el = document.getElementById('sync-bar');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'sync-bar';
+  el.className = 'sync-bar';
+  document.body.appendChild(el);
+  return el;
+}
+
+function _veThanhTrangThai(){
+  const el = _thanhDongBo();
+  const jobs = [..._hangDoiGui.values()];
+  const loi = jobs.filter(j => j.trangThai === 'loi');
+  const dang = jobs.filter(j => j.trangThai !== 'loi');
+  if (!jobs.length){ el.className = 'sync-bar'; el.innerHTML = ''; return; }
+  if (loi.length){
+    el.className = 'sync-bar show err';
+    el.innerHTML = '<span class="sync-tx">⚠️ ' + loi.length + ' báo cáo CHƯA lên Google Sheets: '
+      + loi.map(j => j.moTa).join(', ') + '</span>'
+      + '<button type="button" class="sync-btn" onclick="guiLaiTatCa()">Gửi lại</button>';
+    return;
+  }
+  el.className = 'sync-bar show';
+  el.innerHTML = '<span class="sync-spin"></span><span class="sync-tx">Đang gửi ' + dang.length
+    + ' báo cáo lên Google Sheets… bạn cứ làm tiếp</span>';
+}
+
+function guiNenXacNhan(opts){
+  const job = {
+    id: 'j' + (++_hangDoiSeq),
+    moTa: opts.moTa || 'báo cáo',
+    khoa: opts.khoa || '',
+    payload: opts.payload,
+    maxAck: opts.maxAck || 70,
+    kiemTra: opts.kiemTra || null,     // ném lỗi nếu ACK không đạt nghiệp vụ
+    onConfirmed: opts.onConfirmed || null,
+    ticket: opts.ticket || null,
+    lan: 0, trangThai: 'dang', loi: ''
+  };
+  _hangDoiGui.set(job.id, job);
+  _veThanhTrangThai();
+  _chayJobGui(job);
+  return job.id;
+}
+
+// Đang có job cùng khóa nghĩa là chính báo cáo đó đang trên đường bay.
+function dangGuiKhoa(khoa){
+  for (const j of _hangDoiGui.values()) if (j.khoa && j.khoa === khoa) return true;
+  return false;
+}
+
+async function _chayJobGui(job){
+  job.trangThai = 'dang'; job.loi = ''; _veThanhTrangThai();
+  while (job.lan < GUI_NEN_CHO.length){
+    const cho = GUI_NEN_CHO[job.lan]; job.lan++;
+    if (cho) await new Promise(r => setTimeout(r, cho));
+    try{
+      const confirmed = await postToGASConfirmed(job.payload, job.maxAck);
+      const ack = confirmed && confirmed.ack;
+      if (job.kiemTra) await job.kiemTra(ack, confirmed);   // ném lỗi → thử lại
+      // Cảnh báo mềm từ server (ví dụ một ảnh không chèn được vào Sheet): dữ
+      // liệu ĐÃ lưu nên không tính là hỏng, chỉ nói cho giám sát biết.
+      const _cb = ack && ack.result && Array.isArray(ack.result.warnings) ? ack.result.warnings : [];
+      if (_cb.length) toast('⚠️ ' + job.moTa + ' đã lưu nhưng có cảnh báo: '
+        + _cb.slice(0,2).map(x => x.message || x.item || 'kiểm tra dữ liệu').join(' · '), 'err');
+      if (job.onConfirmed){
+        // Lỗi cập nhật trạng thái trên máy KHÔNG phải lỗi gửi: Sheet đã lưu rồi,
+        // gửi lại chỉ tổ tốn thêm một vòng. Báo riêng để bấm ↻ tải lại.
+        try{ await job.onConfirmed(ack, confirmed); }
+        catch(e){
+          console.error('Đã lưu Sheet nhưng lỗi cập nhật trạng thái trên máy:', e);
+          toast('✓ Google Sheets đã lưu ' + job.moTa + ', nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
+        }
+      }
+      if (job.ticket) clearTextSubmit(job.ticket);
+      _hangDoiGui.delete(job.id);
+      _veThanhTrangThai();
+      toast('✓ Google Sheets đã lưu ' + job.moTa, 'ok');
+      return;
+    }catch(e){
+      job.loi = (e && e.message) || String(e);
+      console.warn('Gửi nền [' + job.moTa + '] lần ' + job.lan + ' hỏng:', job.loi);
+    }
+  }
+  job.trangThai = 'loi';
+  _veThanhTrangThai();
+  toast('⚠️ Chưa gửi được ' + job.moTa + ': ' + job.loi + '. Dữ liệu vẫn còn trên máy, bấm "Gửi lại" ở thanh đỏ.','err');
+}
+
+// Hàng đợi chỉ sống trong RAM. Tắt app giữa chừng (hoặc iOS thu hồi tab) là job
+// bay mất, phiếu vẫn khóa trên máy mà Sheet chưa có gì. Vé trong outbox chỉ được
+// xoá SAU khi có ACK, nên vé còn sót = lần gửi đó chưa chắc tới nơi. Không tự
+// gửi lại (payload ảnh quá lớn để giữ trong localStorage) — báo để giám sát mở
+// đúng phiếu đó kiểm tra rồi bấm gửi lại.
+function canhBaoVeGuiConSot(){
+  let box={};
+  try{ box=JSON.parse(localStorage.getItem(TEXT_SUBMIT_OUTBOX_KEY)||'{}'); }catch(e){ return; }
+  const sot=Object.keys(box).filter(k=>{
+    const t=Date.parse((box[k]||{}).at||'')||0;
+    return t && (Date.now()-t) < 3*86400000;   // chỉ nhắc việc trong 3 ngày
+  });
+  if(!sot.length) return;
+  const el=_thanhDongBo();
+  el.className='sync-bar show err';
+  el.innerHTML='<span class="sync-tx">⚠️ Lần trước có '+sot.length+' báo cáo gửi dở chưa được Google Sheets xác nhận ('
+    +sot.map(k=>k.split('::').slice(0,2).join(' ')).join(', ')
+    +'). Mở đúng phiếu đó kiểm tra rồi gửi lại.</span>'
+    +'<button type="button" class="sync-btn" onclick="boQuaCanhBaoGuiSot()">Đã hiểu</button>';
+}
+function boQuaCanhBaoGuiSot(){
+  try{ localStorage.removeItem(TEXT_SUBMIT_OUTBOX_KEY); }catch(e){}
+  _veThanhTrangThai();
+}
+
+function guiLaiTatCa(){
+  [..._hangDoiGui.values()].filter(j => j.trangThai === 'loi').forEach(j => { j.lan = 0; _chayJobGui(j); });
+  _veThanhTrangThai();
+}
+
+window.addEventListener('beforeunload', function(e){
+  if (!_hangDoiGui.size) return;
+  e.preventDefault();
+  e.returnValue = 'Còn báo cáo chưa gửi xong lên Google Sheets.';
+  return e.returnValue;
+});
+
 async function waitSubmitAck(submitId, maxAttempts=70, totalTimeoutMs) {
   let lastError=null;
   const duration=totalTimeoutMs||Math.min(240000,Math.max(60000,maxAttempts*1500));
@@ -5631,6 +5792,8 @@ function valReq(id,msg){if(!document.getElementById(id)?.value){toast(msg,'err')
 function v(id){return document.getElementById(id)?.value||'';}
 async function submitQS(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
+  // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
+  if (dangGuiKhoa('cong-nhat') || dangGuiKhoa('cong-nhat-bo-sung')) { toast('Báo cáo công việc đang được gửi lên Google Sheets…',''); return; }
   if (isQSSubmitting) {
     toast('Đang gửi báo cáo, vui lòng đợi...','');
     return;
@@ -5822,14 +5985,9 @@ async function submitQS(){
     _bsPld.submitId=_bsTicket.submitId;
     const _mergedNtc=[...(_existingLockedReport.ntcRows||[]),...ntcRows];
     const _mergedCn=[...(_existingLockedReport.cnTasks||[]),...cnTaskData.filter(t=>t.task||t.workerCount)];
-    try{
-      await postToGASConfirmed(applyEmailTestMode(_bsPld));
-    }catch(e){
-      console.error('Gửi báo cáo bổ sung:',e);
-      toast('⚠️ Chưa lưu được báo cáo bổ sung: '+e.message+'. Nội dung vẫn còn trên máy.','err');
-      return;
-    }
-    clearTextSubmit(_bsTicket);
+    // Gửi nền: chốt trên máy rồi trả nút ngay, không chờ ACK.
+    guiNenXacNhan({moTa:'Báo cáo bổ sung', khoa:'cong-nhat-bo-sung',
+      payload:applyEmailTestMode(_bsPld), ticket:_bsTicket});
     storeSubmittedReport(reporter,{
       ..._existingLockedReport,
       ntcRows:_mergedNtc, cnTasks:_mergedCn,
@@ -5912,18 +6070,12 @@ async function submitQS(){
   // GAS dùng ID này để xóa phần ghi dở rồi ghi lại trọn gói, không nhân đôi.
   const _qsTicket=prepareTextSubmit(_hadResub?'cong-nhat-resub':'cong-nhat',_qsPld);
   _qsPld.submitId=_qsTicket.submitId;
-  try{
-    await postToGASConfirmed(applyEmailTestMode(_qsPld));
-  }catch(e){
-    console.error('Gửi báo cáo công việc:',e);
-    reporterStates[stateKey].submittedWorkItems=[];
-    persistReporterStates();
-    toast('⚠️ Google Sheets chưa xác nhận lưu báo cáo: '+e.message+'. Toàn bộ nội dung vẫn còn trên máy để gửi lại.','err');
-    return;
-  }
-  clearTextSubmit(_qsTicket);
+  // Gửi nền: khóa phiếu + hiện màn thành công NGAY, POST và chờ ACK chạy song
+  // song. Hỏng thì hàng đợi tự gửi lại rồi mới dựng banner đỏ; nội dung vẫn
+  // nằm nguyên trên máy và nút "Gửi lại" dùng đúng submitId này.
+  guiNenXacNhan({moTa:'Báo cáo công việc', khoa:'cong-nhat',
+    payload:applyEmailTestMode(_qsPld), ticket:_qsTicket});
 
-  // Chỉ khóa phiếu và đẩy snapshot đa thiết bị SAU KHI server xác nhận đã ghi.
   reporterStates[stateKey].submittedWorkItems=submittedWorkItems;
   storeSubmittedReport(reporter,_submittedReportPayload);
   if(_hadResub){
@@ -5947,6 +6099,8 @@ async function submitQS(){
 }
 async function submitBC(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
+  // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
+  if (dangGuiKhoa('hinh-anh')) { toast('Báo cáo hình ảnh đang được gửi lên Google Sheets…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const photoItems=document.querySelectorAll('#photo-panel .photo-item');
   if(!photoItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -5988,6 +6142,8 @@ async function submitBC(){
       items:JSON.stringify(items.map(x=>({sid:x.sid,name:x.name,ph1:x.ph1,ph2:x.ph2,
         ph1Size:String(x.ph1_data||'').length,ph2Size:String(x.ph2_data||'').length})))
     });
+    // clearTextSubmit do hàng đợi nền gọi SAU khi có ACK — xoá ở đây thì lần
+    // gửi lại sẽ sinh submitId mới và GAS không dọn được phần ghi dở.
     await send(
       {type:'HÌNH ẢNH',submitId:photoTicket.submitId,ngay:v('f-ngay'),gs:v('f-gs'),ca:reportSession,items:JSON.stringify(items),vm:v('f-vm'),ts:new Date().toISOString()},
       `${items.length} công việc chụp ảnh`,
@@ -5996,9 +6152,9 @@ async function submitBC(){
         updateWorkflowTabs();
         nextModeAfterSuccess = 2;
       },
-      170
+      170,
+      {moTa:'Hình ảnh ('+items.length+' công việc)', khoa:'hinh-anh', ticket:photoTicket}
     );
-    clearTextSubmit(photoTicket);
   }catch(e){}
 }
 function reportDateVN(iso){
@@ -6407,6 +6563,8 @@ async function downloadAttendanceExcel(event){
 }
 async function submitCD(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
+  // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
+  if (dangGuiKhoa('san-luong')) { toast('Báo cáo sản lượng đang được gửi lên Google Sheets…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const resultItems=document.querySelectorAll('#result-panel .result-item');
   if(!resultItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -6518,50 +6676,42 @@ async function sendProductionResults(items, summary, onConfirmed){
     ts:new Date().toISOString()
   };
   const aggregatePayload={...basePayload,items:JSON.stringify(items),submitId:createSubmitId('san-luong-batch')};
-  const _t0=(typeof performance!=='undefined'?performance.now():Date.now());
-  const _ms=()=>Math.round((typeof performance!=='undefined'?performance.now():Date.now())-_t0);
-  setSubmitBusy(true);
-  try{
-    let confirmed;
-    if(GAS_URL.includes('YOUR_GAS_ID')){
-      await new Promise(resolve=>setTimeout(resolve,300));
-      confirmed={payload:aggregatePayload,ack:{status:'ok',result:{total:items.length,processed:items.length,ntpTotal:0,linked:0,alreadyLinked:0,errors:[]}}};
-    }else{
-      // Gửi một gói duy nhất và chờ ACK thật từ ScriptProperties. Không hiện
-      // thành công khi fetch no-cors mới chỉ rời trình duyệt.
-      // 170 lần poll ≈ 4 phút: dài hơn waitLock(120s) của GAS và đủ phần xử
-      // lý ảnh sau đó, tránh timeout giả rồi giám sát bấm gửi trùng.
-      confirmed=await postToGASConfirmed(aggregatePayload,170);
-    }
-    let ack=(confirmed.ack&&confirmed.ack.result)||null;
-    // Bản GAS tương thích cũ có thể chưa đưa result vào submit_ack; khi đó dùng
-    // production_ack vốn đã được handler ghi sau SpreadsheetApp.flush().
-    if(!ack&&!GAS_URL.includes('YOUR_GAS_ID'))ack=await waitProductionAck(basePayload.productionBatchId);
-    if(!ack)throw new Error('Máy chủ không trả kết quả xử lý batch sản lượng');
-    const processed=Number(ack.processed||0),total=Number(ack.total||items.length);
-    const linked=Number(ack.linked||0)+Number(ack.alreadyLinked||0),expected=Number(ack.ntpTotal||0);
-    const errors=Array.isArray(ack.errors)?ack.errors:[];
-    if(errors.length||processed<total||linked<expected){
-      const detail=errors.slice(0,2).map(x=>`${x.item||'Hạng mục'}: ${x.message||'lỗi xử lý'}`).join(' · ');
-      throw new Error(detail||`Máy chủ chỉ xử lý ${processed}/${total} hạng mục, liên kết NTP ${linked}/${expected}`);
-    }
-    let localCommitError=null;
-    if(onConfirmed){
-      try{await onConfirmed(ack);}catch(e){localCommitError=e;console.error('Đã lưu Sheet nhưng lỗi cập nhật trạng thái trên máy:',e);}
-    }
-    console.log(`[SẢN LƯỢNG] xác nhận ${processed}/${total}, link NTP ${linked}/${expected} trong ${_ms()}ms`);
-    showSuccess(confirmed.payload||aggregatePayload,summary);
-    if(localCommitError)toast('✓ Google Sheets đã lưu sản lượng, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
-    return ack;
-  }catch(e){
-    setSubmitBusy(false);
-    console.error('Gửi sản lượng:',e);
-    toast('⚠️ Google Sheets chưa xác nhận đủ sản lượng: '+e.message+'. Dữ liệu và ảnh vẫn còn trên máy.','err');
-    throw e;
+  // Chốt trên máy + hiện màn thành công NGAY. Sản lượng là tab nặng nhất
+  // (GAS ghi ảnh, cập nhật CĂN A–E rồi dò dòng ERP trong SẢN LƯỢNG NHÀ THẦU PHỤ),
+  // đo thực tế có lượt chờ hàng phút — không được bắt giám sát đứng nhìn.
+  let localCommitError=null;
+  if(onConfirmed){
+    try{await onConfirmed({total:items.length,processed:items.length,ntpTotal:0,linked:0,alreadyLinked:0,errors:[]});}
+    catch(e){localCommitError=e;console.error('Lỗi cập nhật trạng thái sản lượng trên máy:',e);}
   }
+  showSuccess(aggregatePayload,summary);
+  if(localCommitError)toast('⚠️ Máy chưa cập nhật được trạng thái sản lượng. Bấm ↻ để tải lại.','err');
+  if(GAS_URL.includes('YOUR_GAS_ID'))return {total:items.length,processed:items.length,ntpTotal:0,linked:0,alreadyLinked:0,errors:[]};
+  guiNenXacNhan({
+    moTa:'Sản lượng ('+items.length+' hạng mục)', khoa:'san-luong',
+    payload:aggregatePayload, maxAck:170,
+    // Ghi đủ dòng CHƯA chắc là ghi đúng: còn phải liên kết được sang SẢN LƯỢNG
+    // NHÀ THẦU PHỤ. Thiếu liên kết vẫn là hỏng → thử lại, hết lượt thì banner đỏ.
+    kiemTra: async function(ackWrap){
+      let ack=(ackWrap&&ackWrap.result)||null;
+      if(!ack)ack=await waitProductionAck(basePayload.productionBatchId);
+      if(!ack)throw new Error('Máy chủ không trả kết quả xử lý batch sản lượng');
+      const processed=Number(ack.processed||0),total=Number(ack.total||items.length);
+      const linked=Number(ack.linked||0)+Number(ack.alreadyLinked||0),expected=Number(ack.ntpTotal||0);
+      const errors=Array.isArray(ack.errors)?ack.errors:[];
+      if(errors.length||processed<total||linked<expected){
+        const detail=errors.slice(0,2).map(x=>`${x.item||'Hạng mục'}: ${x.message||'lỗi xử lý'}`).join(' · ');
+        throw new Error(detail||`Máy chủ chỉ xử lý ${processed}/${total} hạng mục, liên kết NTP ${linked}/${expected}`);
+      }
+      console.log(`[SẢN LƯỢNG] xác nhận ${processed}/${total}, link NTP ${linked}/${expected}`);
+    }
+  });
+  return {total:items.length,processed:items.length,ntpTotal:0,linked:0,alreadyLinked:0,errors:[]};
 }
 async function submitQA(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
+  // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
+  if (dangGuiKhoa('nghiem-thu')) { toast('Báo cáo nghiệm thu đang được gửi lên Google Sheets…',''); return; }
   const qaItems=document.querySelectorAll('.qa-item');
   if(!qaItems.length){toast('⚠️ Chưa có công việc nào đạt 100%. Hãy báo cáo sản lượng 100% trước','err');return;}
   let allPassed=true;const qaData=[];
@@ -6669,41 +6819,30 @@ async function sendQAResults(qaData, summary, onConfirmed){
   };
   // GAS hỗ trợ mảng qaItems; gửi một batch duy nhất để tránh N request song
   // song tranh lock, ghi đè state Drive và làm tab Nghiệm thu bị khựng.
-  const result=await send({...aggregatePayload,submitId:ticket.submitId},summary,onConfirmed,170);
-  clearTextSubmit(ticket);
-  return result;
+  // clearTextSubmit do hàng đợi nền gọi sau ACK (giữ nguyên submitId khi gửi lại).
+  return await send({...aggregatePayload,submitId:ticket.submitId},summary,onConfirmed,170,
+    {moTa:'Nghiệm thu ('+qaData.length+' hạng mục)', khoa:'nghiem-thu', ticket:ticket});
 }
-async function send(data,summary,onConfirmed,maxAckAttempts=70){
+// GỬI NỀN. onConfirmed giờ là "chốt trạng thái trên máy", chạy NGAY chứ không
+// chờ ACK — nhờ vậy màn thành công hiện tức thì và giám sát sang tab kế tiếp
+// được luôn. Việc POST + chờ ACK đẩy sang hàng đợi nền (xem guiNenXacNhan).
+async function send(data,summary,onConfirmed,maxAckAttempts=70,opts){
+  opts=opts||{};
   if (currentReporter) saveReporterState(currentReporter);
   const payload = applyEmailTestMode(data);
-  if(GAS_URL.includes('YOUR_GAS_ID')){
-    setSubmitBusy(true);
-    await new Promise(resolve=>setTimeout(resolve,300));
-    let localError=null;
-    if(onConfirmed){try{await onConfirmed({status:'ok',result:null});}catch(e){localError=e;console.error('Lỗi cập nhật trạng thái cục bộ:',e);}}
-    showSuccess(payload,summary);
-    if(localError)toast('✓ Dữ liệu đã gửi, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
-    return {status:'ok',result:null};
-  }
-  setSubmitBusy(true);
-  let confirmed;
-  try{
-    confirmed=await postToGASConfirmed(payload,maxAckAttempts);
-  }catch(e){
-    setSubmitBusy(false);
-    console.error('Gửi báo cáo:',e);
-    toast('⚠️ Máy chủ chưa xác nhận lưu dữ liệu: '+e.message+'. Dữ liệu vẫn còn trên máy, vui lòng kiểm tra mạng rồi gửi lại.','err');
-    throw e;
-  }
   let localError=null;
   if(onConfirmed){
-    try{await onConfirmed(confirmed.ack);}catch(e){localError=e;console.error('Google Sheets đã lưu nhưng lỗi cập nhật trạng thái trên máy:',e);}
+    try{await onConfirmed({status:'ok',result:null});}
+    catch(e){localError=e;console.error('Lỗi cập nhật trạng thái cục bộ:',e);}
   }
-  showSuccess(confirmed.payload,summary);
-  const serverWarnings=confirmed.ack&&confirmed.ack.result&&Array.isArray(confirmed.ack.result.warnings)?confirmed.ack.result.warnings:[];
-  if(localError)toast('✓ Google Sheets đã lưu, nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
-  else if(serverWarnings.length)toast('⚠️ Google Sheets đã lưu nhưng có cảnh báo: '+serverWarnings.slice(0,2).map(x=>x.message||x.item||'kiểm tra dữ liệu').join(' · '),'err');
-  return confirmed.ack;
+  showSuccess(payload,summary);
+  if(localError)toast('⚠️ Máy chưa cập nhật được trạng thái. Bấm ↻ để tải lại.','err');
+  if(GAS_URL.includes('YOUR_GAS_ID'))return {status:'ok',result:null};
+  guiNenXacNhan({
+    moTa:opts.moTa||'báo cáo', khoa:opts.khoa||'', payload:payload,
+    maxAck:maxAckAttempts, ticket:opts.ticket||null, kiemTra:opts.kiemTra||null
+  });
+  return {status:'ok',result:null};
 }
 function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${data.ngay||v('f-ngay')}<br>👤 ${data.gs||v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
 function closeSuccess(){
@@ -7689,18 +7828,9 @@ init();
       ts:new Date().toISOString()};
     var ticket=prepareTextSubmit('bo-sung-nhan-cong',payload);
     payload.submitId=ticket.submitId;
-    if(btn){btn.textContent='Đang lưu lên Google Sheets…';}
-    setSubmitBusy(true);
-    try{
-      await postToGASConfirmed(applyEmailTestMode(payload),170);
-    }catch(e){
-      console.error('Bổ sung nhân công:',e);
-      toast('⚠️ Chưa lưu được bổ sung nhân công: '+e.message+'. Nội dung vẫn còn để gửi lại.','err');
-      if(btn){btn.disabled=false;btn.textContent='Gửi bổ sung & cập nhật email';}
-      setSubmitBusy(false);
-      return;
-    }
-    // Chỉ đưa quân bổ sung vào phiếu trên máy sau ACK của Google Sheets.
+    // Gửi nền — đóng modal ngay, không giữ giám sát lại chờ Apps Script.
+    guiNenXacNhan({moTa:'Bổ sung nhân công ('+ntc+')', khoa:'bo-sung-nhan-cong',
+      payload:applyEmailTestMode(payload), maxAck:170, ticket:ticket});
     var localBoSungError=null;
     try{storeSubmittedReport(gs,{ntcRows:mergedNtc,workItems:workItems});}
     catch(localErr){localBoSungError=localErr;console.error('Sheet đã lưu nhưng máy chưa cập nhật bổ sung:',localErr);}
@@ -7708,10 +7838,9 @@ init();
     if(btn){btn.disabled=false;btn.textContent='Gửi bổ sung & cập nhật email';}
     setSubmitBusy(false);
     if(localBoSungError){
-      toast('✓ Google Sheets đã lưu bổ sung, nhưng máy chưa cập nhật các tab. Bấm lại để đồng bộ trạng thái trên máy.','err');
+      toast('⚠️ Máy chưa cập nhật được các tab. Bấm ↻ để tải lại.','err');
       return;
     }
-    clearTextSubmit(ticket);
     closeBoSung();
     if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cansBS+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
     try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localBoSungError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
@@ -8257,18 +8386,9 @@ init();
       ts:new Date().toISOString()};
     var ticket=prepareTextSubmit('cong-viec-defect',payload);
     payload.submitId=ticket.submitId;
-    if(btn)btn.textContent='Đang lưu lên Google Sheets…';
-    setSubmitBusy(true);
-    try{
-      await postToGASConfirmed(applyEmailTestMode(payload),170);
-    }catch(e){
-      console.error('Công việc defect:',e);
-      toast('⚠️ Chưa lưu được công việc defect: '+e.message+'. Nội dung vẫn còn để gửi lại.','err');
-      if(btn){btn.disabled=false;btn.textContent='Thêm công việc defect vào báo cáo';}
-      setSubmitBusy(false);
-      return;
-    }
-    // Không đưa defect vào các tab tiếp theo cho tới khi Sheet xác nhận đã lưu.
+    // Gửi nền — đóng modal ngay.
+    guiNenXacNhan({moTa:'Công việc defect ('+sels.length+' hạng mục)', khoa:'cong-viec-defect',
+      payload:applyEmailTestMode(payload), maxAck:170, ticket:ticket});
     var localDefectError=null;
     try{
       storeSubmittedReport(gs,laPhieuMoi?{...report,ntcRows:mergedNtc,workItems:workItems}:{ntcRows:mergedNtc,workItems:workItems});
@@ -8278,10 +8398,9 @@ init();
     if(btn){btn.disabled=false;btn.textContent='Thêm công việc defect vào báo cáo';}
     setSubmitBusy(false);
     if(localDefectError){
-      toast('✓ Google Sheets đã lưu defect, nhưng máy chưa cập nhật các tab. Bấm lại để đồng bộ trạng thái trên máy.','err');
+      toast('⚠️ Máy chưa cập nhật được các tab. Bấm ↻ để tải lại.','err');
       return;
     }
-    clearTextSubmit(ticket);
     closeDefect();
     toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
     try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localDefectError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
