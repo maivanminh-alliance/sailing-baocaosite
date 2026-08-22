@@ -1398,10 +1398,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
 body.app-loading .submit-btn,
 body.app-loading .add-row-btn,
 body.app-loading .add-task-btn,
-body.app-loading #main-content input,
-body.app-loading #main-content select,
-body.app-loading #main-content textarea{
+body.app-loading #main-content :is(input,select,textarea):not(#card-general *){
   pointer-events:none!important;opacity:.55!important}
+/* Cùng lý do như trên: đang tải vẫn phải đổi được ngày / người báo cáo, nếu
+   không thì mạng chậm là đứng hình không thao tác được gì. */
+body.app-loading #card-general,
+body.app-loading #card-general *{pointer-events:auto!important;opacity:1!important}
 .skeleton-line{height:12px;border-radius:6px;margin:8px 0;
   background:linear-gradient(90deg,#ececf1 25%,#f6f6f9 37%,#ececf1 63%);
   background-size:400% 100%;animation:skelShine 1.3s ease infinite}
@@ -1473,9 +1475,10 @@ button,.add-row-btn,.add-task-btn,.save-action-btn,
 .suc-sync.err{background:rgba(255,59,48,.12);color:var(--red)}
 .suc-sync.busy{background:rgba(255,149,0,.14);color:#a15c00}
 
-/* Nút Gửi cố định giờ cao thêm một dòng lý do → phải chừa thêm chỗ, nếu không
-   dòng cuối của thẻ bị che (#21 kéo theo #36). */
-#mode-qs{padding-bottom:132px!important}
+/* Chỗ chừa cho nút Gửi cố định do chuaChoNutGui() đo và đặt bằng JS — chiều cao
+   khối nút đổi theo việc có dòng lý do hay không, số cứng luôn sai một trạng
+   thái nào đó. 150px chỉ là giá trị ban đầu trước khi JS chạy. */
+#mode-qs{padding-bottom:150px}
 #mode-bc,#mode-cd,#mode-qa{padding-bottom:24px}
 
 /* ── #21: dòng nói rõ nút Gửi còn thiếu điều kiện gì ───── */
@@ -1489,9 +1492,10 @@ button,.add-row-btn,.add-task-btn,.save-action-btn,
 .submit-btn.is-done{background:#8E8E93!important}
 
 /* ── #20: chế độ tổng hợp = chỉ xem ────────────────────── */
-body.view-only #main-content input:not(#f-ngay):not(#f-gs),
-body.view-only #main-content select,
-body.view-only #main-content textarea,
+/* Thẻ "Thông tin chung" (Ngày + Người báo cáo) là bộ chọn PHẠM VI, không phải
+   nội dung báo cáo → KHÔNG BAO GIỜ được khóa. Khóa nó là tự nhốt: muốn thoát
+   chế độ chỉ-xem phải chọn tên, mà ô chọn tên lại đang bị khóa. */
+body.view-only #main-content :is(input,select,textarea):not(#card-general *),
 body.view-only #main-content .add-row-btn,
 body.view-only #main-content .add-task-btn,
 body.view-only #main-content .submit-btn,
@@ -1499,6 +1503,8 @@ body.view-only .work-sticky-footer .submit-btn,
 body.view-only #bs-open-btn,
 body.view-only #df-open-btn{
   pointer-events:none!important;opacity:.5!important}
+body.view-only #card-general,
+body.view-only #card-general *{pointer-events:auto!important;opacity:1!important}
 body.view-only .mode-banner{
   background:rgba(120,120,128,.12)!important;color:#55555C!important;
   border-radius:10px;margin:6px 16px 0;padding:8px 12px!important;
@@ -1543,17 +1549,6 @@ body.prod-locked  #result-panel::before{
   font-weight:400!important;text-transform:none!important;letter-spacing:0!important;
   white-space:nowrap;flex:none;margin:0!important;cursor:pointer;
   display:flex;align-items:center;min-height:26px}
-
-/* ── #11: ô "không phát sinh công việc" ─────────────────── */
-.no-work{background:#fff;border:1px solid rgba(0,0,0,.04);
-  border-radius:var(--ios-rad);padding:12px 16px}
-.no-work-row{display:flex;align-items:center;gap:12px;min-height:44px;
-  font-size:15px;color:var(--text);cursor:pointer}
-.no-work-row input{width:22px;height:22px;flex:none;accent-color:var(--blue)}
-#f-kpsn-wrap{margin-top:10px}
-#f-kpsn-wrap[hidden]{display:none}
-#f-kpsn-ly{width:100%;min-height:60px;border:1px solid var(--ios-sep);
-  border-radius:10px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical}
 </style>
   <!-- LỖI #47 — đã gỡ Tailwind CDN (bản compile lúc chạy, không dùng cho
        production) và lucide: rà toàn bộ HTML không dùng class Tailwind nào,
@@ -1628,20 +1623,6 @@ body.prod-locked  #result-panel::before{
      <div class="card-body" id="body-card-vang" style="display:none">
       <div class="field">
        <textarea id="f-vang" placeholder="VD: Lê Viết Tài — nghỉ phép"></textarea>
-      </div>
-     </div>
-    </div>
-    <!-- LỖI #11 — ngoại lệ hợp lệ cho báo cáo trống: phải tích ô này VÀ ghi lý
-         do thì mới gửi được báo cáo không có nội dung. Server kiểm tra lại. -->
-    <div class="card" id="card-kpsn">
-     <div class="no-work">
-      <label class="no-work-row" for="f-kpsn">
-       <input type="checkbox" id="f-kpsn" onchange="doiKhongPhatSinh()">
-       <span>Hôm nay không phát sinh công việc</span>
-      </label>
-      <div id="f-kpsn-wrap" hidden>
-       <label class="fld-lb" for="f-kpsn-ly">Lý do (bắt buộc)</label>
-       <textarea id="f-kpsn-ly" rows="2" placeholder="VD: nghỉ lễ · mưa lớn cả ngày · công trường tạm dừng"></textarea>
       </div>
      </div>
     </div>
@@ -2664,34 +2645,17 @@ function _bcHienTai(){
   const r = selectedReporter();
   return r ? (getSubmittedReport(r) || getReporterState(r) || {}) : {};
 }
-// LỖI #11 — ngoại lệ "không phát sinh công việc".
-function khongPhatSinh(){ return !!document.getElementById('f-kpsn')?.checked; }
-function lyDoKhongPhatSinh(){ return (document.getElementById('f-kpsn-ly')?.value||'').trim(); }
-function doiKhongPhatSinh(){
-  const bat=khongPhatSinh();
-  const wrap=document.getElementById('f-kpsn-wrap');
-  if(wrap){ if(bat) wrap.removeAttribute('hidden'); else wrap.setAttribute('hidden',''); }
-  if(bat) setTimeout(()=>document.getElementById('f-kpsn-ly')?.focus(),120);
-  capNhatNutGui();
-}
-window.doiKhongPhatSinh=doiKhongPhatSinh;
-
 function canSubmitCongViec(){
   if (laCheDoTongHop()) return 'Chọn "Người báo cáo" trước khi gửi.';
   if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
   const coNTC = Object.keys(qsCards).some(i=>document.getElementById('qsc-'+i));
   const coCN  = Object.keys(cnTasks).length > 0;
   const daGui = reportWorkSubmitted(getSubmittedReport(selectedReporter()));
-  const coNoiDung = coNTC || coCN || daGui;
-  if (!coNoiDung){
-    // LỖI #11 — báo cáo trống chỉ đi được qua đường ngoại lệ có lý do.
-    if (!khongPhatSinh())
-      return 'Chưa có nhà thầu hoặc công nhật nào. Thêm ít nhất một mục, hoặc tích "Hôm nay không phát sinh công việc".';
-    if (lyDoKhongPhatSinh().length < 3)
-      return 'Đã tích "không phát sinh công việc" — hãy ghi lý do (ít nhất 3 ký tự).';
-    return null;
-  }
-  if (!daGui && tongNhanCongNTC() === 0 && tongNhanCongCN() === 0 && !khongPhatSinh())
+  // LỖI #11 — không có nội dung thì KHÔNG gửi. Không phát sinh công việc thì
+  // đơn giản là không gửi báo cáo ngày đó, không cần khai báo gì thêm.
+  if (!coNTC && !coCN && !daGui)
+    return 'Chưa có nhà thầu hoặc công nhật nào. Thêm ít nhất một mục trước khi gửi.';
+  if (!daGui && tongNhanCongNTC() === 0 && tongNhanCongCN() === 0)
     return 'Chưa khai số nhân công. Nhập số CN hoặc chọn người cho công nhật.';
   return null;
 }
@@ -2768,6 +2732,22 @@ function _oLyDo(nut){
   }
   return el;
 }
+// Nút Gửi của tab Công việc là position:fixed, và giờ nó cao thấp khác nhau tùy
+// có dòng lý do hay không. Con số padding cứng luôn sai ở một trạng thái nào đó
+// → đo chiều cao thật rồi chừa đúng bằng đó, nếu không thẻ cuối bị che.
+function chuaChoNutGui(){
+  const f=document.querySelector('.work-sticky-footer');
+  const nav=document.querySelector('.bot-nav');
+  const mode=document.getElementById('mode-qs');
+  if(!f||!mode) return;
+  const hF=f.getBoundingClientRect().height||0;
+  const hNav=nav?nav.getBoundingClientRect().height:0;
+  if(getComputedStyle(f).position!=='fixed'){ mode.style.paddingBottom='12px'; return; }
+  mode.style.paddingBottom=Math.round(hF+hNav+20)+'px';
+}
+window.addEventListener('resize',()=>{try{chuaChoNutGui();}catch(e){}});
+window.addEventListener('orientationchange',()=>setTimeout(()=>{try{chuaChoNutGui();}catch(e){}},200));
+
 function capNhatNutGui(){
   if (isQSSubmitting || window.__busySubmit) return;
   NUT_GUI.forEach(([id, kiemTra, sel, ten, lopKhoa, maBuoc])=>{
@@ -2816,6 +2796,12 @@ function capNhatNutGui(){
       if (oLyDo.textContent !== '') oLyDo.textContent = '';
     }
   });
+  // Chiều cao khối nút vừa đổi → tính lại chỗ chừa ở cuối trang.
+  // Gọi THẲNG trước, vì requestAnimationFrame KHÔNG chạy khi tab ở nền (giám
+  // sát bấm gửi rồi khoá màn hình bỏ túi là dính) — rAF chỉ để chỉnh lại cho
+  // chuẩn sau khi trình duyệt tính xong layout.
+  try{ chuaChoNutGui(); }catch(e){}
+  requestAnimationFrame(()=>{try{chuaChoNutGui();}catch(e){}});
 }
 window.capNhatNutGui = capNhatNutGui;
 
@@ -4922,11 +4908,6 @@ function datLaiStateDanXuat(){
   window._moKhoaSanLuong = false;
   document.body.classList.remove('photo-locked','prod-locked','qa-locked');
   document.querySelectorAll('.submit-why').forEach(el=>{ el.dataset.state=''; el.textContent=''; });
-  // LỖI #11 — ô "không phát sinh" cũng thuộc về một ngày/người cụ thể.
-  const kp=document.getElementById('f-kpsn');
-  if(kp){ kp.checked=false; }
-  const kpw=document.getElementById('f-kpsn-wrap'); if(kpw) kpw.setAttribute('hidden','');
-  const kpl=document.getElementById('f-kpsn-ly');  if(kpl) kpl.value='';
   _xungDotDaHoi.clear();
 }
 function setMode(m) {
@@ -7264,10 +7245,7 @@ async function submitQS(){
     savedAt: new Date().toISOString()
   };
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
-  const _qsPld={type:'CÔNG NHẬT — '+caLabel,ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),
-    // LỖI #11 — server dùng hai trường này để quyết định có nhận báo cáo trống không.
-    khongPhatSinh:khongPhatSinh(), lyDoKhongPhatSinh:lyDoKhongPhatSinh(),
-    ts:new Date().toISOString()};
+  const _qsPld={type:'CÔNG NHẬT — '+caLabel,ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
   // Nếu là gửi lại sau "Sửa lại" → báo GAS xóa dòng cũ trước khi ghi mới
   const _rsk=reporterStateKey(reporter);
   const _hadResub=!!(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay);
