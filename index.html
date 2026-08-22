@@ -986,17 +986,15 @@ label,.qs-sf-label,.area-filter-label,.qs-sub,.qs-cn-title,.area-filter-title,.v
 .submit-btn.blue,#btn-submit-qs{background:var(--blue)!important}
 #mode-qa .submit-btn{background:var(--green)!important;
   box-shadow:0 6px 16px -4px rgba(52,199,89,.5)!important}
-/* position:sticky chỉ dính trong phạm vi thẻ cha (#mode-qs) → cuộn hết thẻ cha
-   là nút Gửi trôi theo. Dùng fixed để nó luôn nằm ngay trên thanh tab.
-   Trong khung iPhone (body có transform) fixed = neo theo máy, vẫn đúng chỗ. */
-.work-sticky-footer{position:fixed!important;left:0;right:0;
-  bottom:calc(84px + var(--sb))!important;z-index:80;
-  background:rgba(242,242,247,.92)!important;
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+/* Nút Gửi nằm TRONG LUỒNG TRANG, ở cuối nội dung (yêu cầu 22/08/2026).
+   Trước đây nó position:fixed nên cuộn tới đâu cũng bám theo, che mất nội dung
+   bên dưới và làm màn hình lúc nào cũng như đang chờ gửi. */
+.work-sticky-footer{position:static!important;left:auto;right:auto;bottom:auto;
+  z-index:auto;background:transparent!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
   border:none!important;border-radius:0!important;box-shadow:none!important;
-  padding:8px 16px 10px!important;margin:0!important}
-/* chừa chỗ để thẻ cuối không bị nút Gửi che */
-#mode-qs{padding-bottom:82px}
+  padding:4px 0 0!important;margin:8px 0 0!important}
+#mode-qs{padding-bottom:24px}
 .work-sticky-footer .submit-btn{height:50px!important;min-height:50px!important;
   padding:0 16px!important;font-size:17px!important;border-radius:14px!important;margin:0!important}
 
@@ -1481,12 +1479,6 @@ button,.add-row-btn,.add-task-btn,.save-action-btn,
 #mode-qs{padding-bottom:150px}
 #mode-bc,#mode-cd,#mode-qa{padding-bottom:24px}
 
-/* Báo cáo đã khóa, không có gì để gửi → thu thanh nút thành một dòng chữ,
-   trả lại màn hình cho nội dung báo cáo. */
-body.gui-thu-gon .work-sticky-footer .submit-btn{display:none!important}
-body.gui-thu-gon .work-sticky-footer{padding:8px 16px!important}
-body.gui-thu-gon .work-sticky-footer .submit-why{padding:0;font-size:12px}
-
 /* ── #21: dòng nói rõ nút Gửi còn thiếu điều kiện gì ───── */
 .submit-why{font-size:12.5px;line-height:1.45;font-weight:600;
   color:var(--orange);padding:6px 4px 0;text-align:center}
@@ -1515,6 +1507,14 @@ body.view-only .mode-banner{
   background:rgba(120,120,128,.12)!important;color:#55555C!important;
   border-radius:10px;margin:6px 16px 0;padding:8px 12px!important;
   text-align:center!important}
+
+/* Thanh "đang sửa báo cáo đã gửi" + nút thoát */
+.dang-sua-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:#fffbeb;border:1px solid #fde68a;border-radius:12px;
+  padding:12px 14px;margin-bottom:12px}
+.dang-sua-bar .ds-tx{flex:1;min-width:0;font-size:13px;font-weight:700;color:#b45309;line-height:1.4}
+.dang-sua-bar .ds-btn{flex:none;min-height:44px;padding:10px 16px;border:none;border-radius:10px;
+  background:#b45309;color:#fff;font-size:13px;font-weight:800;cursor:pointer}
 
 /* ── #17: thẻ báo cáo đã khóa — mặc định thu gọn ────────── */
 .lock-badge{flex-shrink:0;font-size:15px;opacity:.55}
@@ -2789,9 +2789,11 @@ function chuaChoNutGui(){
   const nav=document.querySelector('.bot-nav');
   const mode=document.getElementById('mode-qs');
   if(!f||!mode) return;
+  // Nút Gửi nay nằm trong luồng trang nên không cần chừa chỗ nữa; giữ nhánh
+  // fixed phòng khi CSS được đổi lại sau này.
+  if(getComputedStyle(f).position!=='fixed'){ mode.style.paddingBottom='24px'; return; }
   const hF=f.getBoundingClientRect().height||0;
   const hNav=nav?nav.getBoundingClientRect().height:0;
-  if(getComputedStyle(f).position!=='fixed'){ mode.style.paddingBottom='12px'; return; }
   mode.style.paddingBottom=Math.round(hF+hNav+20)+'px';
 }
 window.addEventListener('resize',()=>{try{chuaChoNutGui();}catch(e){}});
@@ -2799,7 +2801,6 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{try{chuaChoNutGu
 
 function capNhatNutGui(){
   if (isQSSubmitting || window.__busySubmit) return;
-  document.body.classList.remove('gui-thu-gon');
   NUT_GUI.forEach(([id, kiemTra, sel, ten, lopKhoa, maBuoc])=>{
     if (lopKhoa) document.body.classList.remove(lopKhoa);
     const nut = _timNutGui(id, sel);
@@ -2830,27 +2831,17 @@ function capNhatNutGui(){
         b.onclick = () => moKhoaBuoc(maBuoc);
         oLyDo.appendChild(b);
       }
-    } else if (lyDo){
-      nut.disabled = true;
-      nut.classList.remove('is-done');
-      nut.setAttribute('aria-disabled','true');
-      oLyDo.className = 'submit-why';
-      oLyDo.dataset.state = 'why';
-      if (oLyDo.textContent !== '⚠️ ' + lyDo) oLyDo.textContent = '⚠️ ' + lyDo;
-      // Báo cáo đã khóa và chưa có gì để bổ sung: thu nút Gửi lại thành một
-      // dòng chữ. Một nút "GỬI BỔ SUNG" to đùng đang bị khóa vừa chiếm gần 1/5
-      // màn hình che mất nội dung, vừa làm màn XEM báo cáo cũ trông như màn
-      // đang chờ gửi.
-      if (!id) { /* các tab khác: nút nằm trong luồng trang, để nguyên */ }
-      else document.body.classList.add('gui-thu-gon');
     } else {
+      // KHÔNG hiện dòng cảnh báo "còn thiếu ..." nữa (yêu cầu 22/08/2026).
+      // Nhắc liên tục ngay dưới nút Gửi vừa gây khó chịu vừa che mất nội dung.
+      // Điều kiện vẫn được kiểm tra — nhưng chỉ nói khi người dùng BẤM gửi
+      // (submitQS/submitBC/... hiện toast), tức là đúng lúc họ cần biết.
       nut.disabled = false;
       nut.classList.remove('is-done');
       nut.setAttribute('aria-disabled','false');
       oLyDo.className = 'submit-why';
       oLyDo.dataset.state = 'ok';
       if (oLyDo.textContent !== '') oLyDo.textContent = '';
-      if (id) document.body.classList.remove('gui-thu-gon');
     }
   });
   // Chiều cao khối nút vừa đổi → tính lại chỗ chừa ở cuối trang.
@@ -4297,6 +4288,59 @@ function renderDongDaGhiTruoc(reporter) {
     `<div id="${DONG_DA_GHI_ID}"><div style="font-size:11px;font-weight:900;color:var(--muted);text-transform:uppercase;margin:2px 0 6px">Đã ghi trong ngày (chưa gửi báo cáo Công việc)</div>${the}</div>`);
 }
 
+// Thu gọn mọi thẻ NTC đã điền đủ. Thẻ còn thiếu dữ liệu vẫn để mở để GS biết
+// chỗ nào cần hoàn tất.
+function thuGonCacTheDaDu(){
+  const lam = () => {
+    document.querySelectorAll('.qs-card[data-editable="1"]:not(.qs-col)').forEach(card=>{
+      const idx = parseInt(String(card.id).replace('qsc-',''));
+      if (!isFinite(idx)) return;
+      const ntc = card.querySelector('.qs-ntc-sel')?.value || '';
+      if (!ntc) return;                       // chưa chọn nhà thầu → để mở
+      try { if (!validateQSCard(idx)) saveAndCollapseQS(idx); } catch(e){}
+    });
+    try{ calcTotal(); }catch(e){}
+  };
+  lam();                                       // chạy ngay
+  setTimeout(lam, 350);                        // chạy lại sau khi wizard vẽ xong
+}
+
+// Thanh báo "đang sửa báo cáo đã gửi" + lối THOÁT. Trước đây chỉ có một toast
+// đỏ thoáng qua, và không có cách nào quay lại bản đã gửi ngoài việc gửi lại.
+function hienThanhDangSua(reporter){
+  const body = document.getElementById('qs-body');
+  if (!body || document.getElementById('thanh-dang-sua')) return;
+  const el = document.createElement('div');
+  el.id = 'thanh-dang-sua';
+  el.className = 'dang-sua-bar';
+  el.innerHTML = '<span class="ds-tx">✏️ Đang sửa báo cáo đã gửi — sửa xong nhớ bấm Gửi lại.</span>';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'ds-btn';
+  btn.textContent = 'Hủy sửa';
+  btn.onclick = () => huyChinhSua(reporter);
+  el.appendChild(btn);
+  body.insertBefore(el, body.firstChild);
+}
+
+// Bỏ bản nháp đang sửa, kéo lại bản ĐÃ GỬI từ server.
+function huyChinhSua(reporter){
+  reporter = String(reporter || currentReporter || selectedReporter() || '').trim();
+  if (!reporter) return;
+  showAppConfirm('Hủy chỉnh sửa',
+    'Bỏ các thay đổi chưa gửi và quay lại đúng bản báo cáo đã gửi lên Google Sheets?\n\n'
+    + 'Nội dung đang sửa dở trên máy sẽ bị xóa.',
+    async () => {
+      const key = reporterStateKey(reporter);
+      delete reporterStates[key];
+      persistReporterStates();
+      try { await hydrateReportStateFromServer(reporter, {nguoiDungBam:true}); } catch(e){}
+      showReporterView(reporter);
+      updateWorkflowTabs(); rebuildActiveReporterTab();
+      toast('Đã quay lại bản báo cáo đã gửi','ok');
+    }, '↩️');
+}
+window.huyChinhSua = huyChinhSua;
+
 function loadReporterState(reporter) {
   clearAllState();
   loadStoredReporterStates();
@@ -4362,8 +4406,17 @@ function loadReporterState(reporter) {
   });
   if ((state.cnTasks || []).length === 0) document.getElementById('cn-task-list').innerHTML='';
   isRestoring = false;
+  // ══════════════════════════════════════════
+  // Công việc ĐÃ GỬI thì hiện dạng THẺ THU GỌN + nút Chỉnh sửa
+  // ══════════════════════════════════════════
+  // Trước đây mỗi dòng khôi phục từ nháp đều bung thành một wizard nhập đầy đủ
+  // (chọn công việc / khu / căn / tầng / đầu mục). Mở lại báo cáo hôm trước là
+  // thấy cả màn hình toàn ô nhập, không biết mình đang xem hay đang sửa.
+  // Nay: dòng nào đã đủ dữ liệu thì thu về một thẻ tóm tắt, bấm vào mới mở ra.
+  thuGonCacTheDaDu();
   calcTotal(); updateCNAssigned(); updateAllGroupCounts();
   renderDongDaGhiTruoc(reporter);
+  if (_laNhapSuaLai) hienThanhDangSua(reporter);
   // Mở lại app mà vẫn còn bản sửa dở → phải nói rõ, nếu không GS tưởng đã gửi rồi.
   // (Dải cảnh báo do updateReporterStrip lo, vì nó chạy sau hàm này.)
   if (_laNhapSuaLai && _nhapPhienTruoc) {
@@ -5558,20 +5611,30 @@ function tongNhanCongNTC() {
   // Quy tắc lấy từ bản vá cnMap trước đây: thẻ có ntcCN thì đó LÀ quân số của
   // cả tổ đội (không cộng theo từng đầu mục); không có thì mỗi đầu mục tính
   // theo cnMap, mặc định 1 người.
-  let tong = 0, coTheDangMo = false;
+  // MỘT TỔ ĐỘI = MỘT QUÂN SỐ. Một nhà thầu có thể nằm trên NHIỀU thẻ (mỗi thẻ
+  // một đầu mục công việc), nhưng vẫn chỉ là ngần ấy con người trong ngày. Cộng
+  // dồn theo từng thẻ sẽ đếm trùng: Đ2T 2 người làm 2 việc bị tính thành 4.
+  // Gom theo tên nhà thầu và lấy quân số lớn nhất đã khai cho nhà thầu đó.
+  const theoToDoi = {};
+  let coTheDangMo = false;
   Object.keys(qsCards).forEach(i => {
     const card = document.getElementById('qsc-' + i);
     if (!card) return;
     coTheDangMo = true;
     const qs = qsCards[i] || {};
-    if (qs.ntcCN > 0 && qs.items && qs.items.size) { tong += qs.ntcCN; return; }
-    const inp = card.querySelector('.qs-cn-inp');
-    if (inp && inp.value !== '') { tong += parseInt(inp.value) || 0; return; }
-    if (qs.items && qs.items.forEach) {
-      qs.items.forEach(gi => { tong += (qs.cnMap && qs.cnMap[gi]) || 1; });
+    const ten = String(
+      (card.querySelector('.qs-ntc-sel') && card.querySelector('.qs-ntc-sel').value) || qs.ntc || ''
+    ).trim().toUpperCase() || ('__the_' + i);
+    let q = 0;
+    if (qs.ntcCN > 0 && qs.items && qs.items.size) q = qs.ntcCN;
+    else {
+      const inp = card.querySelector('.qs-cn-inp');
+      if (inp && inp.value !== '') q = parseInt(inp.value) || 0;
+      else if (qs.items && qs.items.forEach) qs.items.forEach(gi => { q += (qs.cnMap && qs.cnMap[gi]) || 1; });
     }
+    theoToDoi[ten] = Math.max(theoToDoi[ten] || 0, q);
   });
-  if (coTheDangMo) return tong;
+  if (coTheDangMo) return Object.values(theoToDoi).reduce((a,b)=>a+b,0);
 
   // ── Trường hợp 2: báo cáo đã khóa, form đã đóng ──
   // Cộng quân số của TỪNG THẺ đúng như thẻ đang hiển thị. Bản vá trước cộng
@@ -8504,7 +8567,7 @@ init();
       +'<div class="sw-step" id="sw-area-step-'+i+'" style="display:none"><label class="sw-step-title">2. Chọn khu</label><div class="sw-blocks" id="sw-blocks-'+i+'"></div></div>'
       +'<div class="sw-step" id="sw-can-step-'+i+'" style="display:none"><label class="sw-step-title">3. Chọn căn (có thể chọn nhiều)</label><div class="sw-cans" id="sw-cans-'+i+'"></div></div>'
       +'<div class="sw-step" id="sw-floor-step-'+i+'" style="display:none"><label class="sw-step-title">4. Chọn tầng theo công việc</label><div class="sw-floorrow" id="sw-floors-'+i+'"></div></div>'
-      +'<label class="sw-step-title" id="sw-item-label-'+i+'" style="display:none;margin-top:12px">4. Đầu mục công việc</label>'
+      +'<label class="sw-step-title" id="sw-item-label-'+i+'" style="display:none;margin-top:12px">5. Đầu mục công việc</label>'
       +'<div id="sw-items-'+i+'"><div class="sw-note">Chọn công việc để tiếp tục…</div></div>'
       +'<div class="sw-noteblk"><label class="sw-notelb">Ghi chú</label>'
       +'<textarea class="sw-note-inp" id="sw-note-'+i+'" rows="2" placeholder="Ghi chú nhà thầu (lý do thiếu quân, lưu ý thi công…)" oninput="qsSetNote('+i+',this.value)"></textarea></div>'
@@ -8517,6 +8580,26 @@ init();
     updateQSSumLine(i);
     if(!isRestoring && typeof commitReporterState==='function') commitReporterState();
   };
+
+  // Các bước trong thẻ nhập ẩn/hiện tùy nhà thầu và công việc: bước "Chọn tầng"
+  // không phải lúc nào cũng có. Số thứ tự viết cứng trong HTML vì thế lúc thì
+  // trùng nhau (hai bước cùng số 4), lúc thì nhảy cóc (1, 2, 3, rồi 5). Đánh số
+  // lại theo đúng những bước ĐANG HIỆN.
+  function danhSoLaiBuoc(i){
+    var card=document.getElementById('qsc-'+i); if(!card) return;
+    var n=0;
+    card.querySelectorAll('.sw-step-title').forEach(function(lb){
+      var hien = lb.offsetParent !== null;
+      var b = lb.closest('.sw-step');
+      if (b && getComputedStyle(b).display === 'none') hien = false;
+      if (getComputedStyle(lb).display === 'none') hien = false;
+      if (!hien) return;
+      n++;
+      lb.textContent = lb.textContent.replace(/^\s*\d+\.\s*/, '');
+      lb.textContent = n + '. ' + lb.textContent;
+    });
+  }
+  window.danhSoLaiBuoc = danhSoLaiBuoc;
 
   function buildScope(i){
     var qs=qsCards[i];if(!qs)return;var ntc=qs.ntc||'';
@@ -8733,8 +8816,9 @@ init();
       +(flow.length?' · '+flow.join(' · '):'');
     // Nhắc ngay trên danh sách đầu mục — chỗ GS đang tích chọn.
     var _lb=document.getElementById('sw-item-label-'+i);
-    if(_lb)_lb.textContent='4. Đầu mục công việc'
+    if(_lb)_lb.textContent='5. Đầu mục công việc'
       +(_soDong?' — sẽ ghi '+_soDong+' dòng, cần '+_soDong+' ảnh':'');
+    danhSoLaiBuoc(i);
     // badge "N người" ở tiêu đề mục 1 phải chạy lại mỗi lần thẻ đổi
     try{calcTotal();}catch(e){}
     try{if(window.renderTonDong)renderTonDong();}catch(e){}
