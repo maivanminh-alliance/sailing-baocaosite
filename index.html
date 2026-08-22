@@ -1481,6 +1481,12 @@ button,.add-row-btn,.add-task-btn,.save-action-btn,
 #mode-qs{padding-bottom:150px}
 #mode-bc,#mode-cd,#mode-qa{padding-bottom:24px}
 
+/* Báo cáo đã khóa, không có gì để gửi → thu thanh nút thành một dòng chữ,
+   trả lại màn hình cho nội dung báo cáo. */
+body.gui-thu-gon .work-sticky-footer .submit-btn{display:none!important}
+body.gui-thu-gon .work-sticky-footer{padding:8px 16px!important}
+body.gui-thu-gon .work-sticky-footer .submit-why{padding:0;font-size:12px}
+
 /* ── #21: dòng nói rõ nút Gửi còn thiếu điều kiện gì ───── */
 .submit-why{font-size:12.5px;line-height:1.45;font-weight:600;
   color:var(--orange);padding:6px 4px 0;text-align:center}
@@ -1511,6 +1517,10 @@ body.view-only .mode-banner{
   text-align:center!important}
 
 /* ── #17: thẻ báo cáo đã khóa — mặc định thu gọn ────────── */
+.lock-badge{flex-shrink:0;font-size:15px;opacity:.55}
+.lock-edit{margin-top:12px;width:100%;min-height:44px;
+  border:1px solid #f59e0b;background:#fffbeb;color:#b45309;
+  border-radius:10px;padding:10px 12px;font-size:13px;font-weight:800;cursor:pointer}
 .lock-more{margin-top:8px;background:none;border:none;padding:8px 2px;
   color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;
   min-height:44px;text-align:left}
@@ -2164,8 +2174,9 @@ function draftHasContent(d){
   if(d.qaResultData)return true;
   return ['vang','vmbc','vmcdt','vmalc'].some(k=>String(d[k]||'').trim());
 }
-async function hydrateReportStateFromServer(reporter){
+async function hydrateReportStateFromServer(reporter, opts){
   reporter=String(reporter||'').trim();if(!reporter)return false;
+  const nguoiDungBam = !!(opts && opts.nguoiDungBam);
   const date=v('f-ngay')||todayISOInVietnam();
   const tokenKey=normalizeReporterName(reporter);
   const token=(serverStateHydrateTokens[tokenKey]||0)+1;
@@ -2240,8 +2251,23 @@ async function hydrateReportStateFromServer(reporter){
       // hỏi người dùng chứ không im lặng giữ bản cũ rồi đẩy đè lên server.
       const revDraft=parseInt(_draft.serverRev,10)||0;
       const revServer=parseInt(state.serverRev,10)||0;
+      // ══════════════════════════════════════════
+      // BẤM ↻ MÀ KHÔNG THẤY GÌ THAY ĐỔI — sửa 22/08/2026
+      // ══════════════════════════════════════════
+      // Bộ chặn này sinh ra để bảo vệ nội dung ĐANG GÕ khỏi bị server ghi đè.
+      // Nhưng nó chặn luôn cả nút ↻: chỉ cần trong phiên có gõ một chữ là mọi
+      // lần bấm ↻ sau đó đều bị bỏ qua trong im lặng, nút vẫn chuyển XANH báo
+      // thành công. Người dùng tưởng nút hỏng và phải tải lại trang (tải lại
+      // thì SESSION_LOAD_TIME đặt lại nên nháp thành "cũ" và dữ liệu chảy vào).
+      // Nay: bấm ↻ là YÊU CẦU RÕ RÀNG của người dùng → không bao giờ im lặng.
+      // Hoặc hỏi để chọn, hoặc nói thẳng vì sao không đổi.
+      if(nguoiDungBam){
+        _xungDotDaHoi.delete(key);          // người dùng hỏi lại thì được hỏi lại
+        hoiXuLyXungDot(reporter,key,state,_draft);
+        return {ok:true,changed:false,giuNhap:true,conflict:true,reporter};
+      }
       if(revServer>revDraft) hoiXuLyXungDot(reporter,key,state,_draft);
-      return {ok:true,changed:false,conflict:revServer>revDraft,reporter};
+      return {ok:true,changed:false,giuNhap:true,conflict:revServer>revDraft,reporter};
     }
     const all=loadSubmittedReports();
     const local=all[key];
@@ -2386,7 +2412,12 @@ function _gioNganVN(d){
 // Muốn quét tất cả: giữ nút ↻ ~600ms (hoặc gọi reloadFromServer('all')).
 async function reloadFromServer(scope){
   const btn=document.getElementById('reload-btn');
-  if(btn&&btn.classList.contains('loading'))return;
+  if(btn&&btn.classList.contains('loading')){
+    // Một lượt đồng bộ mất vài giây. Trước đây bấm thêm lần nữa thì hàm lặng lẽ
+    // thoát, không một dấu hiệu nào → cảm giác "bấm mãi không ăn".
+    toast('Đang đồng bộ, chờ một chút…','');
+    return {ok:true,dangChay:true,total:0,updated:0,failed:[]};
+  }
   const nguoiDangChon=selectedReporter();
   const phamVi=scope||(nguoiDangChon?'current':'all');
   const only=(phamVi==='current')?nguoiDangChon:'';
@@ -2400,12 +2431,12 @@ async function reloadFromServer(scope){
   try{
     if(only){
       let r;
-      try{ r=await hydrateReportStateFromServer(only); }
+      try{ r=await hydrateReportStateFromServer(only,{nguoiDungBam:true}); }
       catch(e){ r={ok:false,error:e&&e.message||String(e),reporter:only}; }
       try{ await restoreMediaCacheForReporter(only); }catch(e){}
       updateWorkflowTabs(); rebuildActiveReporterTab();
       r=r||{ok:false,error:'Không có phản hồi',reporter:only};
-      ket={ok:!!r.ok,total:1,updated:r.changed?1:0,
+      ket={ok:!!r.ok,total:1,updated:r.changed?1:0,giuNhap:!!r.giuNhap,
            failed:r.ok?[]:[{reporter:only,error:r.error||'lỗi không rõ'}]};
     }else{
       ket=await hydrateAllReportStatesFromServer();
@@ -2423,7 +2454,12 @@ async function reloadFromServer(scope){
     else       btn.classList.add('error');
   }
   const gio=_gioNganVN(_lanDongBoCuoi);
-  if(ket.ok){
+  if(ket.ok && ket.giuNhap){
+    // Không được báo "thành công" khi thực chất chưa lấy gì về — nói rõ lý do.
+    if(btn){ btn.classList.remove('done'); btn.classList.add('idle'); }
+    veTrangThaiDongBo('Đồng bộ '+gio+' · '+nhanPhamVi
+      +' · GIỮ bản nháp trên máy, chưa lấy bản server (xem hộp thoại vừa hiện)','busy');
+  }else if(ket.ok){
     veTrangThaiDongBo('Đồng bộ '+gio+' · '+nhanPhamVi+' · '+ket.updated+'/'+ket.total+' bản ghi cập nhật','');
   }else{
     // LỖI #2 — nêu đích danh người/ngày bị lỗi thay vì im lặng.
@@ -2650,7 +2686,20 @@ function canSubmitCongViec(){
   if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
   const coNTC = Object.keys(qsCards).some(i=>document.getElementById('qsc-'+i));
   const coCN  = Object.keys(cnTasks).length > 0;
-  const daGui = reportWorkSubmitted(getSubmittedReport(selectedReporter()));
+  const rptHT = getSubmittedReport(selectedReporter());
+  const daGui = reportWorkSubmitted(rptHT);
+  const daKhoa = _isReportLocked(rptHT);
+
+  // Báo cáo ĐÃ GỬI VÀ KHÓA → nút chuyển sang "GỬI BỔ SUNG". Nút đó chỉ được
+  // sáng khi thật sự có phần bổ sung MỚI. Trước đây nó luôn sáng, nên mở lại
+  // báo cáo hôm trước chỉ để xem cũng thấy một nút gửi to đùng — rất dễ bấm
+  // nhầm và gửi lại một báo cáo rỗng.
+  if (daKhoa) {
+    if (!coNTC && !coCN)
+      return 'Báo cáo đã gửi và khóa. Thêm nhà thầu / công nhật mới nếu cần gửi bổ sung.';
+    return null;
+  }
+
   // LỖI #11 — không có nội dung thì KHÔNG gửi. Không phát sinh công việc thì
   // đơn giản là không gửi báo cáo ngày đó, không cần khai báo gì thêm.
   if (!coNTC && !coCN && !daGui)
@@ -2750,6 +2799,7 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{try{chuaChoNutGu
 
 function capNhatNutGui(){
   if (isQSSubmitting || window.__busySubmit) return;
+  document.body.classList.remove('gui-thu-gon');
   NUT_GUI.forEach(([id, kiemTra, sel, ten, lopKhoa, maBuoc])=>{
     if (lopKhoa) document.body.classList.remove(lopKhoa);
     const nut = _timNutGui(id, sel);
@@ -2787,6 +2837,12 @@ function capNhatNutGui(){
       oLyDo.className = 'submit-why';
       oLyDo.dataset.state = 'why';
       if (oLyDo.textContent !== '⚠️ ' + lyDo) oLyDo.textContent = '⚠️ ' + lyDo;
+      // Báo cáo đã khóa và chưa có gì để bổ sung: thu nút Gửi lại thành một
+      // dòng chữ. Một nút "GỬI BỔ SUNG" to đùng đang bị khóa vừa chiếm gần 1/5
+      // màn hình che mất nội dung, vừa làm màn XEM báo cáo cũ trông như màn
+      // đang chờ gửi.
+      if (!id) { /* các tab khác: nút nằm trong luồng trang, để nguyên */ }
+      else document.body.classList.add('gui-thu-gon');
     } else {
       nut.disabled = false;
       nut.classList.remove('is-done');
@@ -2794,6 +2850,7 @@ function capNhatNutGui(){
       oLyDo.className = 'submit-why';
       oLyDo.dataset.state = 'ok';
       if (oLyDo.textContent !== '') oLyDo.textContent = '';
+      if (id) document.body.classList.remove('gui-thu-gon');
     }
   });
   // Chiều cao khối nút vừa đổi → tính lại chỗ chừa ở cuối trang.
@@ -3971,6 +4028,34 @@ function _lockedDetailRows(pairs) {
 }
 // MỘT THẺ = MỘT TỔ ĐỘI: ghi số công nhân đúng một lần, liệt kê mọi công việc
 // tổ đó đã làm trong ngày (một công nhân làm nhiều việc ở nhiều căn).
+// ══════════════════════════════════════════
+// LỖI #1 — NHÓM DÒNG NTC CỦA BÁO CÁO ĐÃ KHÓA (một tổ đội = một thẻ)
+// ══════════════════════════════════════════
+// Dùng CHUNG cho cả việc vẽ thẻ lẫn việc tính badge "N người", để hai con số
+// không bao giờ lệch nhau. Mô hình dữ liệu: cnTong là quân số của cả tổ đội,
+// được lặp lại trên mọi dòng của tổ đó; cột cn chỉ điền ở dòng đầu nhóm. Vì thế
+// KHÔNG được cộng dồn cn theo từng dòng — phải lấy quân số ĐÚNG MỘT LẦN mỗi thẻ.
+function nhomDongNtcDaKhoa(ntcRows){
+  const keys=[], map={};
+  (ntcRows||[]).forEach((r,idx)=>{
+    // Khóa nhóm phải GIỮ NGUYÊN như bản gốc. (Đừng thêm nhánh cardGid như
+    // _gopDongVeThe: dòng đã gửi có cardGid khác nhau nên tổ đội bị tách thành
+    // nhiều thẻ, kéo theo quân số bị cộng thừa.)
+    const k=(r.vuongMac||r.pending)
+      ? ('__rieng_'+idx)
+      : [r.ntc||'', r.selectedWorkKey||'', (r.cnTong||r.cn||0)].join('|');
+    if(!map[k]){ map[k]={rows:[],idxs:[]}; keys.push(k); }
+    map[k].rows.push(r); map[k].idxs.push(idx);
+  });
+  return {keys, map};
+}
+// Quân số hiển thị trên MỘT thẻ đã khóa — đúng công thức _renderLockedNtcCard dùng.
+function quanSoCuaTheKhoa(rows){
+  const r0=(rows||[])[0]||{};
+  if (r0.vuongMac || r0.pending) return 0;     // dòng vướng mắc không có quân số
+  return Number(r0.cnTong || r0.cn || 0) || 0;
+}
+
 function _renderLockedNtcCard(rows, idxs, gi, reporter) {
   rows = Array.isArray(rows) ? rows : [rows];
   idxs = Array.isArray(idxs) ? idxs : [idxs];
@@ -4016,7 +4101,7 @@ function _renderLockedNtcCard(rows, idxs, gi, reporter) {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <div class="qs-num" style="flex-shrink:0">${gi+1}</div>
       <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(r0.ntc||'')} — ${quanSo} CN</div>
-      <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idxs[0]})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
+      <span class="lock-badge" title="Đã gửi và khóa">🔒</span>
     </div>
     <!-- LỖI #17 — báo cáo ĐÃ KHÓA mặc định chỉ hiện dòng tóm tắt. Muốn xem đủ
          thì bấm "Xem chi tiết"; muốn sửa thì bấm "Sửa lại" (có hộp xác nhận). -->
@@ -4028,6 +4113,9 @@ function _renderLockedNtcCard(rows, idxs, gi, reporter) {
         <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;margin-bottom:4px">Công việc đã làm (${rows.length})</div>
         ${dsCongViec}
       </div>
+      <!-- Nút sửa nằm TRONG khối chi tiết: mở báo cáo cũ ra là để XEM, muốn sửa
+           thì phải chủ động mở chi tiết rồi bấm (vẫn có hộp xác nhận sau đó). -->
+      <button type="button" class="lock-edit" onclick="unlockReportForEdit('${_sr}','ntc',${idxs[0]})">✏️ Sửa lại tổ đội này</button>
     </div>
   </div>`;
 }
@@ -4103,14 +4191,7 @@ function renderSubmittedWorkSummary(report) {
       </div>`);
     // Gom theo TỔ ĐỘI: cùng nhà thầu + cùng công tác + cùng quân số = 1 thẻ.
     // Dòng vướng mắc/chuyển tiếp để riêng từng dòng.
-    const _gKeys=[], _gMap={};
-    ntcRows.forEach((r,idx)=>{
-      const k=(r.vuongMac||r.pending)
-        ? ('__rieng_'+idx)
-        : [r.ntc||'', r.selectedWorkKey||'', (r.cnTong||r.cn||0)].join('|');
-      if(!_gMap[k]){ _gMap[k]={rows:[],idxs:[]}; _gKeys.push(k); }
-      _gMap[k].rows.push(r); _gMap[k].idxs.push(idx);
-    });
+    const {keys:_gKeys, map:_gMap} = nhomDongNtcDaKhoa(ntcRows);
     _gKeys.forEach((k,gi)=> qsBody.insertAdjacentHTML('beforeend', _renderLockedNtcCard(_gMap[k].rows, _gMap[k].idxs, gi, _editReporter)));
     qsBody.insertAdjacentHTML('beforeend', _BOSUNG_SEP_NTC);
     cnList.insertAdjacentHTML('afterbegin',`
@@ -5473,22 +5554,35 @@ function qsCN(i, d) {
 // Cách chữa: hai hàm dưới đây là nguồn duy nhất, ưu tiên dữ liệu (qsCards /
 // cnTasks), khi form đã đóng thì lấy từ báo cáo đã gửi.
 function tongNhanCongNTC() {
+  // ── Trường hợp 1: form đang mở (đang nhập báo cáo mới) ──
+  // Quy tắc lấy từ bản vá cnMap trước đây: thẻ có ntcCN thì đó LÀ quân số của
+  // cả tổ đội (không cộng theo từng đầu mục); không có thì mỗi đầu mục tính
+  // theo cnMap, mặc định 1 người.
   let tong = 0, coTheDangMo = false;
   Object.keys(qsCards).forEach(i => {
     const card = document.getElementById('qsc-' + i);
     if (!card) return;
     coTheDangMo = true;
-    const inp = card.querySelector('.qs-cn-inp');
-    if (inp) { tong += parseInt(inp.value) || 0; return; }
     const qs = qsCards[i] || {};
-    tong += Object.values(qs.cnMap || {}).reduce((a, b) => a + (parseInt(b) || 0), 0);
+    if (qs.ntcCN > 0 && qs.items && qs.items.size) { tong += qs.ntcCN; return; }
+    const inp = card.querySelector('.qs-cn-inp');
+    if (inp && inp.value !== '') { tong += parseInt(inp.value) || 0; return; }
+    if (qs.items && qs.items.forEach) {
+      qs.items.forEach(gi => { tong += (qs.cnMap && qs.cnMap[gi]) || 1; });
+    }
   });
   if (coTheDangMo) return tong;
-  // Form đã đóng (báo cáo khóa) → đọc từ dữ liệu đã gửi.
+
+  // ── Trường hợp 2: báo cáo đã khóa, form đã đóng ──
+  // Cộng quân số của TỪNG THẺ đúng như thẻ đang hiển thị. Bản vá trước cộng
+  // meta.cn theo từng DÒNG nên tổ đội có nhiều dòng bị đếm nhiều lần
+  // (Văn Năm 08/08/2026: ra 10 thay vì 8).
   try {
-    return (getWorkItems() || [])
-      .filter(x => x && x.type === 'ntc')
-      .reduce((a, x) => a + (parseInt(x.meta && x.meta.cn) || 0), 0);
+    const rpt = getSubmittedReport(selectedReporter()) || getReporterState(selectedReporter());
+    const rows = (rpt && rpt.ntcRows) || [];
+    if (!rows.length) return 0;
+    const {keys, map} = nhomDongNtcDaKhoa(rows);
+    return keys.reduce((a, k) => a + quanSoCuaTheKhoa(map[k].rows), 0);
   } catch (e) { return 0; }
 }
 function tongNhanCongCN() {
@@ -8679,15 +8773,10 @@ init();
     if(currentReporter)saveReporterState(currentReporter);
   };
 
-  // calcTotal cũ đếm .qs-cn-inp (không còn) -> bổ sung tổng CN Section 1 theo cnMap
-  var _calc=window.calcTotal;
-  window.calcTotal=function(){try{_calc&&_calc();}catch(e){}
-    var t=0;Object.values(qsCards).forEach(function(qs){
-      if(!qs)return;
-      if(qs.ntcCN>0&&qs.items&&qs.items.size){t+=qs.ntcCN;return;}
-      if(qs.items)qs.items.forEach(function(gi){t+=(qs.cnMap&&qs.cnMap[gi])||1;});
-    });
-    var b=document.getElementById('qs-total-badge');if(b)b.textContent=t;};
+  // LỖI #1 — ĐÃ GỠ bản ghi đè calcTotal ở đây.
+  // Nó chạy sau nên luôn thắng, và chỉ đếm từ qsCards: báo cáo ĐÃ KHÓA không có
+  // qsCards nào nên badge luôn ra 0 dù dữ liệu có 8 người. Logic của nó (ntcCN /
+  // cnMap) đã được đưa vào tongNhanCongNTC() — nay là nguồn duy nhất.
 
   // Reset Section 1 nếu init cũ đã render (giữ Section 2 nguyên)
   function rebuildAll(){
