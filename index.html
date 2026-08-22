@@ -1,7 +1,12 @@
 <!doctype html>
 <html lang="vi"><head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <!-- LỖI #14 — CSP: chặn mọi nguồn script/kết nối ngoài các host thật sự dùng.
+       Vẫn phải cho 'unsafe-inline' vì app dùng inline handler và inline style
+       khắp nơi; giá trị của CSP ở đây là chặn nạp script lạ và chặn gửi dữ liệu
+       ra host không nằm trong danh sách. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://script.google.com https://script.googleusercontent.com https://docs.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com https://drive.google.com https://docs.google.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://docs.google.com https://*.googleusercontent.com; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>Báo Cáo Ngày — Sailing Hạ Long v9</title>
   <meta name="theme-color" content="#1FB45F">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1365,9 +1370,196 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
 
 /* Ô kết quả rỗng thì không hiện nền xanh */
 .kv-result:empty{background:transparent!important;padding:0!important}
+
+/* ═══════════════════════════════════════════════════════
+   BẢN VÁ 22/08/2026 — sửa lỗi UI theo báo cáo kiểm tra
+   (#31 #36 #37 #38 #41 #42 #43 #44 #45 #28)
+   Khối này để CUỐI <style> nên luôn thắng các khối trước.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── #38: label thật cho Ngày / Người báo cáo ───────────── */
+.fld-lb{display:block;font-size:12px!important;font-weight:600!important;
+  color:var(--ios-hdrtxt)!important;letter-spacing:.2px;margin:0 0 5px!important;
+  text-transform:uppercase}
+
+/* ── #42: nâng tương phản chữ phụ (mục tiêu ≥ 4.5:1) ───── */
+:root{--ios-hdrtxt:#55555C;--muted:#5A6474}
+.hdr-sub,.hdr-person{color:#55555C!important}
+.panel-empty,.sw-note,.sw-cats{color:#55555C!important}
+
+/* ── #31 + #28: dòng trạng thái đồng bộ / đang tải ─────── */
+.sync-status{display:none;padding:5px 20px 0;font-size:12px;font-weight:600;
+  line-height:1.35;color:var(--ios-hdrtxt);letter-spacing:.1px}
+.sync-status.show{display:block}
+.sync-status.err{color:var(--red)}
+.sync-status.busy{color:var(--orange)}
+
+/* ── #28: khóa thao tác trong lúc đang tải dữ liệu ─────── */
+body.app-loading .submit-btn,
+body.app-loading .add-row-btn,
+body.app-loading .add-task-btn,
+body.app-loading #main-content input,
+body.app-loading #main-content select,
+body.app-loading #main-content textarea{
+  pointer-events:none!important;opacity:.55!important}
+.skeleton-line{height:12px;border-radius:6px;margin:8px 0;
+  background:linear-gradient(90deg,#ececf1 25%,#f6f6f9 37%,#ececf1 63%);
+  background-size:400% 100%;animation:skelShine 1.3s ease infinite}
+@keyframes skelShine{0%{background-position:100% 50%}100%{background-position:0 50%}}
+
+/* ── #45: footer tách khỏi thanh tab + chừa safe-area ──── */
+.bot-nav{padding-bottom:env(safe-area-inset-bottom,0px)!important}
+.site-footer{grid-column:auto!important;position:fixed;left:0;right:0;bottom:0;z-index:99;
+  background:transparent!important;pointer-events:none;
+  padding:0 12px calc(2px + var(--sb))!important;font-size:10px;color:var(--ios-hdrtxt);
+  text-align:center;opacity:0}
+@media (min-width:820px){.site-footer{position:static;opacity:1;padding:10px 12px!important}}
+
+/* ── #41: vùng chạm tối thiểu 44×44 ────────────────────── */
+.nav-btn{min-height:56px!important}
+.reload-btn{width:44px!important;height:44px!important}
+button,.add-row-btn,.add-task-btn,.save-action-btn,
+.card-hdr.card-toggle-hdr{min-height:44px}
+.qs-cn-inp,input[type="number"],input[type="text"],input[type="date"],select{min-height:44px}
+.w-chip,.sw-work-chip,.sw-floor-chip,.blk-chip,.tang-chip,.khu-chip{min-height:36px;
+  display:inline-flex;align-items:center}
+/* chip nhỏ vẫn đủ vùng chạm nhờ pseudo-element phủ 44px */
+.w-chip{position:relative}
+.w-chip::after{content:'';position:absolute;left:0;right:0;top:50%;
+  height:44px;transform:translateY(-50%)}
+
+/* ── #37: header không vỡ ở màn 320–360px ───────────────── */
+@media (max-width:360px){
+  .hdr{padding:6px 12px 8px!important;padding-top:calc(6px + var(--st))!important}
+  .hdr-row{flex-wrap:wrap!important;gap:4px 8px!important}
+  .hdr-left{flex:1 1 100%!important;min-width:0}
+  .hdr-person{flex:1 1 100%!important;font-size:12px!important;
+    white-space:normal!important;overflow:visible!important}
+  .hdr-bottom{flex-wrap:nowrap!important;gap:8px!important;align-items:center!important}
+  .hdr h1{font-size:17px!important;white-space:normal!important;line-height:1.2}
+  .reload-btn{flex:none!important;margin-bottom:0!important}
+  .content{padding:6px 12px 0!important}
+  .work-sticky-footer{padding:8px 12px 10px!important}
+  .nav-btn .n-lb{font-size:9px!important}
+}
+
+/* ── #36: màn hình thấp / xoay ngang → nút Gửi vào luồng ── */
+@media (max-height:520px),(orientation:landscape) and (max-height:480px){
+  .work-sticky-footer{position:static!important;background:transparent!important;
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    padding:10px 0 0!important;margin:0 0 12px!important}
+  #mode-qs{padding-bottom:12px!important}
+  body{padding-bottom:calc(72px + var(--sb))!important}
+  .bot-nav{position:static!important;box-shadow:none!important;
+    border-top:1px solid var(--ios-sep)!important}
+  .site-footer{position:static!important;opacity:1!important}
+}
+
+/* ── #43/#44: focus nhìn thấy được khi đi bằng bàn phím ── */
+:focus-visible{outline:2.5px solid var(--blue)!important;outline-offset:2px!important;
+  border-radius:6px}
+.nav-btn{background:none;border:none;font:inherit;color:inherit}
+.reload-btn[aria-busy="true"]{cursor:progress}
+
+/* ── #44: modal chuẩn dialog ───────────────────────────── */
+[role="dialog"]{outline:none}
+
+/* ── #5: dòng trạng thái gửi trên màn hình thành công ──── */
+.suc-sync{margin:0 0 14px;font-size:13px;font-weight:600;line-height:1.45;
+  padding:9px 14px;border-radius:10px;max-width:340px;
+  background:rgba(0,122,255,.10);color:var(--blue)}
+.suc-sync:empty{display:none}
+.suc-sync.ok{background:rgba(52,199,89,.14);color:#1a7f37}
+.suc-sync.err{background:rgba(255,59,48,.12);color:var(--red)}
+.suc-sync.busy{background:rgba(255,149,0,.14);color:#a15c00}
+
+/* Nút Gửi cố định giờ cao thêm một dòng lý do → phải chừa thêm chỗ, nếu không
+   dòng cuối của thẻ bị che (#21 kéo theo #36). */
+#mode-qs{padding-bottom:132px!important}
+#mode-bc,#mode-cd,#mode-qa{padding-bottom:24px}
+
+/* ── #21: dòng nói rõ nút Gửi còn thiếu điều kiện gì ───── */
+.submit-why{font-size:12.5px;line-height:1.45;font-weight:600;
+  color:var(--orange);padding:6px 4px 0;text-align:center}
+.submit-why:empty{display:none}
+.submit-why.ok{color:#1a7f37}
+.submit-btn:disabled,.submit-btn[aria-disabled="true"]{
+  opacity:.45!important;cursor:not-allowed!important;
+  box-shadow:none!important;filter:grayscale(.3)}
+.submit-btn.is-done{background:#8E8E93!important}
+
+/* ── #20: chế độ tổng hợp = chỉ xem ────────────────────── */
+body.view-only #main-content input:not(#f-ngay):not(#f-gs),
+body.view-only #main-content select,
+body.view-only #main-content textarea,
+body.view-only #main-content .add-row-btn,
+body.view-only #main-content .add-task-btn,
+body.view-only #main-content .submit-btn,
+body.view-only .work-sticky-footer .submit-btn,
+body.view-only #bs-open-btn,
+body.view-only #df-open-btn{
+  pointer-events:none!important;opacity:.5!important}
+body.view-only .mode-banner{
+  background:rgba(120,120,128,.12)!important;color:#55555C!important;
+  border-radius:10px;margin:6px 16px 0;padding:8px 12px!important;
+  text-align:center!important}
+
+/* ── #17: thẻ báo cáo đã khóa — mặc định thu gọn ────────── */
+.lock-more{margin-top:8px;background:none;border:none;padding:8px 2px;
+  color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;
+  min-height:44px;text-align:left}
+.lock-detail[hidden]{display:none}
+
+/* ── #28: khối skeleton ────────────────────────────────── */
+.skel-wrap{padding:10px 2px}
+
+/* ── #23 + #24: bước đã gửi = chỉ xem ──────────────────── */
+body.photo-locked #photo-panel input[type="file"],
+body.photo-locked #photo-panel .ph-slot-sm,
+body.prod-locked  #result-panel input,
+body.prod-locked  #result-panel select,
+body.prod-locked  #result-panel textarea,
+body.prod-locked  #result-panel .kq-mini,
+body.prod-locked  #result-panel .ph-slot-sm{
+  pointer-events:none!important;opacity:.65!important}
+body.photo-locked #photo-panel::before,
+body.prod-locked  #result-panel::before{
+  content:'🔒 Đã gửi — chỉ xem. Dùng nút mở khóa dưới cùng để cập nhật.';
+  display:block;margin:0 0 10px;padding:8px 12px;border-radius:10px;
+  background:rgba(120,120,128,.12);color:#55555C;
+  font-size:12.5px;font-weight:600;line-height:1.4}
+.unlock-step{margin-left:6px;background:rgba(0,122,255,.12);color:var(--blue);
+  border:none;border-radius:9px;padding:8px 12px;font-size:12.5px;
+  font-weight:700;cursor:pointer;min-height:44px}
+
+/* ── #38: nhãn THẬT thay cho nhãn giả bằng CSS ::before ──
+   Bản reskin iOS vẽ chữ "Ngày báo cáo"/"Người báo cáo" bằng content: của
+   ::before. Trình đọc màn hình không coi đó là nhãn của ô nhập, và bấm vào chữ
+   cũng không focus được vào ô — đúng lỗi #38. Nay dùng <label for=...> thật,
+   ẩn nhãn giả đi và cho nhãn thật đứng đúng chỗ cũ, giao diện không đổi. */
+#card-general .row2 .field::before{content:none!important}
+#card-general .row2 .field > .fld-lb{
+  font-size:16px!important;color:var(--text)!important;
+  font-weight:400!important;text-transform:none!important;letter-spacing:0!important;
+  white-space:nowrap;flex:none;margin:0!important;cursor:pointer;
+  display:flex;align-items:center;min-height:26px}
+
+/* ── #11: ô "không phát sinh công việc" ─────────────────── */
+.no-work{background:#fff;border:1px solid rgba(0,0,0,.04);
+  border-radius:var(--ios-rad);padding:12px 16px}
+.no-work-row{display:flex;align-items:center;gap:12px;min-height:44px;
+  font-size:15px;color:var(--text);cursor:pointer}
+.no-work-row input{width:22px;height:22px;flex:none;accent-color:var(--blue)}
+#f-kpsn-wrap{margin-top:10px}
+#f-kpsn-wrap[hidden]{display:none}
+#f-kpsn-ly{width:100%;min-height:60px;border:1px solid var(--ios-sep);
+  border-radius:10px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical}
 </style>
-  <script src="https://cdn.tailwindcss.com/3.4.17" type="text/javascript"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script></head>
+  <!-- LỖI #47 — đã gỡ Tailwind CDN (bản compile lúc chạy, không dùng cho
+       production) và lucide: rà toàn bộ HTML không dùng class Tailwind nào,
+       cũng không gọi lucide.createIcons(). Toàn bộ giao diện chạy bằng CSS
+       trong <style> ở trên. -->
+</head>
  <body data-template-id="__page-root" style="background: rgb(238, 242, 247);">
   <div class="toast" id="toast"></div>
   <div class="success" id="success">
@@ -1376,6 +1568,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
    </div>
    <h2 data-template-id="success-title" class="canva-text" style="color: rgb(22, 163, 74); font-weight: 700; font-size: 22px;">Đã gửi thành công!</h2>
    <p data-template-id="success-desc" class="canva-text" style="color: rgb(100, 116, 139); font-size: 13px;">Dữ liệu đã lưu vào Google Sheets.</p>
+   <div class="suc-sync" id="suc-sync-state"></div>
    <div class="success-detail" id="suc-detail"></div><button class="btn-new canva-button" data-template-id="success-new-btn" onclick="closeSuccess()" style="background: rgb(31, 56, 100); color: rgb(255, 255, 255); font-weight: 700;">Quay lại báo cáo</button>
   </div>
   <header class="hdr">
@@ -1394,9 +1587,10 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
    </div>
    <div class="hdr-bottom">
     <h1 data-template-id="hdr-title" class="canva-text" style="color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;">Báo Cáo Thi Công</h1>
-    <button class="reload-btn idle" id="reload-btn" onclick="reloadFromServer()" title="Tải lại dữ liệu từ server">↻</button>
+    <button class="reload-btn idle" id="reload-btn" type="button" onclick="reloadFromServer()" aria-label="Đồng bộ dữ liệu từ server" aria-busy="false" title="Tải lại dữ liệu từ server">↻</button>
    </div>
   </header>
+  <div class="sync-status" id="sync-status" role="status" aria-live="polite"></div>
   <div class="mode-banner" id="mode-desc"></div>
   <div class="reporter-strip" id="reporter-strip"></div>
   <main class="content" id="main-content">
@@ -1405,10 +1599,12 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
     <div class="card-body" id="body-card-general">
      <div class="row2">
       <div class="field">
-       <div class="ngay-wrap"><input type="date" id="f-ngay"><span id="f-ngay-txt"></span></div>
+       <label class="fld-lb" for="f-ngay">Ngày báo cáo</label>
+       <div class="ngay-wrap"><input type="date" id="f-ngay" aria-required="true" aria-describedby="f-ngay-txt"><span id="f-ngay-txt"></span></div>
       </div>
       <div class="field">
-       <select id="f-gs" onchange="onReporterChange()"> <option value="">— Chọn người báo cáo —</option> </select>
+       <label class="fld-lb" for="f-gs">Người báo cáo</label>
+       <select id="f-gs" aria-required="true" onchange="onReporterChange()"> <option value="">— Chọn người báo cáo —</option> </select>
       </div>
      </div>
     </div>
@@ -1432,6 +1628,20 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
      <div class="card-body" id="body-card-vang" style="display:none">
       <div class="field">
        <textarea id="f-vang" placeholder="VD: Lê Viết Tài — nghỉ phép"></textarea>
+      </div>
+     </div>
+    </div>
+    <!-- LỖI #11 — ngoại lệ hợp lệ cho báo cáo trống: phải tích ô này VÀ ghi lý
+         do thì mới gửi được báo cáo không có nội dung. Server kiểm tra lại. -->
+    <div class="card" id="card-kpsn">
+     <div class="no-work">
+      <label class="no-work-row" for="f-kpsn">
+       <input type="checkbox" id="f-kpsn" onchange="doiKhongPhatSinh()">
+       <span>Hôm nay không phát sinh công việc</span>
+      </label>
+      <div id="f-kpsn-wrap" hidden>
+       <label class="fld-lb" for="f-kpsn-ly">Lý do (bắt buộc)</label>
+       <textarea id="f-kpsn-ly" rows="2" placeholder="VD: nghỉ lễ · mưa lớn cả ngày · công trường tạm dừng"></textarea>
       </div>
      </div>
     </div>
@@ -1481,7 +1691,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
    </div>
    <div id="mode-qa" class="hide">
     <div class="card">
-     <div class="card-hdr" style="background: rgb(5, 150, 105); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;" data-template-id="card-hdr-qa">✅ Nghiệm thu — Công việc đạt 100%</div>
+     <div class="card-hdr" id="qa-card-hdr" style="background: rgb(5, 150, 105); color: rgb(255, 255, 255); font-weight: 700; font-size: 13px;" data-template-id="card-hdr-qa">Nghiệm thu — Công việc đạt 100%</div>
      <div class="card-body">
       <div id="qa-panel">
        <div class="panel-empty">
@@ -1512,22 +1722,37 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border:none;backgroun
    </div>
   </main>
   <nav class="bot-nav" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr">
-   <div class="nav-btn active" id="tab0" onclick="setMode(0)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-0" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 10px;">Công việc</span>
-   </div>
-   <div class="nav-btn" id="tab1" onclick="setMode(1)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M8 6l1.2-2h5.6L16 6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-1" style="font-size: 10px;">Hình ảnh</span>
-   </div>
-   <div class="nav-btn" id="tab2" onclick="setMode(2)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-7M4 20h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-2" style="font-size: 10px;">Sản lượng</span>
-   </div>
-   <div class="nav-btn" id="tab3" onclick="setMode(3)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.3 1.7 2.8-.2 1 2.7 2.4 1.6-.7 2.8.7 2.8-2.4 1.6-1 2.7-2.8-.2L12 21l-2.3-1.7-2.8.2-1-2.7L3.5 15.2l.7-2.8-.7-2.8 2.4-1.6 1-2.7 2.8.2L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.8 12l2.2 2.2 4.2-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-3" style="font-size: 10px;">Nghiệm thu</span>
-   </div>
-   <div class="nav-btn" id="tab4" onclick="setMode(4)"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-4" style="font-size: 10px;">Kết quả</span>
-   </div>
-   <footer class="site-footer">© 2026 Mai Văn Minh. All rights reserved.</footer>
+   <button type="button" class="nav-btn active" id="tab0" onclick="setMode(0)" aria-current="page"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 20a7 7 0 0 1 14 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-0" style="color: rgb(31, 56, 100); font-weight: 700; font-size: 10px;">Công việc</span>
+   </button>
+   <button type="button" class="nav-btn" id="tab1" onclick="setMode(1)" aria-current="false"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M8 6l1.2-2h5.6L16 6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-1" style="font-size: 10px;">Hình ảnh</span>
+   </button>
+   <button type="button" class="nav-btn" id="tab2" onclick="setMode(2)" aria-current="false"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M4 20V10M10 20V4M16 20v-7M4 20h14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-2" style="font-size: 10px;">Sản lượng</span>
+   </button>
+   <button type="button" class="nav-btn" id="tab3" onclick="setMode(3)" aria-current="false"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.3 1.7 2.8-.2 1 2.7 2.4 1.6-.7 2.8.7 2.8-2.4 1.6-1 2.7-2.8-.2L12 21l-2.3-1.7-2.8.2-1-2.7L3.5 15.2l.7-2.8-.7-2.8 2.4-1.6 1-2.7 2.8.2L12 3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8.8 12l2.2 2.2 4.2-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-3" style="font-size: 10px;">Nghiệm thu</span>
+   </button>
+   <button type="button" class="nav-btn" id="tab4" onclick="setMode(4)" aria-current="false"><span class="n-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 8h6M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="n-lb canva-text" data-template-id="nav-lbl-4" style="font-size: 10px;">Kết quả</span>
+   </button>
   </nav>
+  <footer class="site-footer">© 2026 Mai Văn Minh. All rights reserved.</footer>
   <script>
 // ══════════════════════════════════════════
 // CARD TOGGLE
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// LỖI #14 — CHỐNG CHÈN MÃ QUA NỘI DUNG BÁO CÁO
+// ══════════════════════════════════════════
+// Nội dung do người dùng gõ (ghi chú, vướng mắc, tên công việc, tên tổ đội đọc
+// từ Google Sheet) được nối thẳng vào innerHTML. Một dòng ghi chú chứa thẻ
+// <img onerror=...> là chạy được mã trong app của mọi người xem báo cáo đó.
+// esc() dùng cho phần TEXT, escAttr() cho giá trị nằm trong thuộc tính.
+function esc(v){
+  return String(v==null?'':v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function escAttr(v){ return esc(v); }
+window.esc=esc; window.escAttr=escAttr;
+
 function toggleCard(cardId) {
   const cardBody = document.getElementById('body-' + cardId);
   if (!cardBody) return;
@@ -1535,6 +1760,9 @@ function toggleCard(cardId) {
   const isHidden = getComputedStyle(cardBody).display === 'none' || cardBody.style.display === 'none';
   cardBody.style.display = isHidden ? '' : 'none';
   if (toggleBtn) toggleBtn.classList.toggle('rotated', !isHidden);
+  // LỖI #39 — trạng thái mở/đóng phải đọc được bằng trình đọc màn hình.
+  const hdr = cardBody.previousElementSibling;
+  if (hdr && hdr.classList?.contains('card-hdr')) hdr.setAttribute('aria-expanded', String(isHidden));
 }
 
 function ensureCardToggle(cardId) {
@@ -1563,6 +1791,22 @@ function initCardToggles() {
     if (btn && body) {
       const hidden = getComputedStyle(body).display === 'none' || body.style.display === 'none';
       btn.classList.toggle('rotated', hidden);
+      // LỖI #39 — tiêu đề thẻ là div onclick: cấp cho nó ngữ nghĩa nút bấm,
+      // hỗ trợ Enter/Space và aria-expanded/aria-controls.
+      body.id = body.id || ('body-' + cardId);
+      hdr.setAttribute('role','button');
+      hdr.setAttribute('tabindex','0');
+      hdr.setAttribute('aria-controls', body.id);
+      hdr.setAttribute('aria-expanded', String(!hidden));
+      if (!hdr.dataset.kbBound) {
+        hdr.dataset.kbBound = '1';
+        hdr.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+            ev.preventDefault();
+            toggleCard(cardId);
+          }
+        });
+      }
     }
   });
 }
@@ -1658,11 +1902,49 @@ function reporterStateKey(reporter) {
   return `${v('f-ngay') || todayISOInVietnam()}::${normalizeReporterName(reporter)}`;
 }
 
-function loadSubmittedReports() {
+// ══════════════════════════════════════════
+// LỖI #10 — MIGRATION MỘT LẦN, KHÔNG ĐỂ DỮ LIỆU PHIÊN BẢN CŨ HỒI SINH
+// ══════════════════════════════════════════
+// Trước: MỖI LẦN đọc, loadSubmittedReports lại trộn nội dung của khóa cũ
+// (alc_submitted_reports_v2) vào kết quả, và không bao giờ xóa khóa cũ đó. Xóa
+// một báo cáo ở khóa mới xong, lần đọc kế tiếp bản v2 lại trồi lên như chưa hề
+// bị xóa.
+// Nay: chuyển đổi ĐÚNG MỘT LẦN theo schemaVersion, xác nhận ghi thành công rồi
+// mới xóa khóa cũ.
+const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION_KEY = 'alc_schema_version';
+let _daChuyenDoiSchema = false;
+function chuyenDoiSchemaMotLan(){
+  if (_daChuyenDoiSchema) return;
+  _daChuyenDoiSchema = true;
+  let phienBanCu = 0;
+  try { phienBanCu = parseInt(localStorage.getItem(SCHEMA_VERSION_KEY) || '0', 10) || 0; } catch(e){ return; }
+  if (phienBanCu >= SCHEMA_VERSION) return;
   try {
-    const migrated = {};
-    SUBMITTED_REPORT_OLD_KEYS.forEach(k => Object.assign(migrated, JSON.parse(localStorage.getItem(k) || '{}')));
-    return {...migrated, ...JSON.parse(localStorage.getItem(SUBMITTED_REPORT_KEY) || '{}'), ...submittedReportsCache};
+    const gop = {};
+    SUBMITTED_REPORT_OLD_KEYS.forEach(k => {
+      try { Object.assign(gop, JSON.parse(localStorage.getItem(k) || '{}')); } catch(e){}
+    });
+    const hienTai = JSON.parse(localStorage.getItem(SUBMITTED_REPORT_KEY) || '{}');
+    const hopNhat = {...gop, ...hienTai};      // bản mới luôn thắng bản cũ
+    localStorage.setItem(SUBMITTED_REPORT_KEY, JSON.stringify(hopNhat));
+    // Chỉ xóa khóa cũ SAU KHI đọc lại và xác nhận ghi thành công.
+    const kiemTra = JSON.parse(localStorage.getItem(SUBMITTED_REPORT_KEY) || '{}');
+    if (Object.keys(kiemTra).length >= Object.keys(hopNhat).length){
+      SUBMITTED_REPORT_OLD_KEYS.forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+      localStorage.setItem(SCHEMA_VERSION_KEY, String(SCHEMA_VERSION));
+      console.info('Đã chuyển dữ liệu sang schema v' + SCHEMA_VERSION + ' và xóa khóa cũ.');
+    } else {
+      console.warn('Chuyển schema chưa xác nhận được — giữ nguyên khóa cũ để không mất dữ liệu.');
+    }
+  } catch(e){ console.warn('Không chuyển đổi được schema:', e); }
+}
+
+function loadSubmittedReports() {
+  chuyenDoiSchemaMotLan();
+  try {
+    // LỖI #10 — sau migration KHÔNG còn trộn khóa cũ ở mỗi lần đọc nữa.
+    return {...JSON.parse(localStorage.getItem(SUBMITTED_REPORT_KEY) || '{}'), ...submittedReportsCache};
   }
   catch(e) { return {}; }
 }
@@ -1674,15 +1956,20 @@ const MEDIA_DB_NAME='sailing-media-v1',MEDIA_DB_STORE='media';
 let mediaDbPromise=null;
 const mediaSaveTimers={},mediaPending={},mediaLastSig={},mediaHydratedScopes=new Set();
 function mediaScopeKey(reporter,date){return String(date||v('f-ngay')||'')+'::'+normalizeReporterName(reporter);}
+// LỖI #6 — tên store hàng đợi gửi nền (payload đầy đủ + tham chiếu ảnh).
+const OUTBOX_STORE='outbox';
 function openMediaDb(){
   if(!window.indexedDB)return Promise.reject(new Error('Thiết bị không hỗ trợ IndexedDB'));
   if(mediaDbPromise)return mediaDbPromise;
   mediaDbPromise=new Promise((resolve,reject)=>{
-    const req=indexedDB.open(MEDIA_DB_NAME,1);
+    // LỖI #6 — v2 thêm store OUTBOX để hàng đợi gửi nền sống sót qua việc
+    // đóng tab / tải lại trang / iOS thu hồi tab.
+    const req=indexedDB.open(MEDIA_DB_NAME,2);
     req.onupgradeneeded=()=>{
       const db=req.result;
       const store=db.objectStoreNames.contains(MEDIA_DB_STORE)?req.transaction.objectStore(MEDIA_DB_STORE):db.createObjectStore(MEDIA_DB_STORE,{keyPath:'id'});
       if(!store.indexNames.contains('scope'))store.createIndex('scope','scope',{unique:false});
+      if(!db.objectStoreNames.contains(OUTBOX_STORE))db.createObjectStore(OUTBOX_STORE,{keyPath:'id'});
     };
     req.onsuccess=()=>resolve(req.result);
     req.onerror=()=>reject(req.error||new Error('Không mở được bộ nhớ ảnh'));
@@ -1906,8 +2193,21 @@ async function hydrateReportStateFromServer(reporter){
     const payload=await gasJsonp({action:'state',ngay:date,reporter},'__reportState');
     // Chỉ response mới nhất CỦA NGƯỜI NÀY được áp dụng — response cũ bị bỏ,
     // không để response chậm ghi đè dữ liệu mới khi người dùng đổi lựa chọn.
-    if(token!==serverStateHydrateTokens[tokenKey]||!payload||!payload.ok)return false;
-    if(!payload.state){
+    if(token!==serverStateHydrateTokens[tokenKey])return {ok:false,skipped:true,reporter};
+    if(!payload||!payload.ok)return {ok:false,error:(payload&&payload.message)||'Không đọc được dữ liệu server',reporter};
+    // LỖI #33 — đồng hồ chuẩn lấy từ server, không lấy giờ thiết bị.
+    if(payload.serverNow) apDungGioServer(payload.serverNow);
+    // LỖI #9 — TRƯỚC: "server không trả state" bị hiểu là "đã bị xóa" và app
+    // xóa luôn dữ liệu trên máy. Chỉ cần server đọc hụt một lần là mất báo cáo.
+    // NAY: chỉ xóa khi server trả cờ deleted (tombstone) kèm revision.
+    if(!payload.deleted){
+      if(!payload.state){
+        // Server chưa có bản ghi này — hoàn toàn bình thường (máy đang soạn,
+        // chưa gửi). Không đụng vào dữ liệu local.
+        return {ok:true,changed:false,noServerData:true,reporter};
+      }
+    }
+    if(payload.deleted){
       // Server xác nhận không có dữ liệu (đã xóa) → xóa cache local + chặn reverse-sync
       const key=date+'::'+normalizeReporterName(reporter);
       const all=loadSubmittedReports();
@@ -1916,7 +2216,7 @@ async function hydrateReportStateFromServer(reporter){
         // Bảo vệ dữ liệu vừa gửi: nếu local mới dưới 30 giây, server chưa nhận kịp
         // → giữ local, bỏ qua null từ server, không chặn reverse-sync
         const age=Date.now()-(Date.parse(all[key].updatedAt||0)||0);
-        if(age<30000)return false;
+        if(age<30000)return {ok:true,changed:false,reporter};
         delete all[key];
         delete submittedReportsCache[key];
         saveSubmittedReports(all);
@@ -1936,10 +2236,10 @@ async function hydrateReportStateFromServer(reporter){
         if(!serverDeleteConfirmed._toasted) serverDeleteConfirmed._toasted=new Set();
         if(!serverDeleteConfirmed._toasted.has(key)){
           serverDeleteConfirmed._toasted.add(key);
-          toast('Đã dọn dữ liệu cũ trên thiết bị — server không có báo cáo này','ok');
+          toast('Đã dọn dữ liệu cũ trên thiết bị — server báo đã xóa báo cáo này','ok');
         }
       }
-      return false;
+      return {ok:true,changed:changed,deleted:true,reporter};
     }
     const state=payload.state;
     const key=date+'::'+normalizeReporterName(reporter);
@@ -1953,12 +2253,32 @@ async function hydrateReportStateFromServer(reporter){
     // Nháp do Chỉnh sửa/Sửa lại cũng không được server ghi đè, kể cả khi nó đã
     // qua một lần mở app — nội dung đó chưa gửi lại nên server còn bản CŨ.
     const _draft=reporterStates[key];
-    if(_draft&&draftHasContent(_draft)&&((Date.parse(_draft.updatedAt||0)||0)>=SESSION_LOAD_TIME||_draft._nhapSuaLai))return false;
+    if(_draft&&draftHasContent(_draft)&&((Date.parse(_draft.updatedAt||0)||0)>=SESSION_LOAD_TIME||_draft._nhapSuaLai)){
+      // LỖI #4 — bản nháp trên máy đang chặn dữ liệu server. Nếu server đã
+      // nhích revision lên (máy khác vừa gửi) thì đây là XUNG ĐỘT THẬT, phải
+      // hỏi người dùng chứ không im lặng giữ bản cũ rồi đẩy đè lên server.
+      const revDraft=parseInt(_draft.serverRev,10)||0;
+      const revServer=parseInt(state.serverRev,10)||0;
+      if(revServer>revDraft) hoiXuLyXungDot(reporter,key,state,_draft);
+      return {ok:true,changed:false,conflict:revServer>revDraft,reporter};
+    }
     const all=loadSubmittedReports();
     const local=all[key];
-    const localTime=Date.parse(local&&local.updatedAt||0)||0;
-    const serverTime=Date.parse(state.updatedAt||0)||0;
-    if(local&&localTime>serverTime){queueServerStateSync(reporter,local);return false;}
+    // LỖI #4 — TRƯỚC: so updatedAt (giờ THIẾT BỊ) giữa local và server; máy sai
+    // giờ / lệch múi giờ là đẩy dữ liệu cũ đè lên bản mới trên server.
+    // NAY: serverRev do server cấp là trọng tài duy nhất. Chỉ khi hai bên cùng
+    // revision (server chưa nhận bản của máy này) mới xét tới thời gian.
+    const revLocal=parseInt(local&&local.serverRev,10)||0;
+    const revServer=parseInt(state.serverRev,10)||0;
+    if(local&&revLocal>revServer){queueServerStateSync(reporter,local);return {ok:true,changed:false,reporter};}
+    // Hai bên cùng revision (server chưa nhận bản của máy này), HOẶC backend
+    // chưa được deploy bản mới nên chưa cấp serverRev (cả hai đều 0) → quay về
+    // so thời gian như cũ. Nhờ vậy deploy index.html trước, GAS sau vẫn an toàn.
+    if(local&&revLocal===revServer){
+      const localTime=Date.parse(local.updatedAt||0)||0;
+      const serverTime=Date.parse(state.serverUpdatedAt||state.updatedAt||0)||0;
+      if(localTime>serverTime){queueServerStateSync(reporter,local);return {ok:true,changed:false,reporter};}
+    }
     state.date=state.date||date;state.reporter=state.reporter||reporter;
     all[key]=state;submittedReportsCache[key]=state;saveSubmittedReports(all);
     if(normalizeReporterName(selectedReporter())===normalizeReporterName(reporter)){
@@ -1966,9 +2286,62 @@ async function hydrateReportStateFromServer(reporter){
       showReporterView(reporter);
       toast('Đã tải nội dung báo cáo từ thiết bị khác','ok');
     }
-    return true;
-  }catch(e){console.warn('Không tải được trạng thái báo cáo từ server:',e);return false;}
+    return {ok:true,changed:true,reporter};
+  }catch(e){
+    console.warn('Không tải được trạng thái báo cáo từ server:',e);
+    // LỖI #2 — lỗi phải nổi lên tới nút ↻, không được nuốt rồi báo thành công.
+    return {ok:false,error:e&&e.message||String(e),reporter};
+  }
 }
+
+// ══════════════════════════════════════════
+// LỖI #4 — HỘP CHỌN KHI XUNG ĐỘT
+// ══════════════════════════════════════════
+const _xungDotDaHoi=new Set();
+function hoiXuLyXungDot(reporter,key,serverState,draft){
+  if(_xungDotDaHoi.has(key))return;
+  _xungDotDaHoi.add(key);
+  const gioServer=serverState.serverUpdatedAt||serverState.updatedAt||'';
+  showAppConfirm(
+    'Dữ liệu bị xung đột',
+    'Báo cáo của '+reporter+' đã được cập nhật ở thiết bị khác'
+      +(gioServer?(' lúc '+String(gioServer).replace('T',' ').slice(0,16)):'')
+      +'.\n\nBạn đang có bản nháp chưa gửi trên máy này.\n\n'
+      +'• Đồng ý = lấy bản trên server (bản nháp trên máy sẽ bị bỏ)\n'
+      +'• Hủy = giữ bản nháp trên máy, lát nữa gửi đè lên server',
+    ()=>{
+      try{
+        const all=loadSubmittedReports();
+        all[key]=serverState; submittedReportsCache[key]=serverState; saveSubmittedReports(all);
+        delete reporterStates[key]; persistReporterStates();
+        if(normalizeReporterName(selectedReporter())===normalizeReporterName(reporter)){
+          currentReporter=reporter; showReporterView(reporter);
+        }
+        toast('Đã lấy bản mới nhất từ server','ok');
+      }catch(e){toast('Không áp được bản server: '+e.message,'err');}
+      _xungDotDaHoi.delete(key);
+    },
+    '⚠️'
+  );
+}
+
+// ══════════════════════════════════════════
+// LỖI #33 — GIỜ CHUẨN LẤY TỪ SERVER (Asia/Ho_Chi_Minh)
+// ══════════════════════════════════════════
+// Trước đây "hôm nay" và "ca sáng/tối" lấy từ đồng hồ thiết bị. Máy chỉnh sai
+// giờ hoặc lệch múi giờ là ghi sai ngày, sai ca. Giờ server là chuẩn; đồng hồ
+// máy chỉ dùng để nội suy giữa hai lần đồng bộ.
+let _lechGioServer=0;          // ms: giờ server − giờ máy
+let _gioServerDaBiet=false;
+window.serverClock={today:'',session:'',known:false};
+function apDungGioServer(now){
+  if(!now||!now.iso)return;
+  const tServer=Date.parse(now.iso+'+07:00');
+  if(isFinite(tServer)) _lechGioServer=tServer-Date.now();
+  _gioServerDaBiet=true;
+  window.serverClock={today:now.today||'',session:now.session||'',known:true};
+}
+function nowVN(){ return new Date(Date.now()+_lechGioServer); }
 async function hydrateAllReportStatesFromServer(){
   // Hợp nhất: danh sách người báo cáo chính thức + người chỉ còn trong cache
   // local của ngày này. Nhờ đó dữ liệu ma (đã xóa trên Google Sheet nhưng còn
@@ -1988,38 +2361,110 @@ async function hydrateAllReportStatesFromServer(){
       if(rep&&!seen.has(k)){seen.add(k);reporters.push(rep);}
     });
   }catch(e){}
-  if(!reporters.length)return;
-  await Promise.allSettled(reporters.map(async r=>{
-    await hydrateReportStateFromServer(r);
-    await restoreMediaCacheForReporter(r);
+  if(!reporters.length)return {ok:true,total:0,updated:0,failed:[]};
+  // LỖI #2 — TRƯỚC: allSettled nuốt mọi lỗi, hàm không bao giờ ném, nên nút ↻
+  // luôn chuyển xanh kể cả khi không tải được ai. NAY: gom kết quả từng người.
+  const ketQua=await Promise.all(reporters.map(async r=>{
+    let res;
+    try{ res=await hydrateReportStateFromServer(r); }
+    catch(e){ res={ok:false,error:e&&e.message||String(e),reporter:r}; }
+    try{ await restoreMediaCacheForReporter(r); }catch(e){}
+    return res||{ok:false,error:'Không có phản hồi',reporter:r};
   }));
   updateWorkflowTabs();
   rebuildActiveReporterTab();
+  const failed=ketQua.filter(x=>!x.ok&&!x.skipped)
+    .map(x=>({reporter:x.reporter,error:x.error||'lỗi không rõ'}));
+  return {
+    ok: failed.length===0,
+    total: reporters.length,
+    updated: ketQua.filter(x=>x.changed).length,
+    failed
+  };
 }
 
 // scope='current': chỉ đồng bộ người báo cáo đang chọn (dùng cho tự động chạy nền)
 // scope='all'   : quét toàn bộ người báo cáo (nút ↻ và lúc mở app)
+// LỖI #31 — dòng trạng thái cạnh nút ↻: đồng bộ lúc nào, phạm vi nào,
+// cập nhật bao nhiêu bản ghi, lỗi mấy người.
+function veTrangThaiDongBo(text,cls){
+  const el=document.getElementById('sync-status');
+  if(!el)return;
+  el.textContent=text||'';
+  el.className='sync-status'+(text?' show':'')+(cls?' '+cls:'');
+}
+let _lanDongBoCuoi=null;
+function _gioNganVN(d){
+  try{return d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});}catch(e){return '';}
+}
+
+// scope='current': chỉ đồng bộ người báo cáo đang chọn
+// scope='all'    : quét toàn bộ người báo cáo
+// LỖI #30 — bấm ↻ khi ĐÃ chọn một người thì chỉ đồng bộ người đó. Trước đây
+// nút luôn quét cả 5 người, chậm và dễ kéo về dữ liệu không liên quan.
+// Muốn quét tất cả: giữ nút ↻ ~600ms (hoặc gọi reloadFromServer('all')).
 async function reloadFromServer(scope){
   const btn=document.getElementById('reload-btn');
   if(btn&&btn.classList.contains('loading'))return;
-  if(btn){btn.classList.remove('idle','done','error');btn.classList.add('loading');}
-  let ok=false;
+  const nguoiDangChon=selectedReporter();
+  const phamVi=scope||(nguoiDangChon?'current':'all');
+  const only=(phamVi==='current')?nguoiDangChon:'';
+  const nhanPhamVi=only?only:'tất cả người báo cáo';
+  if(btn){
+    btn.classList.remove('idle','done','error');btn.classList.add('loading');
+    btn.setAttribute('aria-busy','true');btn.disabled=true;
+  }
+  veTrangThaiDongBo('Đang đồng bộ '+nhanPhamVi+'…','busy');
+  let ket={ok:false,total:0,updated:0,failed:[]};
   try{
-    const only=(scope==='current')?selectedReporter():'';
-    if(only){await hydrateReportStateFromServer(only);await restoreMediaCacheForReporter(only);}
-    else await hydrateAllReportStatesFromServer();
-    ok=true;
-  }catch(e){console.warn('reload error',e);}
+    if(only){
+      let r;
+      try{ r=await hydrateReportStateFromServer(only); }
+      catch(e){ r={ok:false,error:e&&e.message||String(e),reporter:only}; }
+      try{ await restoreMediaCacheForReporter(only); }catch(e){}
+      updateWorkflowTabs(); rebuildActiveReporterTab();
+      r=r||{ok:false,error:'Không có phản hồi',reporter:only};
+      ket={ok:!!r.ok,total:1,updated:r.changed?1:0,
+           failed:r.ok?[]:[{reporter:only,error:r.error||'lỗi không rõ'}]};
+    }else{
+      ket=await hydrateAllReportStatesFromServer();
+    }
+  }catch(e){
+    console.warn('reload error',e);
+    ket={ok:false,total:0,updated:0,failed:[{reporter:nhanPhamVi,error:e&&e.message||String(e)}]};
+  }
+  _lanDongBoCuoi=new Date();
   if(btn){
     btn.classList.remove('loading');
-    if(ok){
-      btn.classList.add('done'); // xanh = đã đồng bộ, giữ nguyên
-    }else{
-      btn.classList.add('error'); // đỏ = mất kết nối
-      setTimeout(()=>{btn.classList.remove('error');btn.classList.add('idle');},4000);
-    }
+    btn.setAttribute('aria-busy','false');btn.disabled=false;
+    // LỖI #2 — chỉ chuyển xanh khi TẤT CẢ người đều tải xong.
+    if(ket.ok) btn.classList.add('done');
+    else       btn.classList.add('error');
   }
+  const gio=_gioNganVN(_lanDongBoCuoi);
+  if(ket.ok){
+    veTrangThaiDongBo('Đồng bộ '+gio+' · '+nhanPhamVi+' · '+ket.updated+'/'+ket.total+' bản ghi cập nhật','');
+  }else{
+    // LỖI #2 — nêu đích danh người/ngày bị lỗi thay vì im lặng.
+    const ds=ket.failed.map(f=>f.reporter+' ('+f.error+')').join(' · ');
+    const ngay=v('f-ngay')||'';
+    veTrangThaiDongBo('⚠️ Đồng bộ '+gio+' LỖI '+ket.failed.length+'/'+(ket.total||1)
+      +(ngay?(' · ngày '+ngay):'')+' · '+ds,'err');
+    toast('⚠️ Đồng bộ chưa xong: '+ds,'err');
+  }
+  return ket;
 }
+// Giữ nút ↻ để đồng bộ TẤT CẢ người báo cáo (#30).
+document.addEventListener('DOMContentLoaded',()=>{
+  const btn=document.getElementById('reload-btn');
+  if(!btn)return;
+  let giuTimer=null,daGiu=false;
+  const batDau=()=>{daGiu=false;giuTimer=setTimeout(()=>{daGiu=true;reloadFromServer('all');},600);};
+  const ketThuc=()=>{clearTimeout(giuTimer);};
+  btn.addEventListener('pointerdown',batDau);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev,ketThuc));
+  btn.addEventListener('click',e=>{ if(daGiu){e.stopImmediatePropagation();e.preventDefault();daGiu=false;} },true);
+});
 function setReloadBtnState(state){ // 'idle'|'loading'|'done'|'error'
   const btn=document.getElementById('reload-btn');
   if(!btn)return;
@@ -2183,7 +2628,196 @@ function updateWorkflowTabs() {
   });
   const nav = document.querySelector('.bot-nav');
   if (nav) nav.style.gridTemplateColumns = 'repeat(5, 1fr)';
+  capNhatCheDoXem();      // LỖI #20
+  capNhatNutGui();        // LỖI #21 #23 #24
 }
+
+// ══════════════════════════════════════════
+// LỖI #20 — BỎ CHỌN NGƯỜI BÁO CÁO = CHẾ ĐỘ TỔNG HỢP, CHỈ XEM
+// ══════════════════════════════════════════
+// Trước: workflowMaxMode() trả 4 khi không chọn ai → cả 5 tab mở toang và
+// người dùng nhập/gửi được trong chế độ tổng hợp, dữ liệu không biết thuộc về
+// giám sát nào. Nay tổng hợp vẫn xem đủ 5 tab nhưng KHÓA mọi thao tác nhập/gửi;
+// muốn nhập phải chọn tên mình ở ô "Người báo cáo".
+function laCheDoTongHop(){ return !selectedReporter(); }
+function capNhatCheDoXem(){
+  const tongHop = laCheDoTongHop();
+  document.body.classList.toggle('view-only', tongHop);
+  const banner = document.getElementById('mode-desc');
+  if (banner){
+    if (tongHop){
+      banner.textContent = '👁 Chế độ tổng hợp — chỉ xem. Chọn "Người báo cáo" để nhập và gửi.';
+      banner.className = 'mode-banner';
+    } else if (banner.textContent.indexOf('Chế độ tổng hợp') === 0){
+      banner.textContent = ''; banner.className = 'mode-banner hide';
+    }
+  }
+}
+
+// ══════════════════════════════════════════
+// LỖI #21 + #23 + #24 — canSubmit CHO TỪNG BƯỚC
+// ══════════════════════════════════════════
+// Trước: các nút Gửi luôn trông khả dụng; bấm xong mới hiện toast báo thiếu.
+// Bước đã chốt (ảnh đã gửi, sản lượng đã khóa) vẫn hiện nút gửi lại như thường.
+// Nay mỗi bước có một hàm điều kiện; nút bị disable kèm dòng nói rõ còn thiếu gì.
+function _bcHienTai(){
+  const r = selectedReporter();
+  return r ? (getSubmittedReport(r) || getReporterState(r) || {}) : {};
+}
+// LỖI #11 — ngoại lệ "không phát sinh công việc".
+function khongPhatSinh(){ return !!document.getElementById('f-kpsn')?.checked; }
+function lyDoKhongPhatSinh(){ return (document.getElementById('f-kpsn-ly')?.value||'').trim(); }
+function doiKhongPhatSinh(){
+  const bat=khongPhatSinh();
+  const wrap=document.getElementById('f-kpsn-wrap');
+  if(wrap){ if(bat) wrap.removeAttribute('hidden'); else wrap.setAttribute('hidden',''); }
+  if(bat) setTimeout(()=>document.getElementById('f-kpsn-ly')?.focus(),120);
+  capNhatNutGui();
+}
+window.doiKhongPhatSinh=doiKhongPhatSinh;
+
+function canSubmitCongViec(){
+  if (laCheDoTongHop()) return 'Chọn "Người báo cáo" trước khi gửi.';
+  if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
+  const coNTC = Object.keys(qsCards).some(i=>document.getElementById('qsc-'+i));
+  const coCN  = Object.keys(cnTasks).length > 0;
+  const daGui = reportWorkSubmitted(getSubmittedReport(selectedReporter()));
+  const coNoiDung = coNTC || coCN || daGui;
+  if (!coNoiDung){
+    // LỖI #11 — báo cáo trống chỉ đi được qua đường ngoại lệ có lý do.
+    if (!khongPhatSinh())
+      return 'Chưa có nhà thầu hoặc công nhật nào. Thêm ít nhất một mục, hoặc tích "Hôm nay không phát sinh công việc".';
+    if (lyDoKhongPhatSinh().length < 3)
+      return 'Đã tích "không phát sinh công việc" — hãy ghi lý do (ít nhất 3 ký tự).';
+    return null;
+  }
+  if (!daGui && tongNhanCongNTC() === 0 && tongNhanCongCN() === 0 && !khongPhatSinh())
+    return 'Chưa khai số nhân công. Nhập số CN hoặc chọn người cho công nhật.';
+  return null;
+}
+// LỖI #23 + #24 — bước đã gửi mặc định KHÓA. Muốn thay đổi phải bấm nút mở
+// khóa có xác nhận; mở khóa chỉ có hiệu lực trong phiên làm việc hiện tại và
+// KHÔNG xóa dữ liệu đã gửi (khác hẳn "Sửa lại cả báo cáo").
+window._moKhoaAnh = false;
+window._moKhoaSanLuong = false;
+function moKhoaBuoc(buoc){
+  const ten = buoc==='anh' ? 'ảnh công việc' : 'sản lượng';
+  showAppConfirm(
+    'Mở khóa để cập nhật ' + ten,
+    'Bước này đã gửi lên Google Sheets.\n\n'
+    + 'Mở khóa để sửa/bổ sung rồi GỬI LẠI. Dữ liệu đã gửi vẫn giữ nguyên cho tới khi bạn gửi bản mới.',
+    () => {
+      if (buoc==='anh') window._moKhoaAnh = true; else window._moKhoaSanLuong = true;
+      capNhatNutGui();
+      rebuildActiveReporterTab();
+      toast('Đã mở khóa ' + ten + ' — sửa xong nhớ bấm Gửi lại','ok');
+    },
+    '🔓'
+  );
+}
+window.moKhoaBuoc = moKhoaBuoc;
+
+function canSubmitAnh(){
+  if (laCheDoTongHop()) return 'Chọn "Người báo cáo" trước khi gửi.';
+  if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
+  const rpt = _bcHienTai();
+  if (!reportHasWork(rpt)) return 'Hãy hoàn tất và gửi bước Công việc trước.';
+  // LỖI #23 — ảnh đã gửi thì bước này chuyển sang chế độ chỉ xem.
+  if (reportHasPhotoSubmitted(rpt) && !window._moKhoaAnh) return '__DA_GUI__';
+  const coAnh = Object.keys(window._photoData||{}).some(k=>/^pi[12]-/.test(k));
+  if (!coAnh) return 'Chưa chọn ảnh nào cho công việc.';
+  return null;
+}
+function canSubmitSanLuong(){
+  if (laCheDoTongHop()) return 'Chọn "Người báo cáo" trước khi gửi.';
+  if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
+  const rpt = _bcHienTai();
+  if (!reportHasWork(rpt)) return 'Hãy hoàn tất và gửi bước Công việc trước.';
+  // LỖI #24 — sản lượng đã xác nhận thì KHÓA hẳn, muốn đổi phải bấm "Cập nhật sản lượng".
+  if (reportHasProductionSubmitted(rpt) && !window._moKhoaSanLuong) return '__DA_GUI__';
+  const coDong = document.querySelectorAll('#result-panel .result-item').length > 0;
+  if (!coDong) return 'Chưa có hạng mục nào để báo sản lượng.';
+  return null;
+}
+function canSubmitNghiemThu(){
+  if (laCheDoTongHop()) return 'Chọn "Người báo cáo" trước khi gửi.';
+  if (dangTaiDuLieu()) return 'Đang tải dữ liệu, chờ một chút.';
+  const rpt = _bcHienTai();
+  if (!reportHasProductionSubmitted(rpt)) return 'Hãy hoàn tất và gửi bước Sản lượng trước.';
+  if (reportHasQASubmitted(rpt)) return '__DA_GUI__';
+  const coMuc = document.querySelectorAll('#qa-panel .qa-item').length > 0;
+  if (!coMuc) return 'Chưa có hạng mục nào đạt 100% để nghiệm thu.';
+  return null;
+}
+const NUT_GUI = [
+  ['btn-submit-qs',   canSubmitCongViec,  null,       'Công việc',  null,          null],
+  [null,              canSubmitAnh,       '#mode-bc', 'Ảnh',        'photo-locked','anh'],
+  [null,              canSubmitSanLuong,  '#mode-cd', 'Sản lượng',  'prod-locked', 'sanluong'],
+  [null,              canSubmitNghiemThu, '#mode-qa', 'Nghiệm thu', 'qa-locked',   null]
+];
+function _timNutGui(id, sel){
+  if (id) return document.getElementById(id);
+  return sel ? document.querySelector(sel + ' > .submit-btn') : null;
+}
+function _oLyDo(nut){
+  let el = nut.nextElementSibling;
+  if (!el || !el.classList.contains('submit-why')){
+    el = document.createElement('div');
+    el.className = 'submit-why';
+    nut.parentNode.insertBefore(el, nut.nextSibling);
+  }
+  return el;
+}
+function capNhatNutGui(){
+  if (isQSSubmitting || window.__busySubmit) return;
+  NUT_GUI.forEach(([id, kiemTra, sel, ten, lopKhoa, maBuoc])=>{
+    if (lopKhoa) document.body.classList.remove(lopKhoa);
+    const nut = _timNutGui(id, sel);
+    if (!nut) return;
+    let lyDo = null;
+    try { lyDo = kiemTra(); } catch(e){ lyDo = null; }
+    const daGui = (lyDo === '__DA_GUI__');
+    const oLyDo = _oLyDo(nut);
+    if (daGui){
+      // LỖI #23/#24 — bước đã chốt: khóa cả PANEL (không chỉ nút), và đưa ra
+      // đúng một lối đi để thay đổi: nút mở khóa có xác nhận.
+      nut.disabled = true;
+      nut.classList.add('is-done');
+      nut.setAttribute('aria-disabled','true');
+      if (lopKhoa) document.body.classList.add(lopKhoa);
+      oLyDo.className = 'submit-why ok';
+      // Không vẽ lại nếu đã đúng trạng thái — vẽ lại giữa chừng sẽ gỡ mất nút
+      // mở khóa ngay trước khi cú bấm của người dùng chạy tới nó.
+      if (oLyDo.dataset.state === 'done-' + ten) return;
+      oLyDo.dataset.state = 'done-' + ten;
+      oLyDo.innerHTML = '';
+      oLyDo.appendChild(document.createTextNode('✓ Đã gửi ' + ten + ' — đang ở chế độ chỉ xem. '));
+      if (maBuoc){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'unlock-step';
+        b.textContent = (maBuoc==='anh') ? '🔓 Bổ sung / thay ảnh' : '🔓 Cập nhật sản lượng';
+        b.onclick = () => moKhoaBuoc(maBuoc);
+        oLyDo.appendChild(b);
+      }
+    } else if (lyDo){
+      nut.disabled = true;
+      nut.classList.remove('is-done');
+      nut.setAttribute('aria-disabled','true');
+      oLyDo.className = 'submit-why';
+      oLyDo.dataset.state = 'why';
+      if (oLyDo.textContent !== '⚠️ ' + lyDo) oLyDo.textContent = '⚠️ ' + lyDo;
+    } else {
+      nut.disabled = false;
+      nut.classList.remove('is-done');
+      nut.setAttribute('aria-disabled','false');
+      oLyDo.className = 'submit-why';
+      oLyDo.dataset.state = 'ok';
+      if (oLyDo.textContent !== '') oLyDo.textContent = '';
+    }
+  });
+}
+window.capNhatNutGui = capNhatNutGui;
 
 function aggregateWorkItemsForCurrentView() {
   const isAllView = !selectedReporter();
@@ -2530,8 +3164,65 @@ function loadStoredReporterStates() {
   } catch(e) {}
 }
 
+// ══════════════════════════════════════════
+// LỖI #8 — BẢN NHÁP PHẢI CÓ DANH TÍNH RÕ RÀNG
+// ══════════════════════════════════════════
+// Trước: nháp chỉ là một object trong reporterStates, không ghi nó thuộc ngày
+// nào, người nào, đang ở trạng thái gì, sinh ra ở phiên bản nào. Vì vậy chỗ thì
+// coi nháp là rác và bỏ đi, chỗ thì coi là dữ liệu thật và cho sống lại.
 function persistReporterStates() {
+  const nay = new Date().toISOString();
+  Object.keys(reporterStates).forEach(key => {
+    const st = reporterStates[key];
+    if (!st || typeof st !== 'object') return;
+    const phan = String(key).split('::');
+    st.schemaVersion = SCHEMA_VERSION;
+    st.date     = st.date     || phan[0] || '';
+    st.reporter = st.reporter || phan.slice(1).join('::') || '';
+    st.draftStatus = st.draftStatus || (draftHasContent(st) ? 'draft' : 'empty');
+    st.updatedAt = st.updatedAt || nay;
+  });
   _luuVaoMay(REPORTER_STATE_KEY, reporterStates, 'bản nháp đang nhập');
+}
+
+// LỖI #8 — mở lại app mà còn nháp CHƯA GỬI của phiên trước thì HỎI, thay vì
+// lúc âm thầm bỏ lúc âm thầm khôi phục.
+const _nhapDaHoi = new Set();
+function hoiKhoiPhucNhap(reporter){
+  if (!reporter) return;
+  const key = reporterStateKey(reporter);
+  if (_nhapDaHoi.has(key)) return;
+  const nhap = reporterStates[key];
+  if (!nhap || !draftHasContent(nhap)) return;
+  const t = Date.parse(nhap.updatedAt || 0) || 0;
+  if (!t || t >= SESSION_LOAD_TIME) return;      // nháp của chính phiên này: giữ im lặng
+  if (nhap.draftStatus === 'discarded') return;
+  _nhapDaHoi.add(key);
+  const luc = String(nhap.updatedAt || '').replace('T',' ').slice(0,16);
+  showAppConfirm(
+    'Còn bản nháp chưa gửi',
+    reporter + ' — ngày ' + (nhap.date || v('f-ngay')) + '\n'
+      + 'Có một bản nháp lưu lúc ' + luc + ' chưa được gửi lên Google Sheets.\n\n'
+      + '• Đồng ý = KHÔI PHỤC bản nháp đó để sửa và gửi tiếp\n'
+      + '• Hủy    = BỎ bản nháp, dùng dữ liệu trên server',
+    () => {
+      nhap.draftStatus = 'draft';
+      nhap._nhapSuaLai = true;
+      persistReporterStates();
+      showReporterView(reporter);
+      toast('Đã khôi phục bản nháp','ok');
+    },
+    '📝'
+  );
+  // Người dùng bấm Hủy → đánh dấu bỏ nháp để lần sau không hỏi lại.
+  const ov = document.getElementById('app-confirm-overlay');
+  ov?.querySelector('#ac-cancel')?.addEventListener('click', () => {
+    nhap.draftStatus = 'discarded';
+    delete nhap._nhapSuaLai;
+    persistReporterStates();
+    hydrateReportStateFromServer(reporter).then(()=>showReporterView(reporter));
+    toast('Đã bỏ bản nháp, đang lấy dữ liệu trên server','');
+  }, {once:true});
 }
 
 function getReporterState(reporter=currentReporter) {
@@ -2575,6 +3266,32 @@ function collectResultState() {
 }
 
 let autosaveTimer = null;
+// LỖI #3 — cờ dirty + bộ lọc sự kiện: chỉ tự lưu khi dữ liệu báo cáo đổi thật.
+let reporterDirty = false;
+// Vùng KHÔNG được coi là sửa báo cáo: thanh tab, nút đồng bộ, tiêu đề thẻ
+// (mở/đóng), phạm vi ngày/người (đổi phạm vi có luồng tải riêng).
+const AUTOSAVE_SKIP_SEL = '.nav-btn,.bot-nav,.reload-btn,.hdr,.card-hdr,.card-fold-icon,'
+  + '#f-ngay,#f-gs,#sync-status,.submit-why,.unlock-step,.lock-more,[data-no-autosave]';
+const AUTOSAVE_CLICK_SEL = 'button,input,select,textarea,label,[onclick],'
+  + '.w-chip,.blk-chip,.chip,.tang-chip,.khu-chip,.sw-work-chip,.sw-floor-chip,'
+  + '.grp-hdr,.ph-slot-sm,.result-item';
+function isReportMutation(e){
+  if (!currentReporter || isRestoring) return false;
+  const t = e.target;
+  if (!t || t.nodeType !== 1) return false;
+  if (t.closest(AUTOSAVE_SKIP_SEL)) return false;
+  if (!t.closest('#main-content')) return false;
+  if (e.type === 'click') return !!t.closest(AUTOSAVE_CLICK_SEL);
+  return !!t.closest('input,select,textarea,[contenteditable="true"]');
+}
+function onReportMutation(e){
+  if (!isReportMutation(e)) return;
+  reporterDirty = true;
+  scheduleReporterAutosave();
+  // LỖI #21 — điều kiện gửi phải cập nhật ngay khi dữ liệu đổi, không đợi
+  // người dùng bấm nút rồi mới báo thiếu.
+  try{ capNhatNutGui(); }catch(err){}
+}
 function scheduleReporterAutosave() {
   // submitQS tự lưu trạng thái cuối. Không xếp thêm một lượt serialize ảnh và
   // localStorage đúng lúc bấm Gửi vì thao tác đồng bộ này chặn giao diện.
@@ -2599,6 +3316,7 @@ function markWorkDirty() {
 
 function saveReporterState(reporter) {
   if (!reporter) return;
+  reporterDirty = false;
   const submitted = getSubmittedReport(reporter);
   if (submitted) {
     const currentResultItems = collectResultState();
@@ -2693,6 +3411,41 @@ function showEmptyPlaceholder() {
   document.getElementById('qs-body').innerHTML='';
   document.getElementById('cn-task-list').innerHTML='';
 }
+
+// ══════════════════════════════════════════
+// LỖI #28 + #29 — TRẠNG THÁI ĐANG TẢI
+// ══════════════════════════════════════════
+// Trước: trong lúc chờ server, app hiển thị form trống và badge "0 người" y hệt
+// như báo cáo thật sự chưa có gì. Giám sát nhìn thấy trống là gõ lại từ đầu,
+// rồi dữ liệu server về sau đè lên / xung đột.
+// Nay: khóa nhập + hiện skeleton cho tới khi hydrate xong.
+let _demDangTai=0;
+function batDauTai(nhan){
+  _demDangTai++;
+  document.body.classList.add('app-loading');
+  veTrangThaiDongBo(nhan||'Đang tải dữ liệu…','busy');
+  if(_demDangTai===1) veSkeletonCongViec();
+}
+function ketThucTai(){
+  _demDangTai=Math.max(0,_demDangTai-1);
+  if(_demDangTai===0){
+    document.body.classList.remove('app-loading');
+    xoaSkeletonCongViec();
+  }
+}
+function veSkeletonCongViec(){
+  ['qs-body','cn-task-list'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el||el.children.length||el.querySelector('.skel-wrap'))return;
+    el.innerHTML='<div class="skel-wrap"><div class="skeleton-line" style="width:70%"></div>'
+      +'<div class="skeleton-line" style="width:45%"></div>'
+      +'<div class="skeleton-line" style="width:85%"></div></div>';
+  });
+}
+function xoaSkeletonCongViec(){
+  document.querySelectorAll('.skel-wrap').forEach(el=>el.remove());
+}
+function dangTaiDuLieu(){ return _demDangTai>0; }
 
 function clearQSEmptyPlaceholder() {
   document.getElementById('qs-empty')?.remove();
@@ -2840,30 +3593,59 @@ function showSubmittedEditMode(type, index) {
   },80);
 }
 
+// LỖI #44 — hộp thoại phải là dialog thật: role="dialog", aria-modal, tiêu đề
+// gắn bằng aria-labelledby, focus vào trong hộp và KHÔNG thoát ra ngoài được,
+// Escape đóng hộp, đóng xong trả focus về đúng chỗ vừa bấm.
+// LỖI #14 — title/message có thể chứa tên tổ đội / ghi chú người dùng gõ →
+// phải escape, không nối HTML thô.
+let _acSeq = 0;
 function showAppConfirm(title, message, onOk, icon) {
   document.getElementById('app-confirm-overlay')?.remove();
+  const uid = 'ac' + (++_acSeq);
+  const traVeFocus = document.activeElement;
   const ov = document.createElement('div');
   ov.id = 'app-confirm-overlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
   ov.innerHTML = `
-    <div style="background:#fff;border-radius:18px;padding:24px 20px 20px;max-width:320px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.28);animation:acSlideUp .18s ease">
+    <div role="dialog" aria-modal="true" aria-labelledby="${uid}-t" aria-describedby="${uid}-m" tabindex="-1"
+         style="background:#fff;border-radius:18px;padding:24px 20px 20px;max-width:320px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.28);animation:acSlideUp .18s ease">
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">
-        <div style="width:40px;height:40px;border-radius:12px;background:#fffbeb;border:1.5px solid #fde68a;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${icon||'✏️'}</div>
+        <div aria-hidden="true" style="width:40px;height:40px;border-radius:12px;background:#fffbeb;border:1.5px solid #fde68a;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${esc(icon||'✏️')}</div>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#1F3864;line-height:1.3;margin-bottom:4px">${title}</div>
-          <div style="font-size:12px;color:#6b7280;line-height:1.6">${message}</div>
+          <h2 id="${uid}-t" style="font-size:14px;font-weight:800;color:#1F3864;line-height:1.3;margin:0 0 4px">${esc(title)}</h2>
+          <div id="${uid}-m" style="font-size:12px;color:#6b7280;line-height:1.6;white-space:pre-line">${esc(message)}</div>
         </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-        <button id="ac-cancel" style="background:#f3f4f6;color:#374151;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;min-width:70px">Hủy</button>
-        <button id="ac-ok" style="background:#1F3864;color:#fff;border:none;border-radius:10px;padding:9px 20px;font-size:13px;font-weight:800;cursor:pointer;min-width:70px">OK</button>
+        <button type="button" id="ac-cancel" style="background:#f3f4f6;color:#374151;border:none;border-radius:10px;padding:11px 18px;font-size:13px;font-weight:700;cursor:pointer;min-width:70px;min-height:44px">Hủy</button>
+        <button type="button" id="ac-ok" style="background:#1F3864;color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:13px;font-weight:800;cursor:pointer;min-width:70px;min-height:44px">OK</button>
       </div>
     </div>`;
   document.body.appendChild(ov);
-  const close = () => ov.remove();
+  const hop = ov.querySelector('[role="dialog"]');
+  const close = () => {
+    document.removeEventListener('keydown', onKey, true);
+    ov.remove();
+    try{ traVeFocus && traVeFocus.focus && traVeFocus.focus(); }catch(e){}
+  };
+  function focusables(){
+    return [...hop.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+      .filter(el=>!el.disabled&&el.offsetParent!==null);
+  }
+  function onKey(e){
+    if (e.key === 'Escape'){ e.preventDefault(); close(); return; }
+    if (e.key !== 'Tab') return;
+    const ds = focusables(); if (!ds.length) return;
+    const dau = ds[0], cuoi = ds[ds.length-1];
+    if (e.shiftKey && document.activeElement === dau){ e.preventDefault(); cuoi.focus(); }
+    else if (!e.shiftKey && document.activeElement === cuoi){ e.preventDefault(); dau.focus(); }
+    else if (!hop.contains(document.activeElement)){ e.preventDefault(); dau.focus(); }
+  }
+  document.addEventListener('keydown', onKey, true);
   ov.querySelector('#ac-cancel').onclick = close;
   ov.querySelector('#ac-ok').onclick = () => { close(); onOk(); };
   ov.addEventListener('click', e => { if(e.target===ov) close(); });
+  setTimeout(()=>{ ov.querySelector('#ac-ok')?.focus(); }, 0);
 }
 
 // Mở báo cáo về nháp NHƯNG GIỮ NGUYÊN tiến độ đã có. Trước đây chỗ này gọi
@@ -2968,19 +3750,90 @@ function deleteSubmittedItem(type, index) {
     toast('⛔ Báo cáo đã khóa — không thể xóa nội dung đã gửi.', 'err');
     return;
   }
-  showAppConfirm('Xóa nội dung đã gửi', 'Bạn có chắc muốn xóa nội dung này khỏi báo cáo?', function() {
+  // ══════════════════════════════════════════
+  // LỖI #32 — XÓA MỘT DÒNG KHÔNG ĐƯỢC LÀM MẤT DỮ LIỆU DÒNG KHÁC
+  // ══════════════════════════════════════════
+  // Trước: mỗi lần xóa một dòng, code gán thẳng resultItems:[], photoData:{},
+  // qaData:{}, qaResultData:null — nghĩa là xóa 1 trong 10 dòng thì mất SẠCH
+  // ảnh, sản lượng và nghiệm thu của cả 10 dòng. Lý do gốc: id công việc được
+  // đánh theo THỨ TỰ ('ntc-submitted-3'), xóa xong mọi id phía sau đều lệch nên
+  // tác giả cũ chọn cách xóa hết cho an toàn.
+  // Nay: ánh xạ id CŨ → id MỚI trước khi xóa, giữ lại dữ liệu của các dòng còn
+  // sống và chỉ bỏ dữ liệu thuộc đúng dòng bị xóa.
+  const _thu = {
+    ...report,
+    ntcRows:[...(report.ntcRows||[])],
+    cnTasks:[...(report.cnTasks||[])]
+  };
+  if(type==='ntc') _thu.ntcRows.splice(index,1);
+  if(type==='cn')  _thu.cnTasks.splice(index,1);
+
+  // reportToSubmittedWorkItems() đánh id theo THỨ TỰ trong danh sách ĐÃ LỌC:
+  //   ntcRows.filter(r=>r.ntc)                    → 'ntc-submitted-<vị trí>'
+  //   cnTasks.filter(t=>t.task||t.workerCount)    → 'cnt-submitted-<vị trí>'
+  // Nên vị trí của dòng bị xóa tính được trực tiếp, không cần đoán bằng nội dung.
+  const _laNTC   = (type==='ntc');
+  const _tienTo  = _laNTC ? 'ntc-submitted-' : 'cnt-submitted-';
+  const _dsGoc   = _laNTC ? (report.ntcRows||[]) : (report.cnTasks||[]);
+  const _quaLoc  = _laNTC ? (r=>!!r.ntc) : (t=>!!(t.task||t.workerCount));
+  const _dongXoa = _dsGoc[index];
+  let _viTri = -1;
+  if (_dongXoa && _quaLoc(_dongXoa)){
+    _viTri = 0;
+    for (let i=0;i<index;i++) if (_quaLoc(_dsGoc[i])) _viTri++;
+  }
+  const _idBiXoa = (_viTri>=0) ? (_tienTo+_viTri) : null;
+  // Sau khi xóa, mọi id CÙNG LOẠI đứng sau dòng đó lùi một bậc.
+  const _soConLai = _dsGoc.filter(_quaLoc).length - (_viTri>=0 ? 1 : 0);
+  const _anhXaId = {};
+  if (_viTri>=0){
+    for (let k=_viTri+1; k<=_soConLai; k++) _anhXaId[_tienTo+k] = _tienTo+(k-1);
+  }
+  // Đếm dữ liệu liên quan để cảnh báo cho đúng
+  const _demAnh = Object.keys(report.photoData||{})
+    .filter(k=>_idBiXoa && k.endsWith('-'+_idBiXoa)).length;
+  const _demSL = (report.resultItems||[]).filter(r=>r && r.id===_idBiXoa).length;
+  const _demNT = (report.qaResultData||[]).filter(q=>q && (q.sourceId===_idBiXoa||q.id===_idBiXoa)).length;
+  const _canhBao = [
+    _demAnh?(_demAnh+' ảnh'):'',
+    _demSL?('sản lượng đã ghi'):'',
+    _demNT?('kết quả nghiệm thu'):''
+  ].filter(Boolean).join(', ');
+
+  showAppConfirm('Xóa nội dung đã gửi',
+    'Bạn có chắc muốn xóa nội dung này khỏi báo cáo?'
+    + (_canhBao ? ('\n\nSẽ xóa kèm: ' + _canhBao + ' của riêng dòng này.') : '')
+    + '\n\nDữ liệu của các dòng khác được giữ nguyên.',
+    function() {
+    // LỖI #32 — dời dữ liệu theo ánh xạ id, chỉ bỏ phần thuộc dòng bị xóa.
+    const _doiKhoa = (obj, tienTo) => {
+      const ra = {};
+      Object.keys(obj||{}).forEach(k=>{
+        const m = String(k).match(/^([a-z]+[12]?)-(.+)$/);
+        if(!m){ ra[k]=obj[k]; return; }
+        const idCu = m[2];
+        if(idCu===_idBiXoa) return;                       // đúng dòng bị xóa
+        const idMoi = _anhXaId[idCu];
+        ra[(idMoi?(m[1]+'-'+idMoi):k)] = obj[k];
+      });
+      return ra;
+    };
     const next = {
       ...report,
-      ntcRows: [...(report.ntcRows || [])],
-      cnTasks: [...(report.cnTasks || [])],
-      resultItems: [],
-      photoData: {},
-      qaData: {},
-      qaResultData: null,
+      ntcRows: [..._thu.ntcRows],
+      cnTasks: [..._thu.cnTasks],
+      resultItems: (report.resultItems||[])
+        .filter(r=>r && r.id!==_idBiXoa)
+        .map(r=>({...r, id:_anhXaId[r.id]||r.id})),
+      photoData: _doiKhoa(report.photoData),
+      qaData:    _doiKhoa(report.qaData),
+      photoDrive:_doiKhoa(report.photoDrive),
+      qaDrive:   _doiKhoa(report.qaDrive),
+      qaResultData: (report.qaResultData||[])
+        .filter(q=>q && q.sourceId!==_idBiXoa && q.id!==_idBiXoa)
+        .map(q=>({...q, sourceId:_anhXaId[q.sourceId]||q.sourceId, id:_anhXaId[q.id]||q.id})),
       updatedAt: new Date().toISOString(),
     };
-    if(type==='ntc') next.ntcRows.splice(index,1);
-    if(type==='cn') next.cnTasks.splice(index,1);
     next.workItems = reportToSubmittedWorkItems(next);
     if(next.ntcRows.length===0 && next.cnTasks.length===0){
       deleteSubmittedReport(reporter);
@@ -3127,7 +3980,7 @@ function renderAllSubmittedWorkSummary() {
 // Dòng chi tiết "Nhãn: giá trị" cho card khóa — bỏ dòng trống, không tràn ngang.
 function _lockedDetailRows(pairs) {
   return pairs.filter(p=>String(p[1]??'').trim()!=='')
-    .map(p=>`<div style="display:flex;gap:6px;align-items:baseline"><span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;min-width:74px">${p[0]}</span><span style="flex:1;min-width:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere;line-height:1.45">${p[1]}</span></div>`)
+    .map(p=>`<div style="display:flex;gap:6px;align-items:baseline"><span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#64748b;text-transform:uppercase;min-width:74px">${esc(p[0])}</span><span style="flex:1;min-width:0;font-size:12.5px;color:#0f172a;overflow-wrap:anywhere;line-height:1.45">${esc(p[1])}</span></div>`)
     .join('');
 }
 // MỘT THẺ = MỘT TỔ ĐỘI: ghi số công nhân đúng một lần, liệt kê mọi công việc
@@ -3168,24 +4021,40 @@ function _renderLockedNtcCard(rows, idxs, gi, reporter) {
   const dsCongViec = rows.map(r=>{
     const viTri=[r.kv||r.can||'', r.tang||''].filter(Boolean).join(' · ');
     return `<div style="display:flex;gap:6px;font-size:11.5px;line-height:1.5;padding:3px 0;border-bottom:1px dashed var(--line)">
-      <span style="flex-shrink:0;color:var(--muted);font-weight:700;min-width:64px">${viTri}</span>
-      <span style="flex:1;min-width:0;overflow-wrap:anywhere">${r.works||''}</span>
+      <span style="flex-shrink:0;color:var(--muted);font-weight:700;min-width:64px">${esc(viTri)}</span>
+      <span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(r.works||'')}</span>
     </div>`;
   }).join('');
 
   return `<div class="submitted-work-card qs-col" data-locked="1" style="border-left:5px solid var(--green);background:#fff;border-radius:9px;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(22,163,74,.10);max-width:100%;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
       <div class="qs-num" style="flex-shrink:0">${gi+1}</div>
-      <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${r0.ntc||''} — ${quanSo} CN</div>
+      <div class="pi-name" style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(r0.ntc||'')} — ${quanSo} CN</div>
       <button type="button" onclick="unlockReportForEdit('${_sr}','ntc',${idxs[0]})" style="flex-shrink:0;background:#f59e0b;color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">Sửa lại</button>
     </div>
-    <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${details}</div>
-    <div style="margin-top:8px">
-      <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;margin-bottom:4px">Công việc đã làm (${rows.length})</div>
-      ${dsCongViec}
+    <!-- LỖI #17 — báo cáo ĐÃ KHÓA mặc định chỉ hiện dòng tóm tắt. Muốn xem đủ
+         thì bấm "Xem chi tiết"; muốn sửa thì bấm "Sửa lại" (có hộp xác nhận). -->
+    <button type="button" class="lock-more" aria-expanded="false" aria-controls="lockdt-${gi}"
+      onclick="moChiTietThoaKhoa(this,'lockdt-${gi}')">Xem chi tiết ▾</button>
+    <div id="lockdt-${gi}" class="lock-detail" hidden>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-left:2px">${details}</div>
+      <div style="margin-top:8px">
+        <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;margin-bottom:4px">Công việc đã làm (${rows.length})</div>
+        ${dsCongViec}
+      </div>
     </div>
   </div>`;
 }
+// LỖI #17 — mở/đóng khối chi tiết của thẻ báo cáo đã khóa.
+function moChiTietThoaKhoa(btn, id){
+  const el = document.getElementById(id); if(!el) return;
+  const dangAn = el.hasAttribute('hidden');
+  if (dangAn) el.removeAttribute('hidden'); else el.setAttribute('hidden','');
+  btn.setAttribute('aria-expanded', String(dangAn));
+  btn.textContent = dangAn ? 'Thu gọn ▴' : 'Xem chi tiết ▾';
+}
+window.moChiTietThoaKhoa = moChiTietThoaKhoa;
+
 function _renderLockedCnCard(r, idx, reporter) {
   const names = String(r.workers||'').split(/[,\n；;]/).map(x=>x.trim()).filter(Boolean);
   const group = (typeof attGroupsForWorkers==='function') ? attGroupsForWorkers(names) : '';
@@ -3295,7 +4164,7 @@ function renderSubmittedWorkSummary(report) {
           <div class="qs-num">${idx+1}</div>
           <div class="qs-hdr-info">
             <div class="pi-name">${r.ntc||''}</div>
-            <div class="qs-sum-line">${[r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · ')} — ${r.cn||0} CN</div>
+            <div class="qs-sum-line">${esc([r.kv,r.tang,r.works,r.note].filter(Boolean).join(' · '))} — ${r.cn||0} CN</div>
           </div>
         </div>
       </div>`);
@@ -3316,7 +4185,7 @@ function renderSubmittedWorkSummary(report) {
           <div class="qs-num">${idx+1}</div>
           <div class="cnt-hdr-info">
             <div class="cnt-title">${r.task||'(Chưa điền nội dung)'}</div>
-            <div class="cnt-summary">${[r.workers,r.area].filter(Boolean).join(' · ')} — ${r.workerCount||0} CN</div>
+            <div class="cnt-summary">${esc([r.workers,r.area].filter(Boolean).join(' · '))} — ${r.workerCount||0} CN</div>
           </div>
         </div>
       </div>`);
@@ -3354,7 +4223,7 @@ function renderDongDaGhiTruoc(reporter) {
         <button type="button" onclick="deleteSubmittedItemFor('${String(reporter).replace(/'/g, "\\'")}','ntc',${idx})" style="flex-shrink:0;border:1px solid rgba(220,38,38,.35);background:var(--lred);color:var(--red);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer">🗑 Xóa</button>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere">${[r.can || r.kv, r.tang, r.works].filter(Boolean).join(' · ')}</div>
-      ${r.note ? `<div style="font-size:11px;color:${mau};margin-top:3px;overflow-wrap:anywhere">${r.note}</div>` : ''}
+      ${r.note ? `<div style="font-size:11px;color:${mau};margin-top:3px;overflow-wrap:anywhere">${esc(r.note)}</div>` : ''}
     </div>`;
   }).join('');
   qsBody.insertAdjacentHTML('afterbegin',
@@ -3769,10 +4638,30 @@ function parseCSV(text){
 // ══════════════════════════════════════════
 // SESSION & MODE
 // ══════════════════════════════════════════
-function autoReportSessionByTime(now = new Date()) {
+function autoReportSessionByTime(now) {
+  // LỖI #33 — mốc 17h phải tính theo giờ Việt Nam do server cấp. Máy để sai
+  // giờ hoặc đang ở múi giờ khác sẽ ghi nhầm ca sáng thành ca tối.
+  if (!now) {
+    if (window.serverClock && window.serverClock.known && window.serverClock.session) {
+      return window.serverClock.session;
+    }
+    now = (typeof nowVN === 'function') ? nowVN() : new Date();
+  }
+  try{
+    const h = parseInt(new Intl.DateTimeFormat('en-GB',
+      {timeZone:'Asia/Ho_Chi_Minh',hour:'2-digit',hour12:false}).format(now), 10);
+    if (isFinite(h)) return h < 17 ? 'sang' : 'toi';
+  }catch(e){}
   return now.getHours() < 17 ? 'sang' : 'toi';
 }
-function todayISOInVietnam(now = new Date()) {
+function todayISOInVietnam(now) {
+  // LỖI #33 — ưu tiên "hôm nay" do server trả về.
+  if (!now) {
+    if (window.serverClock && window.serverClock.known && window.serverClock.today) {
+      return window.serverClock.today;
+    }
+    now = (typeof nowVN === 'function') ? nowVN() : new Date();
+  }
   const parts=new Intl.DateTimeFormat('en-GB',{
     timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'
   }).formatToParts(now).reduce((out,p)=>{out[p.type]=p.value;return out;},{});
@@ -3806,7 +4695,20 @@ function setReportSession(s) {
 async function init() {
   initCardToggles();
   const now=new Date();
-  document.getElementById('f-ngay').value=todayISOInVietnam(now);
+  const _oNgay=document.getElementById('f-ngay');
+  _oNgay.value=todayISOInVietnam(now);
+  // LỖI #27 — không cho chọn ngày tương lai. Server cũng kiểm tra lại
+  // (_assertNgayHopLe trong Sailing_GAS_FULL_AUTO.gs) vì max của <input> chỉ là
+  // gợi ý, sửa bằng devtools là qua được.
+  _oNgay.max=todayISOInVietnam(now);
+  _oNgay.addEventListener('change',()=>{
+    const gioiHan=(window.serverClock&&window.serverClock.today)||todayISOInVietnam(nowVN());
+    _oNgay.max=gioiHan;
+    if(_oNgay.value>gioiHan){
+      toast('⚠️ Không báo cáo được cho ngày tương lai. Đã đưa về '+gioiHan.split('-').reverse().join('/'),'err');
+      _oNgay.value=gioiHan;
+    }
+  },true);
   function _updateNgayTxt(){const v=document.getElementById('f-ngay').value;const p=v?v.split('-'):[];document.getElementById('f-ngay-txt').textContent=p.length===3?p[2]+'/'+p[1]+'/'+p[0]:'';_updateHdrTitle();}
   // Large title trên header = ngày báo cáo (theo mockup): "Thứ X, DD/MM/YYYY"
   function _updateHdrTitle(){
@@ -3825,37 +4727,79 @@ async function init() {
     // Đổi ngày = xem dữ liệu của ngày khác → BẮT BUỘC tải lại từ server.
     // Trước đây chỉ tải khi đã chọn người báo cáo, nên chọn ngày quá khứ lúc
     // chưa chọn ai thì mọi tab đều trống dù server có dữ liệu.
+    // LỖI #22 — đổi ngày là đổi phạm vi: chốt dữ liệu của ngày CŨ trước, rồi
+    // mới dọn state dẫn xuất, nếu không bộ đếm và ảnh của ngày cũ dính sang
+    // ngày mới (và ảnh chưa kịp autosave của ngày cũ thì mất).
+    if (currentReporter) { try{ commitReporterState(); }catch(e){} }
+    datLaiStateDanXuat();
     if (currentReporter) {
       showReporterView(currentReporter);
+      batDauTai('Đang tải báo cáo ngày '+document.getElementById('f-ngay').value+'…');
       // Hiện ảnh cục bộ trước, không bắt GS chờ mạng; sau khi server hợp nhất
       // xong thì áp lại cache một lần để state server không ghi đè ảnh trên máy.
       restoreMediaCacheForReporter(currentReporter)
         .then(()=>hydrateReportStateFromServer(currentReporter))
         .then(()=>restoreMediaCacheForReporter(currentReporter)).then(()=>{
         updateWorkflowTabs(); rebuildActiveReporterTab();
-      });
+      }).finally(()=>{ ketThucTai(); veTrangThaiDongBo(''); try{calcTotal();}catch(e){} });
     } else {
       hydrateAllReportStatesFromServer();
     }
   });
-  document.getElementById('main-content').addEventListener('input', scheduleReporterAutosave);
-  document.getElementById('main-content').addEventListener('change', scheduleReporterAutosave);
-  document.getElementById('main-content').addEventListener('click', scheduleReporterAutosave);
-  document.addEventListener('input', scheduleReporterAutosave, true);
-  document.addEventListener('change', scheduleReporterAutosave, true);
-  document.addEventListener('click', scheduleReporterAutosave, true);
+  // LỖI #3 — trước đây mọi cú bấm ở bất kỳ đâu (đổi tab, mở thẻ, bấm ↻) đều
+  // kích hoạt autosave, kéo theo serialize ảnh + ghi localStorage. Giờ chỉ lắng
+  // nghe thay đổi trên các trường nhập báo cáo, và có cờ dirty chặn lưu thừa.
+  document.addEventListener('input', onReportMutation, true);
+  document.addEventListener('change', onReportMutation, true);
+  document.addEventListener('click', onReportMutation, true);
   const tick=()=>{document.getElementById('hdr-time').textContent=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});};
   tick();setInterval(tick,1000);
   setInterval(()=>setReportSession(autoReportSessionByTime()),60000);
   document.getElementById('hdr-date').textContent=now.toLocaleDateString('vi-VN',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
-  await loadFromSheets();
+  batDauTai('Đang tải dữ liệu dự án…');            // LỖI #28
+  try{
+    await loadFromSheets();
+  } finally {
+    ketThucTai();
+  }
   loadStoredReporterStates();
   populateReporters();
+  await dongBoDongHoServer();                       // LỖI #33
   setReportSession(autoReportSessionByTime());
   showEmptyPlaceholder();
   updateWorkflowTabs();
-  hydrateAllReportStatesFromServer(); // tải dữ liệu mới nhất từ server khi khởi động
+  // LỖI #6 — job gửi nền còn sót từ lần mở trước phải được gửi tiếp TRƯỚC khi
+  // kéo state về, để bản trên server là bản đầy đủ nhất.
+  await khoiPhucHangDoiGui().catch(()=>0);
+  batDauTai('Đang tải báo cáo từ server…');
+  hydrateAllReportStatesFromServer()                // tải dữ liệu mới nhất từ server
+    .then(ket=>{
+      if(ket&&!ket.ok){
+        const ds=(ket.failed||[]).map(f=>f.reporter).join(', ');
+        veTrangThaiDongBo('⚠️ Chưa tải được báo cáo của: '+ds+' — bấm ↻ để thử lại','err');
+      }else{
+        veTrangThaiDongBo('');
+      }
+    })
+    .catch(e=>veTrangThaiDongBo('⚠️ Không tải được dữ liệu: '+(e&&e.message||e),'err'))
+    .finally(()=>{ ketThucTai(); try{calcTotal();}catch(e){} });
   canhBaoVeGuiConSot();
+}
+
+// LỖI #33 — hỏi giờ chuẩn Asia/Ho_Chi_Minh của server ngay khi mở app, để
+// "hôm nay" và ca sáng/tối không phụ thuộc đồng hồ thiết bị.
+async function dongBoDongHoServer(){
+  try{
+    const r=await gasJsonp({action:'server_time'},'__serverTime',8000);
+    if(r&&r.ok&&r.now){
+      apDungGioServer(r.now);
+      const o=document.getElementById('f-ngay');
+      if(o){
+        o.max=r.now.today;
+        if(!o.value||o.value>r.now.today) o.value=r.now.today;
+      }
+    }
+  }catch(e){ console.warn('Không lấy được giờ server, tạm dùng giờ máy:',e); }
 }
 function populateReporters() {
   const sel=document.getElementById('f-gs');
@@ -3895,11 +4839,16 @@ function rebuildActiveReporterTab() {
     // nhánh nào ở trên → trước đây tab Công việc không được vẽ lại, GS bấm lưu
     // defect xong nhìn thấy trống trơn. Phải tự vẽ khối "Đã ghi trong ngày".
     else renderDongDaGhiTruoc(_sr);
+    // LỖI #1 — vẽ xong dạng thu gọn phải cập nhật lại badge "N người",
+    // nếu không tiêu đề vẫn giữ số 0 của lần render trước.
+    try{ calcTotal(); }catch(e){}
   }
   if(m===1)buildPhotoPanel();
   if(m===2)buildResultPanel();
   if(m===3)buildQAPanel();
   if(m===4)buildResultDetailPanel();
+  try{ capNhatNutGui(); }catch(e){}          // LỖI #21
+  try{ if(window.capNhatNutBoSung) window.capNhatNutBoSung(); }catch(e){}  // LỖI #18
 }
 function showReporterView(reporter) {
   currentReporter=String(reporter||'').trim();
@@ -3921,25 +4870,79 @@ function showReporterView(reporter) {
 async function onReporterChange() {
   const newReporter=(document.getElementById('f-gs')?.value || '').trim();
   if (currentReporter && normalizeReporterName(currentReporter)!==normalizeReporterName(newReporter)) saveReporterState(currentReporter);
+  // LỖI #22 — đổi người báo cáo là đổi PHẠM VI. Mọi state dẫn xuất (bộ đếm,
+  // ảnh, kết quả của người trước) phải bị dọn trước khi vẽ, nếu không số liệu
+  // của người cũ còn dính lại trên màn hình người mới.
+  datLaiStateDanXuat();
   showReporterView(newReporter);
   try{if(window.renderTonDong)renderTonDong();}catch(e){} // lọc section 3 theo GS đang chọn
   if(newReporter){
-    await restoreMediaCacheForReporter(newReporter);
-    await hydrateReportStateFromServer(newReporter);
-    await restoreMediaCacheForReporter(newReporter);
+    // LỖI #29 — khóa form cho tới khi hydrate xong, không để form trống hiện ra
+    // trước rồi dữ liệu server đè lên sau.
+    batDauTai('Đang tải báo cáo của '+newReporter+'…');
+    try{
+      await restoreMediaCacheForReporter(newReporter);
+      const r=await hydrateReportStateFromServer(newReporter);
+      await restoreMediaCacheForReporter(newReporter);
+      if(r&&!r.ok){
+        // LỖI #29 — mất mạng thì HỎI, không im lặng mở form trống.
+        showAppConfirm('Không tải được dữ liệu',
+          'Không lấy được báo cáo của '+newReporter+' từ server ('+(r.error||'lỗi mạng')+').\n\n'
+          +'Đồng ý = vẫn mở form để nhập báo cáo mới (dữ liệu trên server sẽ được hợp nhất khi có mạng).\n'
+          +'Hủy = đóng lại, thử bấm ↻ sau.',
+          ()=>{}, '⚠️');
+      }
+    } finally {
+      ketThucTai();
+      veTrangThaiDongBo('');
+      try{ calcTotal(); }catch(e){}
+      try{ hoiKhoiPhucNhap(newReporter); }catch(e){}   // LỖI #8
+      try{ if(window.capNhatNutBoSung) window.capNhatNutBoSung(); }catch(e){} // LỖI #18
+    }
   }
   else hydrateAllReportStatesFromServer(); // chế độ tổng hợp — không block UI
+}
+
+// LỖI #22 — dọn sạch state dẫn xuất khi đổi ngày / đổi người báo cáo.
+function datLaiStateDanXuat(){
+  try{
+    window._photoData={};
+    window._qaData={};
+    window._qaResultData=null;
+    window._photoDriveUrl={};
+    window._qaDriveUrl={};
+  }catch(e){}
+  ['ph-count','qs-total-badge','cn-total-badge'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&/badge/.test(id)) el.textContent='0';
+  });
+  // LỖI #22/#23/#24 — mở khóa chỉ có hiệu lực cho ĐÚNG phạm vi đang xem;
+  // đổi ngày hoặc đổi người là khóa lại.
+  window._moKhoaAnh = false;
+  window._moKhoaSanLuong = false;
+  document.body.classList.remove('photo-locked','prod-locked','qa-locked');
+  document.querySelectorAll('.submit-why').forEach(el=>{ el.dataset.state=''; el.textContent=''; });
+  // LỖI #11 — ô "không phát sinh" cũng thuộc về một ngày/người cụ thể.
+  const kp=document.getElementById('f-kpsn');
+  if(kp){ kp.checked=false; }
+  const kpw=document.getElementById('f-kpsn-wrap'); if(kpw) kpw.setAttribute('hidden','');
+  const kpl=document.getElementById('f-kpsn-ly');  if(kpl) kpl.value='';
+  _xungDotDaHoi.clear();
 }
 function setMode(m) {
   try {
     updateWorkflowTabs();
     if (!isWorkflowModeVisible(m)) {
       const labels=['Công việc','Hình ảnh','Sản lượng','Nghiệm thu','Kết quả'];
-      toast(`⚠️ Chưa tới bước ${labels[m] || ''}. Hãy gửi bước trước trước.`,'err');
+      toast(`⚠️ Chưa tới bước ${labels[m] || ''}. Hãy hoàn tất và gửi bước trước.`,'err');
       m = workflowMaxMode();
     }
     if (currentReporter) saveReporterState(currentReporter);
-    [0,1,2,3,4].forEach(i=>document.getElementById('tab'+i).classList.toggle('active',i===m));
+    [0,1,2,3,4].forEach(i=>{
+      const tb=document.getElementById('tab'+i);
+      tb.classList.toggle('active',i===m);
+      tb.setAttribute('aria-current', i===m ? 'page' : 'false');   // LỖI #39
+    });
     document.getElementById('mode-qs').classList.toggle('hide',m!==0);
     document.getElementById('mode-bc').classList.toggle('hide',m!==1);
     document.getElementById('mode-cd').classList.toggle('hide',m!==2);
@@ -4092,7 +5095,7 @@ function addQSRow(data={}) {
             style="width:100%;padding:8px 10px;border:2px solid var(--border);border-radius:8px;
                    font-size:14px;min-height:56px;resize:vertical;line-height:1.5;color:var(--text);
                    background:#fff;-webkit-appearance:none"
-            oninput="qsCards[${i}].note=this.value;updateQSSumLine(${i})">${data.note||''}</textarea>
+            oninput="qsCards[${i}].note=this.value;updateQSSumLine(${i})">${esc(data.note||'')}</textarea>
         </div>
       </div>
       <div class="qs-card-actions">
@@ -4477,14 +5480,55 @@ function qsCN(i, d) {
   const inp=document.querySelector('#qsc-'+i+' .qs-cn-inp');
   if (inp) { inp.value=Math.max(0,Math.min(99,(parseInt(inp.value)||0)+d)); calcTotal(); updateQSSumLine(i); if (currentReporter) saveReporterState(currentReporter); }
 }
+// ══════════════════════════════════════════
+// LỖI #1 + #16 — TỔNG NHÂN CÔNG: MỘT NGUỒN DUY NHẤT
+// ══════════════════════════════════════════
+// Lỗi cũ: badge "N người" đọc thẳng từ các ô .qs-cn-inp đang hiển thị. Khi báo
+// cáo đã khóa/thu gọn thì ô nhập không còn trong DOM → tiêu đề báo 0 người dù
+// dữ liệu có 8 người (đúng ca của VĂN NĂM ngày 08/08/2026).
+// Lỗi cũ 2: calcTotal cộng dồn t.selected.size của từng công việc, một người
+// làm 2 việc bị đếm 2 lần; updateCNTotalBadge lại ghi số Set → hai hàm đá nhau,
+// số hiển thị phụ thuộc hàm nào chạy sau.
+// Cách chữa: hai hàm dưới đây là nguồn duy nhất, ưu tiên dữ liệu (qsCards /
+// cnTasks), khi form đã đóng thì lấy từ báo cáo đã gửi.
+function tongNhanCongNTC() {
+  let tong = 0, coTheDangMo = false;
+  Object.keys(qsCards).forEach(i => {
+    const card = document.getElementById('qsc-' + i);
+    if (!card) return;
+    coTheDangMo = true;
+    const inp = card.querySelector('.qs-cn-inp');
+    if (inp) { tong += parseInt(inp.value) || 0; return; }
+    const qs = qsCards[i] || {};
+    tong += Object.values(qs.cnMap || {}).reduce((a, b) => a + (parseInt(b) || 0), 0);
+  });
+  if (coTheDangMo) return tong;
+  // Form đã đóng (báo cáo khóa) → đọc từ dữ liệu đã gửi.
+  try {
+    return (getWorkItems() || [])
+      .filter(x => x && x.type === 'ntc')
+      .reduce((a, x) => a + (parseInt(x.meta && x.meta.cn) || 0), 0);
+  } catch (e) { return 0; }
+}
+function tongNhanCongCN() {
+  // getAssignedWorkers() trả Set(employeeId) → mỗi nhân sự chỉ tính MỘT lần.
+  const dangChon = getAssignedWorkers();
+  if (dangChon.size) return dangChon.size;
+  if (Object.keys(cnTasks).length) return 0;
+  try {
+    const nguoi = new Set();
+    (getWorkItems() || []).filter(x => x && x.type === 'cn').forEach(x => {
+      String((x.meta && x.meta.workers) || '').split(',')
+        .map(y => y.trim()).filter(Boolean).forEach(y => nguoi.add(y));
+    });
+    return nguoi.size;
+  } catch (e) { return 0; }
+}
 function calcTotal() {
-  let t=0; document.querySelectorAll('.qs-cn-inp').forEach(inp=>t+=parseInt(inp.value)||0);
   const qsBadge=document.getElementById('qs-total-badge');
-  if(qsBadge) qsBadge.textContent=t;
-  let cnTotal = 0;
-  Object.values(cnTasks).forEach(t => cnTotal += t.selected.size);
+  if(qsBadge) qsBadge.textContent=String(tongNhanCongNTC());
   const cnBadge=document.getElementById('cn-total-badge');
-  if(cnBadge) cnBadge.textContent=cnTotal;
+  if(cnBadge) cnBadge.textContent=String(tongNhanCongCN());
 }
 
 // ══════════════════════════════════════════
@@ -4507,11 +5551,8 @@ function updateAllGroupCounts(){
 }
 
 function updateCNTotalBadge(){
-  const assigned=getAssignedWorkers();
-  const cnBadge=document.getElementById('cn-total-badge');
-  // Badge ở tiêu đề mục 2 hiển thị "N người" → chỉ ghi số, không ghi "N/tổng".
-  // (calcTotal cũng ghi vào ô này; hai hàm phải cùng một định dạng.)
-  if(cnBadge) cnBadge.textContent=String(assigned.size);
+  // LỖI #1/#16 — chỉ còn MỘT chỗ ghi badge để hai hàm không ghi đè nhau.
+  calcTotal();
 }
 
 let cnTaskIdx=0;
@@ -4943,7 +5984,7 @@ function restoreCurrentViewMediaCache(){
   window._photoData={...savedPhoto,...(window._photoData||{})};
   window._qaData={...savedQA,...(window._qaData||{})};
 }
-function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
+function phSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp,image/*" capture="environment" onchange="prevPhSm(this,'${id}','pp${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="pp${id}"><div class="ph-sm-ov">✓</div></div>`;}
 function buildPhotoPanel(){
   restoreCurrentViewMediaCache();
   const items=getWorkItems();const wrap=document.getElementById('photo-panel');wrap.innerHTML='';
@@ -4954,7 +5995,7 @@ function buildPhotoPanel(){
     const num=item.type==='ntc'?++ntcNum:++cnNum;
     const itemTypeLabel=item.type==='ntc'?'NTC':'ALLIANCE';
     const idJs=String(item.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-main"><div class="photo-item-label"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><span class="pi-badge pi-badge-0" id="pi-badge-${item.id}">0 ảnh</span></div><div class="photo-item-shots pi-grid">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div><div class="pi-cam-row" onclick="piPick('${idJs}')">${PI_CAM_ICON}<span>Chụp / tải ảnh cho công việc này</span></div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="photo-item" data-item-id="${item.id}"><div class="photo-item-main"><div class="photo-item-label"><div class="pi-name">${esc(item.name)}</div>${item.detail?`<div class="pi-detail">${esc(item.detail)}</div>`:''}</div><span class="pi-badge pi-badge-0" id="pi-badge-${item.id}">0 ảnh</span></div><div class="photo-item-shots pi-grid">${phSlotSm('pi1-'+item.id,'Ảnh 1')}${phSlotSm('pi2-'+item.id,'Ảnh 2')}</div><div class="pi-cam-row" onclick="piPick('${idJs}')">${PI_CAM_ICON}<span>Chụp / tải ảnh cho công việc này</span></div></div>`);
     restorePhotoSlot('pi1-'+item.id, item.savedPhoto1 || window._photoData?.['pi1-'+item.id]);
     restorePhotoSlot('pi2-'+item.id, item.savedPhoto2 || window._photoData?.['pi2-'+item.id]);
     piSyncBadge(item.id);
@@ -4981,7 +6022,7 @@ if(!window._photoData) window._photoData={};
 if(!window._qaData) window._qaData={};
 if(!window._qaResultData) window._qaResultData=null;
 
-function qaSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/*" onchange="prevPhSm(this,'${id}','qa${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="qa${id}"><div class="ph-sm-ov">✓</div></div>`;}
+function qaSlotSm(id,label){return`<div class="ph-slot-sm" id="${id}"><input type="file" accept="image/jpeg,image/png,image/heic,image/heif,image/webp,image/*" capture="environment" onchange="prevPhSm(this,'${id}','qa${id}')"><div class="ph-ic">📷</div><div class="ph-lb">${label}</div><img class="ph-sm-prev" id="qa${id}"><div class="ph-sm-ov">✓</div></div>`;}
 // ── Nghiệm thu: 2 nút phân đoạn Đạt / Không đạt (giao diện iOS) ──
 // Ô checkbox #qa-pass-<qid> VẪN GIỮ NGUYÊN (ẩn đi) vì submitQA đọc .checked của nó.
 // 2 nút chỉ tick/bỏ tick chính ô đó rồi gọi onQAPassChange như cũ → luồng gửi không đổi.
@@ -4989,23 +6030,38 @@ const QA_MARK_PASS='<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
 const QA_MARK_FAIL='<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>';
 const QA_MARK_PASS_SM='<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const QA_MARK_FAIL_SM='<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg>';
-function qaSetPass(qid,pass){
-  const cb=document.getElementById('qa-pass-'+qid); if(!cb) return;
+// ══════════════════════════════════════════
+// LỖI #25 — NGHIỆM THU CHỈ CÓ MỘT TRẠNG THÁI
+// ══════════════════════════════════════════
+// Trước: trạng thái nằm ở HAI nơi — checkbox qa-pass-<id> và thuộc tính
+// data-qa-fail. Bấm nút "Đạt" hai lần làm checkbox tắt nhưng qaFail vẫn '0'
+// nên vừa hiện dấu ✓ vừa ghi "Chưa nghiệm thu". Nay chỉ còn data-qa-state
+// ('none' | 'pass' | 'fail') là nguồn duy nhất; checkbox chỉ phản chiếu lại.
+function qaSetState(qid, state){
   const item=document.querySelector(`.qa-item[data-qa-id="${qid}"]`);
-  if(pass){
-    cb.checked=!cb.checked;                 // bấm lại nút đang chọn thì bỏ chọn
-    if(item) item.dataset.qaFail='0';
-  }else{
-    cb.checked=false;
-    if(item) item.dataset.qaFail = item.dataset.qaFail==='1' ? '0' : '1';
-  }
-  onQAPassChange(qid, cb.checked);
+  if(!item) return;
+  if(state!=='pass'&&state!=='fail') state='none';
+  item.dataset.qaState = state;
+  item.dataset.qaFail  = (state==='fail') ? '1' : '0';
+  const cb=document.getElementById('qa-pass-'+qid);
+  if(cb) cb.checked = (state==='pass');
+  onQAPassChange(qid, state==='pass');
 }
+function qaSetPass(qid,pass){
+  const item=document.querySelector(`.qa-item[data-qa-id="${qid}"]`); if(!item) return;
+  const hienTai = item.dataset.qaState || 'none';
+  const muon = pass ? 'pass' : 'fail';
+  qaSetState(qid, hienTai===muon ? 'none' : muon);   // bấm lại nút đang chọn = bỏ chọn
+}
+window.qaSetState=qaSetState;
 function qaSyncUI(qid){
   const item=document.querySelector(`.qa-item[data-qa-id="${qid}"]`); if(!item) return;
-  const passed=document.getElementById('qa-pass-'+qid)?.checked||false;
-  const failed=!passed && item.dataset.qaFail==='1';
-  item.dataset.qaState = passed?'pass':(failed?'fail':'none');
+  // LỖI #25 — đọc đúng MỘT nguồn: data-qa-state.
+  const state=item.dataset.qaState||'none';
+  const passed=(state==='pass');
+  const failed=(state==='fail');
+  const cb=document.getElementById('qa-pass-'+qid);
+  if(cb) cb.checked=passed;
   const dot=document.getElementById('qa-dot-'+qid);
   if(dot) dot.innerHTML = passed?QA_MARK_PASS:(failed?QA_MARK_FAIL:'');
   const lb=document.getElementById('qa-stlb-'+qid);
@@ -5017,6 +6073,19 @@ function qaTaskNameForItem(item) {
     +(meta.works ? ' — '+meta.works : '')
     +(meta.kv ? ' | '+meta.kv : '')
     +(meta.tang ? ' | '+meta.tang : '');
+}
+// LỖI #26 — tiêu đề tab Nghiệm thu phản ánh đúng nội dung bên dưới:
+//   0 mục   → trung tính, xám ("Chưa có hạng mục cần nghiệm thu")
+//   có mục  → xanh, kèm số lượng
+function datTieuDeNghiemThu(soMuc){
+  const h=document.getElementById('qa-card-hdr'); if(!h) return;
+  if(soMuc>0){
+    h.textContent='Nghiệm thu — '+soMuc+' hạng mục đạt 100%';
+    h.style.background='rgb(5, 150, 105)';
+  }else{
+    h.textContent='Chưa có hạng mục cần nghiệm thu';
+    h.style.background='#8E8E93';
+  }
 }
 function buildQAPanel(){
   const wrap=document.getElementById('qa-panel');wrap.innerHTML='';
@@ -5054,11 +6123,14 @@ function buildQAPanel(){
   });
 
   if(!allItems.length){
+    // LỖI #26 — màn rỗng phải là trạng thái TRUNG TÍNH, không phải dấu thành công.
+    datTieuDeNghiemThu(0);
     wrap.innerHTML='<div class="panel-empty">Chưa có hạng mục cần nghiệm thu. Công việc đạt 100% hoặc nghiệm thu không đạt sẽ hiển thị tại đây cho tới khi nghiệm thu đạt.</div>';
     return;
   }
 
   let lastType='';let ntcNum=0,cnNum=0;
+  datTieuDeNghiemThu(allItems.length);      // LỖI #26
   allItems.forEach(item=>{
     if(item.type!==lastType){lastType=item.type;wrap.insertAdjacentHTML('beforeend',`<div class="panel-sec-hdr ${item.type==='ntc'?'ntc-hdr':'cn-hdr'}">${item.type==='ntc'?'📋 NHÂN CÔNG THẦU PHỤ':'👷 CÔNG NHẬT ALLIANCE'}</div>`);if(item.type==='ntc')ntcNum=0;else cnNum=0;}
     const num=item.type==='ntc'?++ntcNum:++cnNum;
@@ -5071,7 +6143,7 @@ function buildQAPanel(){
     const taskName=qaTaskNameForItem(item);
     const qaThreadKey=item.qaThreadKey || qaThreadKeyFor(item.reporter || '', item.sourceId || item.id, taskName);
     const im_qa=item.meta||{};
-    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-qa-state="${isChecked?'pass':'none'}" data-qa-fail="0" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div class="qa-main-row"><div class="qa-dot" id="qa-dot-${qid}">${isChecked?QA_MARK_PASS:''}</div><div style="flex:1;min-width:0"><div class="pi-name">${item.name}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><span class="qa-status-lb" id="qa-stlb-${qid}">${isChecked?'Đạt':'Chưa nghiệm thu'}</span></div><div class="qa-seg"><button type="button" class="qa-seg-btn qa-seg-pass" onclick="qaSetPass('${qid}',true)">${QA_MARK_PASS_SM}Đạt</button><button type="button" class="qa-seg-btn qa-seg-fail" onclick="qaSetPass('${qid}',false)">${QA_MARK_FAIL_SM}Không đạt</button></div><label class="qa-pass-row qa-pass-hidden" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" class="qa-photo-lb" style="color:${isChecked?'var(--green)':'var(--orange)'}">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="qa-item" data-qa-id="${qid}" data-qa-state="${isChecked?'pass':'none'}" data-qa-fail="0" data-source-id="${item.sourceId||item.id}" data-qa-thread-key="${String(qaThreadKey||'').replace(/"/g,'&quot;')}" data-task-name="${String(taskName||'').replace(/"/g,'&quot;')}" data-reporter="${String(item.reporter||'').replace(/"/g,'&quot;')}" data-item-name="${String(item.name||'').replace(/"/g,'&quot;')}" data-item-detail="${String(item.detail||'').replace(/"/g,'&quot;')}" data-item-type="${item.type||'ntc'}" data-pending-qa="${item.pendingQA?'1':'0'}" data-wbs="${String(im_qa.wbs||'').replace(/"/g,'&quot;')}" data-can="${String(im_qa.can||im_qa.kv||'').replace(/"/g,'&quot;')}" data-tang-code="${String(im_qa.tangCode||'').replace(/"/g,'&quot;')}" data-works="${String(im_qa.works||'').replace(/"/g,'&quot;')}"><div class="qa-main-row"><div class="qa-dot" id="qa-dot-${qid}">${isChecked?QA_MARK_PASS:''}</div><div style="flex:1;min-width:0"><div class="pi-name">${esc(item.name)}${reporterLabel}${pendingBadge}</div>${item.detail?`<div class="pi-detail">${esc(item.detail)}</div>`:''}</div><span class="qa-status-lb" id="qa-stlb-${qid}">${isChecked?'Đạt':'Chưa nghiệm thu'}</span></div><div class="qa-seg"><button type="button" class="qa-seg-btn qa-seg-pass" onclick="qaSetPass('${qid}',true)">${QA_MARK_PASS_SM}Đạt</button><button type="button" class="qa-seg-btn qa-seg-fail" onclick="qaSetPass('${qid}',false)">${QA_MARK_FAIL_SM}Không đạt</button></div><label class="qa-pass-row qa-pass-hidden" for="qa-pass-${qid}"><input type="checkbox" id="qa-pass-${qid}" ${isChecked?'checked':''} onchange="onQAPassChange('${qid}',this.checked)"><span>Đã nghiệm thu đạt ✓</span></label><div id="qa-warn-${qid}" class="err-msg" style="display:${isChecked?'none':'block'};margin-top:8px">⚠️ Chưa xác nhận nghiệm thu hoặc ghi nhận lỗi</div><div id="qa-errors-${qid}" style="margin-top:12px"><div id="qa-photolbl-${qid}" class="qa-photo-lb" style="color:${isChecked?'var(--green)':'var(--orange)'}">${isChecked?'📸 Ảnh nghiệm thu đạt (tùy chọn)':'📸 Ảnh ghi nhận (cuộn ngang nếu nhiều ảnh)'}</div><div class="qa-error-strip">${qaSlotSm('qa1-'+qid,'Ảnh 1')}${qaSlotSm('qa2-'+qid,'Ảnh 2')}${qaSlotSm('qa3-'+qid,'Ảnh 3')}${qaSlotSm('qa4-'+qid,'Ảnh 4')}${qaSlotSm('qa5-'+qid,'Ảnh 5')}</div></div></div>`);
     // Ưu tiên base64 cục bộ; máy chưa có ảnh thì dùng URL Drive do server ghi.
     const qaDrive=qaDriveForCurrentView();
     for(let i=1;i<=5;i++){
@@ -5168,7 +6240,7 @@ function buildResultDetailPanel(){
           <div style="flex-shrink:0;background:var(--green);color:#fff;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">${idx+1}</div>
           <div style="flex:1;min-width:0">
             <div class="pi-name">${item.item}${item.reporter?` <span style="font-size:11px;color:var(--muted);font-weight:400">— ${item.reporter}</span>`:''}</div>
-            ${item.detail?`<div class="pi-detail" style="margin-top:3px;margin-bottom:4px">${item.detail}</div>`:''}
+            ${item.detail?`<div class="pi-detail" style="margin-top:3px;margin-bottom:4px">${esc(item.detail)}</div>`:''}
             <div style="font-size:12px;color:var(--green);margin-top:6px;font-weight:600">✓ Đã nghiệm thu thành công</div>
           </div>
         </div>
@@ -5217,12 +6289,28 @@ function showResultPhoto(src){
   w.document.close();
 }
 
+// LỖI #34 — ô tải ảnh trước đây nhận bất cứ file nào lọt qua accept="image/*"
+// (trên Android nhiều máy vẫn cho chọn PDF/zip). File không phải ảnh sẽ làm
+// img.onload không bao giờ chạy → ô ảnh im lặng không có gì, người dùng tưởng
+// đã đính kèm xong. Nay chặn ngay từ đầu và nói rõ lý do.
+const ANH_CHO_PHEP=/^image\/(jpeg|jpg|png|heic|heif|webp)$/i;
+const ANH_TOI_DA=25*1024*1024;   // 25MB — ảnh gốc iPhone/Android nặng nhất ~12MB
 function prevPhSm(inp,slotId,prevId){
   if(!inp.files||!inp.files[0])return;
   const file=inp.files[0];
+  if(file.type && !ANH_CHO_PHEP.test(file.type)){
+    toast('⚠️ Chỉ nhận ảnh JPG/PNG/HEIC/WEBP. File đã chọn: '+(file.type||'không rõ định dạng'),'err');
+    inp.value=''; return;
+  }
+  if(file.size>ANH_TOI_DA){
+    toast('⚠️ Ảnh quá lớn ('+(file.size/1048576).toFixed(1)+'MB, tối đa 25MB). Chụp lại ở độ phân giải thấp hơn.','err');
+    inp.value=''; return;
+  }
   const reader=new FileReader();
+  reader.onerror=()=>{ toast('⚠️ Không đọc được file ảnh. Chọn lại giúp.','err'); inp.value=''; };
   reader.onload=e=>{
     const img=new Image();
+    img.onerror=()=>{ toast('⚠️ File không phải ảnh hợp lệ. Chọn lại giúp.','err'); inp.value=''; };
     img.onload=()=>{
       const maxW=800;
       const scale=Math.min(1,maxW/img.width);
@@ -5303,7 +6391,7 @@ function buildResultPanel(){
     const livePct=(item.type==='ntc'&&im.can&&liveKey)?getItemStatus(im.can,liveKey).pct:0;
     if(item.type==='ntc'&&livePct>=100)return;
     const num=item.type==='ntc'?++ntcNum:++cnNum;
-    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}"><div class="ri-head"><div style="flex:1;min-width:0"><div class="pi-name">${item.name}</div>${item.detail?`<div class="pi-detail">${item.detail}</div>`:''}</div><div class="pct-val-sm" id="pctv-${rid}">${livePct}%</div></div><div class="kq-mini-row"><div class="kq-mini xong" data-kq="Xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" data-kq="Chưa xong" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}"><div class="pct-row-sm"><input type="range" id="pctr-${rid}" min="${livePct}" max="100" step="5" value="${livePct}" data-base-pct="${livePct}" oninput="if(+this.value<+this.dataset.basePct)this.value=this.dataset.basePct;document.getElementById('pctv-${rid}').textContent=this.value+'%';syncPctColor('${rid}');updateCDSummary()"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
+    wrap.insertAdjacentHTML('beforeend',`<div class="result-item" data-item-id="${rid}" data-source-id="${sourceId}" data-item-type="${item.type||''}" data-reporter="${item.reporter||''}"><div class="ri-head"><div style="flex:1;min-width:0"><div class="pi-name">${esc(item.name)}</div>${item.detail?`<div class="pi-detail">${esc(item.detail)}</div>`:''}</div><div class="pct-val-sm" id="pctv-${rid}">${livePct}%</div></div><div class="kq-mini-row"><div class="kq-mini xong" data-kq="Xong" onclick="selKQI('${rid}',this,'Xong')">✅ XONG</div><div class="kq-mini chua" data-kq="Chưa xong" onclick="selKQI('${rid}',this,'Chưa xong')">⏳ CHƯA XONG</div></div><input type="hidden" id="kqi-${rid}"><div class="pct-row-sm"><input type="range" id="pctr-${rid}" min="${livePct}" max="100" step="5" value="${livePct}" data-base-pct="${livePct}" oninput="if(+this.value<+this.dataset.basePct)this.value=this.dataset.basePct;document.getElementById('pctv-${rid}').textContent=this.value+'%';syncPctColor('${rid}');updateCDSummary()"></div><div class="photo-item-shots">${phSlotSm('ri1-'+rid,'Ảnh 1')}${phSlotSm('ri2-'+rid,'Ảnh 2')}</div></div>`);
     restoreResultItem(rid, saved);
   });
   if(!wrap.querySelector('.result-item')){wrap.innerHTML='<div class="panel-empty">Tất cả đầu mục đã đạt 100% và đã được khóa.</div>';return;}
@@ -5556,9 +6644,78 @@ function _veThanhTrangThai(){
     + ' báo cáo lên Google Sheets… bạn cứ làm tiếp</span>';
 }
 
+// ══════════════════════════════════════════
+// LỖI #6 — HÀNG ĐỢI GỬI NỀN LƯU BỀN TRONG INDEXEDDB
+// ══════════════════════════════════════════
+// Trước: _hangDoiGui chỉ sống trong RAM. Đóng tab hoặc iOS thu hồi tab giữa
+// chừng là job bay mất — phiếu đã khóa trên máy mà Google Sheets chưa có gì,
+// app chỉ còn hiện được một dòng cảnh báo mơ hồ.
+// Nay: mỗi job (payload đầy đủ + tham chiếu ảnh) được ghi vào IndexedDB TRƯỚC
+// khi gửi, chỉ xóa SAU khi có ACK. Mở lại app là khôi phục và tự gửi tiếp.
+async function _outboxGhi(job){
+  try{
+    const db=await openMediaDb();
+    await new Promise((res,rej)=>{
+      const tx=db.transaction(OUTBOX_STORE,'readwrite');
+      tx.objectStore(OUTBOX_STORE).put({
+        id:job.id, moTa:job.moTa, khoa:job.khoa, payload:job.payload,
+        maxAck:job.maxAck, ticket:job.ticket, lan:job.lan,
+        trangThai:job.trangThai, loi:job.loi, at:new Date().toISOString()
+      });
+      tx.oncomplete=res; tx.onerror=()=>rej(tx.error);
+    });
+  }catch(e){ console.warn('Không lưu được hàng đợi gửi nền:',e); }
+}
+async function _outboxXoa(id){
+  try{
+    const db=await openMediaDb();
+    await new Promise((res,rej)=>{
+      const tx=db.transaction(OUTBOX_STORE,'readwrite');
+      tx.objectStore(OUTBOX_STORE).delete(id);
+      tx.oncomplete=res; tx.onerror=()=>rej(tx.error);
+    });
+  }catch(e){ console.warn('Không xóa được job khỏi hàng đợi:',e); }
+}
+async function _outboxDoc(){
+  try{
+    const db=await openMediaDb();
+    return await new Promise((res,rej)=>{
+      const tx=db.transaction(OUTBOX_STORE,'readonly');
+      const rq=tx.objectStore(OUTBOX_STORE).getAll();
+      rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error);
+    });
+  }catch(e){ return []; }
+}
+// Mở app → khôi phục và tự gửi tiếp những job còn sót.
+async function khoiPhucHangDoiGui(){
+  const rows=await _outboxDoc();
+  const conHan=rows.filter(r=>{
+    const t=Date.parse(r.at||'')||0;
+    if(!t||(Date.now()-t)>7*86400000){ _outboxXoa(r.id); return false; }  // quá 7 ngày thì bỏ
+    return !!r.payload;
+  });
+  if(!conHan.length) return 0;
+  conHan.forEach(r=>{
+    // kiemTra/onConfirmed là hàm nên không serialize được. Job khôi phục gửi lại
+    // với ĐÚNG submitId cũ (GAS coi là cùng giao dịch, không nhân đôi dữ liệu),
+    // xong thì kéo lại state từ server để máy hiển thị đúng.
+    const job={
+      id:r.id, moTa:r.moTa||'báo cáo', khoa:r.khoa||'', payload:r.payload,
+      maxAck:r.maxAck||70, kiemTra:null, ticket:r.ticket||null,
+      onConfirmed:async()=>{ try{ await reloadFromServer('current'); }catch(e){} },
+      lan:0, trangThai:'dang', loi:'', khoiPhuc:true
+    };
+    _hangDoiGui.set(job.id,job);
+  });
+  _veThanhTrangThai();
+  toast('Khôi phục '+conHan.length+' báo cáo gửi dở lần trước — đang gửi tiếp…','');
+  conHan.forEach(r=>_chayJobGui(_hangDoiGui.get(r.id)));
+  return conHan.length;
+}
+
 function guiNenXacNhan(opts){
   const job = {
-    id: 'j' + (++_hangDoiSeq),
+    id: 'j' + Date.now().toString(36) + '-' + (++_hangDoiSeq),
     moTa: opts.moTa || 'báo cáo',
     khoa: opts.khoa || '',
     payload: opts.payload,
@@ -5569,6 +6726,7 @@ function guiNenXacNhan(opts){
     lan: 0, trangThai: 'dang', loi: ''
   };
   _hangDoiGui.set(job.id, job);
+  _outboxGhi(job);                      // LỖI #6 — ghi trước khi gửi
   _veThanhTrangThai();
   _chayJobGui(job);
   return job.id;
@@ -5605,7 +6763,9 @@ async function _chayJobGui(job){
       }
       if (job.ticket) clearTextSubmit(job.ticket);
       _hangDoiGui.delete(job.id);
+      await _outboxXoa(job.id);          // LỖI #6/#7 — chỉ xóa SAU khi có ACK
       _veThanhTrangThai();
+      danhDauDaLenSheet(job);            // LỖI #5 — giờ mới được nói "Google Sheets đã lưu"
       toast('✓ Google Sheets đã lưu ' + job.moTa, 'ok');
       return;
     }catch(e){
@@ -5614,8 +6774,37 @@ async function _chayJobGui(job){
     }
   }
   job.trangThai = 'loi';
+  _outboxGhi(job);                       // LỖI #6 — giữ lại để mở app còn gửi tiếp
   _veThanhTrangThai();
+  danhDauLoiLenSheet(job);               // LỖI #5
   toast('⚠️ Chưa gửi được ' + job.moTa + ': ' + job.loi + '. Dữ liệu vẫn còn trên máy, bấm "Gửi lại" ở thanh đỏ.','err');
+}
+
+// ══════════════════════════════════════════
+// LỖI #5 — KHÔNG NÓI "ĐÃ LƯU GOOGLE SHEETS" KHI CHƯA CÓ ACK
+// ══════════════════════════════════════════
+// Vẫn cho chuyển bước ngay (đó là chủ đích của cơ chế gửi nền), nhưng màn hình
+// thành công phải nói đúng sự thật ở từng thời điểm:
+//   bấm Gửi  → "Đã lưu trên thiết bị — đang đồng bộ…"
+//   có ACK   → "✓ Google Sheets đã lưu"
+//   hỏng     → "⚠️ Chưa lên Google Sheets"
+function _oTrangThaiGui(){ return document.getElementById('suc-sync-state'); }
+function datTrangThaiGui(text,cls){
+  const el=_oTrangThaiGui(); if(!el) return;
+  el.textContent=text;
+  el.className='suc-sync '+(cls||'');
+}
+function danhDauDaLenSheet(job){
+  // Còn job khác đang bay thì chưa được báo xong.
+  if([..._hangDoiGui.values()].some(j=>j.trangThai!=='loi')) return;
+  datTrangThaiGui('✓ Google Sheets đã lưu','ok');
+  const desc=document.querySelector('#success p[data-template-id="success-desc"]');
+  if(desc) desc.textContent='Dữ liệu đã lưu vào Google Sheets.';
+}
+function danhDauLoiLenSheet(job){
+  datTrangThaiGui('⚠️ CHƯA lên Google Sheets: '+(job.loi||'lỗi mạng')+' — dữ liệu vẫn còn trên máy','err');
+  const desc=document.querySelector('#success p[data-template-id="success-desc"]');
+  if(desc) desc.textContent='Dữ liệu đang giữ trên thiết bị, chưa lên Google Sheets.';
 }
 
 // Hàng đợi chỉ sống trong RAM. Tắt app giữa chừng (hoặc iOS thu hồi tab) là job
@@ -5627,6 +6816,7 @@ function canhBaoVeGuiConSot(){
   let box={};
   try{ box=JSON.parse(localStorage.getItem(TEXT_SUBMIT_OUTBOX_KEY)||'{}'); }catch(e){ return; }
   const sot=Object.keys(box).filter(k=>{
+    if(_canhBaoGuiSotDaAn.has(k)) return false;   // LỖI #7 — chỉ ẩn, không xóa
     const t=Date.parse((box[k]||{}).at||'')||0;
     return t && (Date.now()-t) < 3*86400000;   // chỉ nhắc việc trong 3 ngày
   });
@@ -5638,9 +6828,19 @@ function canhBaoVeGuiConSot(){
     +'). Mở đúng phiếu đó kiểm tra rồi gửi lại.</span>'
     +'<button type="button" class="sync-btn" onclick="boQuaCanhBaoGuiSot()">Đã hiểu</button>';
 }
+// LỖI #7 — TRƯỚC: "Đã hiểu" xóa sạch TEXT_SUBMIT_OUTBOX_KEY, tức là xóa luôn
+// dấu vết những báo cáo chưa được server xác nhận; sau đó không còn cách nào
+// biết phiếu nào chưa lên Sheet.
+// NAY: nút này CHỈ ẩn cảnh báo trong phiên hiện tại. Vé chỉ bị xóa ở
+// clearTextSubmit — nghĩa là sau khi server đã ACK thành công.
+const _canhBaoGuiSotDaAn=new Set();
 function boQuaCanhBaoGuiSot(){
-  try{ localStorage.removeItem(TEXT_SUBMIT_OUTBOX_KEY); }catch(e){}
+  try{
+    const box=JSON.parse(localStorage.getItem(TEXT_SUBMIT_OUTBOX_KEY)||'{}');
+    Object.keys(box).forEach(k=>_canhBaoGuiSotDaAn.add(k));
+  }catch(e){}
   _veThanhTrangThai();
+  toast('Đã ẩn cảnh báo. Dấu vết báo cáo chưa xác nhận vẫn được giữ cho tới khi server ghi nhận.','');
 }
 
 function guiLaiTatCa(){
@@ -5782,11 +6982,16 @@ function sendEmailNTCShortageCheck(ntcRows, ca) {
 // ══════════════════════════════════════════
 // SUBMIT
 // ══════════════════════════════════════════
+let _toastTimer=null;
 function toast(msg,type=''){
-  const t=document.getElementById('toast');t.textContent=msg;
+  const t=document.getElementById('toast');if(!t)return;
+  t.textContent=msg;
   t.className='toast show'+(type?' '+type:'');
+  // LỖI #35 — mỗi lần hiện toast phải hủy timer của toast trước, nếu không
+  // timer cũ sẽ đóng mất toast mới đang hiển thị.
+  if(_toastTimer) clearTimeout(_toastTimer);
   const dur=type==='err'?4500:2800;
-  setTimeout(()=>t.classList.remove('show'),dur);
+  _toastTimer=setTimeout(()=>{t.classList.remove('show');_toastTimer=null;},dur);
 }
 function valReq(id,msg){if(!document.getElementById(id)?.value){toast(msg,'err');return false;}return true;}
 function v(id){return document.getElementById(id)?.value||'';}
@@ -5812,6 +7017,9 @@ async function submitQS(){
   try {
   setReportSession(autoReportSessionByTime());
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
+  // LỖI #11 — chặn tại chỗ, kể cả khi ai đó gọi submitQS() thẳng từ console.
+  const _canGui = canSubmitCongViec();
+  if(_canGui && _canGui!=='__DA_GUI__'){ toast('⚠️ '+_canGui,'err'); setQSSubmitting(false); return; }
   const reporter = selectedReporter();
   // Thẻ đang mở nhưng nội dung đã ĐỦ thì tự lưu giúp, không bắt bấm Lưu ✓ lại.
   // Sau "Sửa tất cả", mọi thẻ đều bung ra dù dữ liệu cũ vẫn hợp lệ; cách cũ chặn
@@ -6056,7 +7264,10 @@ async function submitQS(){
     savedAt: new Date().toISOString()
   };
   const caLabel=reportSession==='sang'?'BÁO CÁO SÁNG':'BÁO CÁO TỐI';
-  const _qsPld={type:'CÔNG NHẬT — '+caLabel,ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),ts:new Date().toISOString()};
+  const _qsPld={type:'CÔNG NHẬT — '+caLabel,ca:reportSession,ngay:v('f-ngay'),gs:v('f-gs'),ntcTotal,ntcRows:JSON.stringify(ntcRows),cnAssigned:assignedSet.size,cnTasks:JSON.stringify(cnTaskData),dauMucRows:JSON.stringify(dauMucRows),vang:v('f-vang'),
+    // LỖI #11 — server dùng hai trường này để quyết định có nhận báo cáo trống không.
+    khongPhatSinh:khongPhatSinh(), lyDoKhongPhatSinh:lyDoKhongPhatSinh(),
+    ts:new Date().toISOString()};
   // Nếu là gửi lại sau "Sửa lại" → báo GAS xóa dòng cũ trước khi ghi mới
   const _rsk=reporterStateKey(reporter);
   const _hadResub=!!(reporterStates[_rsk]&&reporterStates[_rsk]._resubOrigNgay);
@@ -6844,7 +8055,28 @@ async function send(data,summary,onConfirmed,maxAckAttempts=70,opts){
   });
   return {status:'ok',result:null};
 }
-function showSuccess(data,summary){setSubmitBusy(false);const shownType=data.displayType||data.type;document.getElementById('suc-detail').innerHTML=`<strong>📋 ${shownType}</strong><br>📅 ${data.ngay||v('f-ngay')}<br>👤 ${data.gs||v('f-gs')}<br><br>${summary.replace(/\n/g,'<br>')}`;document.getElementById('success').classList.add('show');window.scrollTo({top:0,behavior:'smooth'});}
+function showSuccess(data,summary){
+  setSubmitBusy(false);
+  const shownType=data.displayType||data.type;
+  // LỖI #14 — summary chứa ghi chú/vướng mắc người dùng gõ. Escape trước, chỉ
+  // xuống dòng mới được dịch thành <br>.
+  document.getElementById('suc-detail').innerHTML=
+    `<strong>📋 ${esc(shownType)}</strong><br>📅 ${esc(data.ngay||v('f-ngay'))}<br>👤 ${esc(data.gs||v('f-gs'))}<br><br>`
+    + esc(String(summary==null?'':summary)).replace(/\n/g,'<br>');
+  // LỖI #5 — lúc này Google Sheets CHƯA xác nhận gì. Nói đúng: dữ liệu đã chốt
+  // trên máy, đang gửi nền. Khi có ACK, danhDauDaLenSheet() sẽ đổi lại.
+  const conJob=_hangDoiGui&&_hangDoiGui.size;
+  const desc=document.querySelector('#success p[data-template-id="success-desc"]');
+  if(conJob){
+    datTrangThaiGui('Đã lưu trên thiết bị — đang đồng bộ lên Google Sheets…','busy');
+    if(desc) desc.textContent='Đã lưu trên thiết bị, đang đồng bộ lên Google Sheets.';
+  }else{
+    datTrangThaiGui('✓ Google Sheets đã lưu','ok');
+    if(desc) desc.textContent='Dữ liệu đã lưu vào Google Sheets.';
+  }
+  document.getElementById('success').classList.add('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 function closeSuccess(){
   document.getElementById('success').classList.remove('show');
   if (currentReporter) updateReporterStrip(currentReporter);
@@ -7773,6 +9005,15 @@ init();
       var fg=document.getElementById('f-gs');if(fg){try{fg.focus();fg.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
       return;
     }
+    // LỖI #18 — bổ sung là "thêm vào báo cáo đã gửi". Chưa có báo cáo gốc của
+    // ĐÚNG ngày + ĐÚNG người này thì không có gì để bổ sung vào. Trước đây form
+    // vẫn mở, nhập xong tới lúc bấm Gửi mới báo lỗi → mất công nhập lại.
+    if(typeof getSubmittedReport==='function' && !getSubmittedReport(gs)){
+      if(typeof toast==='function')
+        toast('⚠️ "'+gs+'" chưa gửi báo cáo Công việc ngày '+(typeof v==='function'?v('f-ngay'):'')
+              +'. Gửi báo cáo trước rồi mới bổ sung được.','err');
+      return;
+    }
     buildBoSungModal();
     var gsLine=document.getElementById('bs-gs-line');if(gsLine)gsLine.innerHTML='Người báo cáo: <b style="color:var(--navy)">'+gs+'</b>';
     var sel=document.getElementById('bs-ntc');
@@ -7784,7 +9025,33 @@ init();
     var nt=document.getElementById('bs-note');if(nt)nt.value='';
     var inf=document.getElementById('bs-info');if(inf){inf.className='bs-info';inf.innerHTML='';}
     document.getElementById('bs-mask').classList.add('show');
+    capNhatNutGuiBoSung();          // LỖI #19
   };
+
+  // LỖI #19 — TRƯỚC: nút "Gửi bổ sung" luôn sáng ngay khi mở hộp, chưa tích
+  // công việc nào cũng bấm được, bấm xong mới hiện toast báo thiếu.
+  // NAY: so nội dung đang chọn với báo cáo đã gửi, chỉ bật khi có phần MỚI.
+  window.capNhatNutGuiBoSung=function(){
+    var btn=document.getElementById('bs-send'); if(!btn) return;
+    var ntc=(document.getElementById('bs-ntc')||{}).value||'';
+    var soNguoi=parseInt((document.getElementById('bs-num')||{}).textContent,10)||0;
+    var soMuc=(typeof _bsSelKeys!=='undefined'&&_bsSelKeys)?_bsSelKeys.size:0;
+    var thieu=[];
+    if(!ntc) thieu.push('chọn nhà thầu');
+    if(!soMuc) thieu.push('tích ít nhất 1 công việc');
+    if(soNguoi<1) thieu.push('số người ≥ 1');
+    btn.disabled=thieu.length>0;
+    var inf=document.getElementById('bs-info');
+    if(inf&&thieu.length){ inf.className='bs-info'; inf.textContent='Còn thiếu: '+thieu.join(' · '); }
+    else if(inf&&inf.textContent.indexOf('Còn thiếu')===0){ inf.textContent=''; }
+  };
+  // Mọi thay đổi trong hộp bổ sung đều tính lại điều kiện.
+  document.addEventListener('click',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('#bs-mask')) setTimeout(window.capNhatNutGuiBoSung,0);
+  },true);
+  document.addEventListener('change',function(e){
+    if(e.target&&e.target.closest&&e.target.closest('#bs-mask')) setTimeout(window.capNhatNutGuiBoSung,0);
+  },true);
   window.closeBoSung=function(){var m=document.getElementById('bs-mask');if(m)m.classList.remove('show');};
 
   window.submitBoSung=async function(){
@@ -8421,6 +9688,17 @@ init();
     b.id='bs-open-btn';b.className='bs-btn';b.type='button';
     b.innerHTML=rowHtml('row-ic-orange','Bổ sung nhân công','Nhân công đến trễ, cập nhật sau báo cáo');
     b.onclick=function(){openBoSung();};
+    // LỖI #18 — nút mờ đi khi chưa có báo cáo gốc, kiểm tra lại mỗi 2 giây và
+    // mỗi lần đổi ngày/người báo cáo.
+    window.capNhatNutBoSung=function(){
+      var gs=(typeof selectedReporter==='function'?selectedReporter():'');
+      var co=!!(gs && typeof getSubmittedReport==='function' && getSubmittedReport(gs));
+      b.disabled=!co;
+      b.style.opacity=co?'':'0.45';
+      b.title=co?'':'Chưa có báo cáo Công việc của người này trong ngày';
+    };
+    window.capNhatNutBoSung();
+    setInterval(window.capNhatNutBoSung,2000);
     anchor.parentNode.insertBefore(b,anchor.nextSibling);
     // Nút Công việc defect nằm NGAY DƯỚI nút bổ sung nhân công
     var d=document.createElement('button');
@@ -8461,5 +9739,5 @@ init();
 })();
 
 </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a08620f74cd577f1',t:'MTc4MDkwMzE3MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+ <!-- Đã xóa đoạn Cloudflare challenge dính vào lúc lưu trang: tạo iframe ẩn và nạp /cdn-cgi/... (404 trên GitHub Pages). -->
 </body></html>
