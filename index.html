@@ -1572,7 +1572,7 @@ body.prod-locked  #result-panel::before{
     ✅
    </div>
    <h2 data-template-id="success-title" class="canva-text" style="color: rgb(22, 163, 74); font-weight: 700; font-size: 22px;">Đã gửi thành công!</h2>
-   <p data-template-id="success-desc" class="canva-text" style="color: rgb(100, 116, 139); font-size: 13px;">Dữ liệu đã lưu vào Google Sheets.</p>
+   <p data-template-id="success-desc" class="canva-text" style="color: rgb(100, 116, 139); font-size: 13px;">Dữ liệu đã lưu vào hệ thống.</p>
    <div class="suc-sync" id="suc-sync-state"></div>
    <div class="success-detail" id="suc-detail"></div><button class="btn-new canva-button" data-template-id="success-new-btn" onclick="closeSuccess()" style="background: rgb(31, 56, 100); color: rgb(255, 255, 255); font-weight: 700;">Quay lại báo cáo</button>
   </div>
@@ -2262,12 +2262,18 @@ async function hydrateReportStateFromServer(reporter, opts){
       // Nay: bấm ↻ là YÊU CẦU RÕ RÀNG của người dùng → không bao giờ im lặng.
       // Hoặc hỏi để chọn, hoặc nói thẳng vì sao không đổi.
       if(nguoiDungBam){
-        _xungDotDaHoi.delete(key);          // người dùng hỏi lại thì được hỏi lại
-        hoiXuLyXungDot(reporter,key,state,_draft);
-        return {ok:true,changed:false,giuNhap:true,conflict:true,reporter};
+        // Bấm ↻ nghĩa là "lấy dữ liệu mới nhất của hệ thống" (yêu cầu
+        // 22/08/2026) → LUÔN áp bản trên hệ thống, không hỏi, không giữ nháp.
+        // Đổi lại: nội dung đang gõ dở mà chưa gửi sẽ bị thay. Có báo bằng toast.
+        const _coNoiDung = draftHasContent(_draft);
+        delete reporterStates[key];
+        persistReporterStates();
+        if(_coNoiDung) toast('Đã thay nội dung đang soạn trên máy bằng dữ liệu mới nhất của hệ thống','');
+        // đi tiếp xuống nhánh áp dữ liệu server bên dưới
+      } else {
+        if(revServer>revDraft) hoiXuLyXungDot(reporter,key,state,_draft);
+        return {ok:true,changed:false,giuNhap:true,conflict:revServer>revDraft,reporter};
       }
-      if(revServer>revDraft) hoiXuLyXungDot(reporter,key,state,_draft);
-      return {ok:true,changed:false,giuNhap:true,conflict:revServer>revDraft,reporter};
     }
     const all=loadSubmittedReports();
     const local=all[key];
@@ -2454,12 +2460,7 @@ async function reloadFromServer(scope){
     else       btn.classList.add('error');
   }
   const gio=_gioNganVN(_lanDongBoCuoi);
-  if(ket.ok && ket.giuNhap){
-    // Không được báo "thành công" khi thực chất chưa lấy gì về — nói rõ lý do.
-    if(btn){ btn.classList.remove('done'); btn.classList.add('idle'); }
-    veTrangThaiDongBo('Đồng bộ '+gio+' · '+nhanPhamVi
-      +' · GIỮ bản nháp trên máy, chưa lấy bản server (xem hộp thoại vừa hiện)','busy');
-  }else if(ket.ok){
+  if(ket.ok){
     veTrangThaiDongBo('Đồng bộ '+gio+' · '+nhanPhamVi+' · '+ket.updated+'/'+ket.total+' bản ghi cập nhật','');
   }else{
     // LỖI #2 — nêu đích danh người/ngày bị lỗi thay vì im lặng.
@@ -2660,14 +2661,12 @@ function laCheDoTongHop(){ return !selectedReporter(); }
 function capNhatCheDoXem(){
   const tongHop = laCheDoTongHop();
   document.body.classList.toggle('view-only', tongHop);
+  // Không hiện banner "Chế độ tổng hợp" nữa (yêu cầu 22/08/2026): ô "Người báo
+  // cáo" ngay phía trên đã cho biết đang chọn ai, banner chỉ chiếm chỗ.
+  // Việc KHÓA nhập/gửi khi chưa chọn người vẫn giữ nguyên (body.view-only).
   const banner = document.getElementById('mode-desc');
-  if (banner){
-    if (tongHop){
-      banner.textContent = '👁 Chế độ tổng hợp — chỉ xem. Chọn "Người báo cáo" để nhập và gửi.';
-      banner.className = 'mode-banner';
-    } else if (banner.textContent.indexOf('Chế độ tổng hợp') === 0){
-      banner.textContent = ''; banner.className = 'mode-banner hide';
-    }
+  if (banner && banner.textContent.indexOf('Chế độ tổng hợp') === 0){
+    banner.textContent = ''; banner.className = 'mode-banner hide';
   }
 }
 
@@ -2717,7 +2716,7 @@ function moKhoaBuoc(buoc){
   const ten = buoc==='anh' ? 'ảnh công việc' : 'sản lượng';
   showAppConfirm(
     'Mở khóa để cập nhật ' + ten,
-    'Bước này đã gửi lên Google Sheets.\n\n'
+    'Bước này đã gửi lên hệ thống.\n\n'
     + 'Mở khóa để sửa/bổ sung rồi GỬI LẠI. Dữ liệu đã gửi vẫn giữ nguyên cho tới khi bạn gửi bản mới.',
     () => {
       if (buoc==='anh') window._moKhoaAnh = true; else window._moKhoaSanLuong = true;
@@ -3236,7 +3235,7 @@ function hoiKhoiPhucNhap(reporter){
   showAppConfirm(
     'Còn bản nháp chưa gửi',
     reporter + ' — ngày ' + (nhap.date || v('f-ngay')) + '\n'
-      + 'Có một bản nháp lưu lúc ' + luc + ' chưa được gửi lên Google Sheets.\n\n'
+      + 'Có một bản nháp lưu lúc ' + luc + ' chưa được gửi lên hệ thống.\n\n'
       + '• Đồng ý = KHÔI PHỤC bản nháp đó để sửa và gửi tiếp\n'
       + '• Hủy    = BỎ bản nháp, dùng dữ liệu trên server',
     () => {
@@ -4327,7 +4326,7 @@ function huyChinhSua(reporter){
   reporter = String(reporter || currentReporter || selectedReporter() || '').trim();
   if (!reporter) return;
   showAppConfirm('Hủy chỉnh sửa',
-    'Bỏ các thay đổi chưa gửi và quay lại đúng bản báo cáo đã gửi lên Google Sheets?\n\n'
+    'Bỏ các thay đổi chưa gửi và quay lại đúng bản báo cáo đã gửi lên hệ thống?\n\n'
     + 'Nội dung đang sửa dở trên máy sẽ bị xóa.',
     async () => {
       const key = reporterStateKey(reporter);
@@ -6772,14 +6771,14 @@ function _veThanhTrangThai(){
   if (!jobs.length){ el.className = 'sync-bar'; el.innerHTML = ''; return; }
   if (loi.length){
     el.className = 'sync-bar show err';
-    el.innerHTML = '<span class="sync-tx">⚠️ ' + loi.length + ' báo cáo CHƯA lên Google Sheets: '
+    el.innerHTML = '<span class="sync-tx">⚠️ ' + loi.length + ' báo cáo CHƯA lên hệ thống: '
       + loi.map(j => j.moTa).join(', ') + '</span>'
       + '<button type="button" class="sync-btn" onclick="guiLaiTatCa()">Gửi lại</button>';
     return;
   }
   el.className = 'sync-bar show';
   el.innerHTML = '<span class="sync-spin"></span><span class="sync-tx">Đang gửi ' + dang.length
-    + ' báo cáo lên Google Sheets… bạn cứ làm tiếp</span>';
+    + ' báo cáo lên hệ thống… bạn cứ làm tiếp</span>';
 }
 
 // ══════════════════════════════════════════
@@ -6896,15 +6895,15 @@ async function _chayJobGui(job){
         try{ await job.onConfirmed(ack, confirmed); }
         catch(e){
           console.error('Đã lưu Sheet nhưng lỗi cập nhật trạng thái trên máy:', e);
-          toast('✓ Google Sheets đã lưu ' + job.moTa + ', nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
+          toast('✓ hệ thống đã lưu ' + job.moTa + ', nhưng máy chưa cập nhật trạng thái. Bấm ↻ để tải lại.','err');
         }
       }
       if (job.ticket) clearTextSubmit(job.ticket);
       _hangDoiGui.delete(job.id);
       await _outboxXoa(job.id);          // LỖI #6/#7 — chỉ xóa SAU khi có ACK
       _veThanhTrangThai();
-      danhDauDaLenSheet(job);            // LỖI #5 — giờ mới được nói "Google Sheets đã lưu"
-      toast('✓ Google Sheets đã lưu ' + job.moTa, 'ok');
+      danhDauDaLenSheet(job);            // LỖI #5 — giờ mới được nói "hệ thống đã lưu"
+      toast('✓ hệ thống đã lưu ' + job.moTa, 'ok');
       return;
     }catch(e){
       job.loi = (e && e.message) || String(e);
@@ -6935,14 +6934,14 @@ function datTrangThaiGui(text,cls){
 function danhDauDaLenSheet(job){
   // Còn job khác đang bay thì chưa được báo xong.
   if([..._hangDoiGui.values()].some(j=>j.trangThai!=='loi')) return;
-  datTrangThaiGui('✓ Google Sheets đã lưu','ok');
+  datTrangThaiGui('✓ hệ thống đã lưu','ok');
   const desc=document.querySelector('#success p[data-template-id="success-desc"]');
-  if(desc) desc.textContent='Dữ liệu đã lưu vào Google Sheets.';
+  if(desc) desc.textContent='Dữ liệu đã lưu vào hệ thống.';
 }
 function danhDauLoiLenSheet(job){
-  datTrangThaiGui('⚠️ CHƯA lên Google Sheets: '+(job.loi||'lỗi mạng')+' — dữ liệu vẫn còn trên máy','err');
+  datTrangThaiGui('⚠️ CHƯA lên hệ thống: '+(job.loi||'lỗi mạng')+' — dữ liệu vẫn còn trên máy','err');
   const desc=document.querySelector('#success p[data-template-id="success-desc"]');
-  if(desc) desc.textContent='Dữ liệu đang giữ trên thiết bị, chưa lên Google Sheets.';
+  if(desc) desc.textContent='Dữ liệu đang giữ trên thiết bị, chưa lên hệ thống.';
 }
 
 // Hàng đợi chỉ sống trong RAM. Tắt app giữa chừng (hoặc iOS thu hồi tab) là job
@@ -6961,7 +6960,7 @@ function canhBaoVeGuiConSot(){
   if(!sot.length) return;
   const el=_thanhDongBo();
   el.className='sync-bar show err';
-  el.innerHTML='<span class="sync-tx">⚠️ Lần trước có '+sot.length+' báo cáo gửi dở chưa được Google Sheets xác nhận ('
+  el.innerHTML='<span class="sync-tx">⚠️ Lần trước có '+sot.length+' báo cáo gửi dở chưa được hệ thống xác nhận ('
     +sot.map(k=>k.split('::').slice(0,2).join(' ')).join(', ')
     +'). Mở đúng phiếu đó kiểm tra rồi gửi lại.</span>'
     +'<button type="button" class="sync-btn" onclick="boQuaCanhBaoGuiSot()">Đã hiểu</button>';
@@ -6989,7 +6988,7 @@ function guiLaiTatCa(){
 window.addEventListener('beforeunload', function(e){
   if (!_hangDoiGui.size) return;
   e.preventDefault();
-  e.returnValue = 'Còn báo cáo chưa gửi xong lên Google Sheets.';
+  e.returnValue = 'Còn báo cáo chưa gửi xong lên hệ thống.';
   return e.returnValue;
 });
 
@@ -7012,7 +7011,7 @@ async function waitSubmitAck(submitId, maxAttempts=70, totalTimeoutMs) {
     const delay=Math.min(attempt<12?500:1500,Math.max(0,deadline-Date.now()));
     if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
   }
-  throw lastError||new Error('Quá thời gian chờ Google Sheets xác nhận');
+  throw lastError||new Error('Quá thời gian chờ hệ thống xác nhận');
 }
 
 async function postToGASConfirmed(data, maxAttempts=70) {
@@ -7088,7 +7087,7 @@ function setQSSubmitting(locked) {
   btn.disabled = locked;
   btn.style.opacity = locked ? '.65' : '';
   btn.style.pointerEvents = locked ? 'none' : '';
-  btn.textContent=locked?'Đang gửi lên Google Sheets…':nhanNutGuiCongViec();
+  btn.textContent=locked?'Đang gửi lên hệ thống…':nhanNutGuiCongViec();
 }
 function setSubmitBusy(b){
   window.__busySubmit = b;
@@ -7136,7 +7135,7 @@ function v(id){return document.getElementById(id)?.value||'';}
 async function submitQS(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
-  if (dangGuiKhoa('cong-nhat') || dangGuiKhoa('cong-nhat-bo-sung')) { toast('Báo cáo công việc đang được gửi lên Google Sheets…',''); return; }
+  if (dangGuiKhoa('cong-nhat') || dangGuiKhoa('cong-nhat-bo-sung')) { toast('Báo cáo công việc đang được gửi lên hệ thống…',''); return; }
   if (isQSSubmitting) {
     toast('Đang gửi báo cáo, vui lòng đợi...','');
     return;
@@ -7446,7 +7445,7 @@ async function submitQS(){
 async function submitBC(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
-  if (dangGuiKhoa('hinh-anh')) { toast('Báo cáo hình ảnh đang được gửi lên Google Sheets…',''); return; }
+  if (dangGuiKhoa('hinh-anh')) { toast('Báo cáo hình ảnh đang được gửi lên hệ thống…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const photoItems=document.querySelectorAll('#photo-panel .photo-item');
   if(!photoItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -7617,7 +7616,7 @@ function currentPhotoDraftRowsForExcel(selectedDateVN){
   }).filter(entry=>entry.photos.some(Boolean));
 }
 async function loadDailyPhotoExportData(){
-  if(typeof window.loadNamedSheetOnline!=='function')throw new Error('Chưa sẵn sàng tải dữ liệu Google Sheet');
+  if(typeof window.loadNamedSheetOnline!=='function')throw new Error('Chưa sẵn sàng tải dữ liệu hệ thống');
   const selectedDate=v('f-ngay'),selectedDateVN=reportDateVN(selectedDate);
   const raw=await window.loadNamedSheetOnline('Hinh_Anh');
   const rows=Array.isArray(raw)?raw:parseCSV(String(raw||''));
@@ -7910,7 +7909,7 @@ async function downloadAttendanceExcel(event){
 async function submitCD(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
-  if (dangGuiKhoa('san-luong')) { toast('Báo cáo sản lượng đang được gửi lên Google Sheets…',''); return; }
+  if (dangGuiKhoa('san-luong')) { toast('Báo cáo sản lượng đang được gửi lên hệ thống…',''); return; }
   if(!valReq('f-gs','Vui lòng chọn người báo cáo'))return;
   const resultItems=document.querySelectorAll('#result-panel .result-item');
   if(!resultItems.length){toast('⚠️ Chưa có công việc nào. Hãy điền báo cáo Công việc trước','err');return;}
@@ -7925,7 +7924,7 @@ async function submitCD(){
     if(reportedPct<basePct){
       if(pctInput)pctInput.value=basePct;
       const lbl=document.getElementById('pctv-'+rid);if(lbl)lbl.textContent=basePct+'%';
-      toast(`⚠️ [${name}] % báo cáo không được thấp hơn ${basePct}% đang có trên Google Sheet`,'err');
+      toast(`⚠️ [${name}] % báo cáo không được thấp hơn ${basePct}% đang có trên hệ thống`,'err');
       item.scrollIntoView({behavior:'smooth',block:'center'});return;
     }
     if(!kq){
@@ -8057,7 +8056,7 @@ async function sendProductionResults(items, summary, onConfirmed){
 async function submitQA(){
   if (window.__busySubmit) { toast('Đang gửi, vui lòng đợi…',''); return; }
   // Cùng một báo cáo đang bay thì không cho bấm lần hai (khác loại vẫn gửi được).
-  if (dangGuiKhoa('nghiem-thu')) { toast('Báo cáo nghiệm thu đang được gửi lên Google Sheets…',''); return; }
+  if (dangGuiKhoa('nghiem-thu')) { toast('Báo cáo nghiệm thu đang được gửi lên hệ thống…',''); return; }
   const qaItems=document.querySelectorAll('.qa-item');
   if(!qaItems.length){toast('⚠️ Chưa có công việc nào đạt 100%. Hãy báo cáo sản lượng 100% trước','err');return;}
   let allPassed=true;const qaData=[];
@@ -8203,11 +8202,11 @@ function showSuccess(data,summary){
   const conJob=_hangDoiGui&&_hangDoiGui.size;
   const desc=document.querySelector('#success p[data-template-id="success-desc"]');
   if(conJob){
-    datTrangThaiGui('Đã lưu trên thiết bị — đang đồng bộ lên Google Sheets…','busy');
-    if(desc) desc.textContent='Đã lưu trên thiết bị, đang đồng bộ lên Google Sheets.';
+    datTrangThaiGui('Đã lưu trên thiết bị — đang đồng bộ lên hệ thống…','busy');
+    if(desc) desc.textContent='Đã lưu trên thiết bị, đang đồng bộ lên hệ thống.';
   }else{
-    datTrangThaiGui('✓ Google Sheets đã lưu','ok');
-    if(desc) desc.textContent='Dữ liệu đã lưu vào Google Sheets.';
+    datTrangThaiGui('✓ hệ thống đã lưu','ok');
+    if(desc) desc.textContent='Dữ liệu đã lưu vào hệ thống.';
   }
   document.getElementById('success').classList.add('show');
   window.scrollTo({top:0,behavior:'smooth'});
@@ -9261,7 +9260,7 @@ init();
     }
     closeBoSung();
     if(typeof toast==='function')toast('Đã bổ sung '+addCN+' CN cho '+ntc+' — '+sels.length+' công việc ('+cansBS+'). Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
-    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localBoSungError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localBoSungError)toast('✓ hệ thống đã lưu; bấm ↻ để làm mới giao diện.','err');}
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -9821,7 +9820,7 @@ init();
     }
     closeDefect();
     toast('Đã thêm '+sels.length+' công việc defect ('+cans+') vào báo cáo. Vào tab Hình ảnh + Sản lượng để cập nhật ✓','ok');
-    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localDefectError)toast('✓ Google Sheets đã lưu; bấm ↻ để làm mới giao diện.','err');}
+    try{updateWorkflowTabs();if(typeof rebuildActiveReporterTab==='function')rebuildActiveReporterTab();}catch(e){if(!localDefectError)toast('✓ hệ thống đã lưu; bấm ↻ để làm mới giao diện.','err');}
   };
 
   function initBoSung(){
